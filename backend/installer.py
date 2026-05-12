@@ -3,6 +3,7 @@ import subprocess
 import os
 import shutil
 import time
+import sys
 from pathlib import Path
 
 class LlamaCppInstaller:
@@ -21,7 +22,7 @@ class LlamaCppInstaller:
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(log_msg + '\n')
     
-    def run_command(self, cmd, cwd=None):
+    def run_command(self, cmd, cwd=None, check=True):
         self.log(f"执行: {' '.join(cmd)}")
         try:
             result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=3600)
@@ -33,11 +34,91 @@ class LlamaCppInstaller:
                 for line in result.stderr.split('\n'):
                     if line.strip():
                         self.log(f"  [ERR] {line}")
-            if result.returncode != 0:
+            if check and result.returncode != 0:
                 raise Exception(f"命令执行失败，返回码: {result.returncode}")
             return result
         except subprocess.TimeoutExpired:
             raise Exception("命令执行超时")
+    
+    def check_command(self, cmd):
+        """检查命令是否存在"""
+        try:
+            subprocess.run(cmd, capture_output=True, check=True)
+            return True
+        except (subprocess.SubprocessError, FileNotFoundError):
+            return False
+    
+    def check_and_install_dependencies(self):
+        """检查并安装系统依赖"""
+        self.log("========== 检查系统环境 ==========")
+        
+        # 检测操作系统
+        os_type = "unknown"
+        if os.path.exists("/etc/debian_version"):
+            os_type = "debian"
+            self.log("检测到 Debian/Ubuntu 系统")
+        elif os.path.exists("/etc/redhat-release"):
+            os_type = "redhat"
+            self.log("检测到 CentOS/RHEL 系统")
+        else:
+            self.log("未知操作系统，跳过依赖安装")
+            return True
+        
+        # 需要检查的工具列表
+        tools = {
+            'git': 'git',
+            'cmake': 'cmake',
+            'make': 'make',
+            'g++': 'g++',
+            'python3': 'python3',
+            'pip3': 'python3-pip'
+        }
+        
+        missing_tools = []
+        for tool, package in tools.items():
+            if self.check_command([tool, '--version']):
+                self.log(f"✅ {tool} 已安装")
+            else:
+                self.log(f"❌ {tool} 未安装")
+                missing_tools.append(package)
+        
+        # CUDA 检查（可选）
+        if self.check_command(['nvidia-smi']):
+            self.log("✅ NVIDIA CUDA 可用")
+        else:
+            self.log("⚠️ NVIDIA CUDA 不可用（将使用 CPU 模式）")
+        
+        if not missing_tools:
+            self.log("所有依赖已安装")
+            return True
+        
+        # 安装缺失的依赖
+        self.log(f"需要安装: {', '.join(missing_tools)}")
+        
+        if os_type == "debian":
+            # Ubuntu/Debian 系统
+            self.log("使用 apt 安装依赖...")
+            self.run_command(['sudo', 'apt', 'update'], check=False)
+            install_cmd = ['sudo', 'apt', 'install', '-y'] + missing_tools
+            self.run_command(install_cmd)
+        elif os_type == "redhat":
+            # CentOS/RHEL 系统
+            self.log("使用 yum 安装依赖...")
+            install_cmd = ['sudo', 'yum', 'install', '-y'] + missing_tools
+            self.run_command(install_cmd)
+        
+        # 验证安装结果
+        still_missing = []
+        for tool, package in tools.items():
+            if not self.check_command([tool, '--version']):
+                still_missing.append(tool)
+        
+        if still_missing:
+            self.log(f"⚠️ 以下工具仍不可用: {still_missing}")
+            return False
+        
+        self.log("✅ 所有依赖安装完成")
+        return True
     
     def detect_hardware(self):
         self.log("检测硬件配置...")
@@ -134,8 +215,17 @@ class LlamaCppInstaller:
     def full_install(self):
         self.log("========== 开始完整安装 ==========")
         try:
+            # 第一步：检查并安装依赖
+            if not self.check_and_install_dependencies():
+                self.log("❌ 依赖安装失败，无法继续")
+                return False
+            
+            # 第二步：克隆代码
             self.clone_llama_cpp()
+            
+            # 第三步：编译
             self.build_llama_cpp()
+            
             self.log("========== 安装完成 ==========")
             return True
         except Exception as e:
