@@ -8,14 +8,15 @@ echo "================================"
 # 安装系统依赖
 echo "📦 安装系统依赖..."
 sudo apt update
-sudo apt install -y python3-pip python3-venv git cmake build-essential curl wget
+sudo apt install -y python3-pip python3-venv git cmake build-essential curl wget rsync
 
 # 创建项目目录
 sudo mkdir -p /opt/llamapanel
 sudo chown -R $USER:$USER /opt/llamapanel
 
-# 复制项目文件
-cp -r ./* /opt/llamapanel/
+# 复制项目文件（保留 .git 目录）
+echo "📁 复制项目文件..."
+rsync -av --exclude='venv' --exclude='logs' --exclude='data' --exclude='__pycache__' ./ /opt/llamapanel/
 
 # 创建 Python 虚拟环境
 echo "🐍 创建 Python 虚拟环境..."
@@ -42,7 +43,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/llamapanel
-Environment="PATH=/opt/llamapanel/venv/bin"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ExecStart=/opt/llamapanel/venv/bin/python /opt/llamapanel/backend/app.py
 Restart=always
 RestartSec=10
