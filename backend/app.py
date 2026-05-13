@@ -262,40 +262,37 @@ HTML_PAGE = '''
                 const logDiv = document.getElementById('logContent');
                 if (!logDiv) return;
                 
-                // 如果返回 "暂无日志" 或空内容
                 if (!text || text === '暂无日志' || text.trim() === '') {
                     logDiv.innerHTML = '<div class="log-line">暂无日志，请点击"完整安装"开始安装</div>';
                     return;
                 }
                 
-                // 后端已经将字面\\n替换为真正换行，直接按换行符分割
-                const lines = text.split('\n');
+                // 将字面的 \\n 或 \\r\\n 替换为真正换行（兼容新旧日志）
+                let processed = text.replace(/\\\\n/g, '\\n');
+                processed = processed.replace(/\\\\r\\\\n/g, '\\n');
+                
+                // 按换行符分割
+                const lines = processed.split('\\n');
                 
                 let html = '';
-                let hasContent = false;
-                
                 for (let i = 0; i < lines.length; i++) {
                     let line = lines[i];
-                    if (line === null || line === undefined) continue;
+                    if (line.trim() === '') continue;
                     
-                    // 跳过完全空的行
-                    if (line.trim() === '' && line.length === 0) continue;
-                    
-                    hasContent = true;
                     let lineClass = 'log-line';
                     let displayLine = escapeHtml(line);
                     
-                    if (line.includes('[ERR]') || line.includes('error') || line.includes('Error') || line.includes('ERROR')) {
+                    if (line.includes('[ERR]') || line.includes('error') || line.includes('Error')) {
                         lineClass += ' log-error';
-                        if (!displayLine.startsWith('❌')) displayLine = '❌ ' + displayLine;
+                        displayLine = '❌ ' + displayLine;
                     } else if (line.includes('✅')) {
                         lineClass += ' log-success';
-                    } else if (line.includes('⚠️') || line.includes('Warning') || line.includes('warning')) {
+                    } else if (line.includes('⚠️') || line.includes('Warning')) {
                         lineClass += ' log-warning';
-                        if (!displayLine.startsWith('⚠️')) displayLine = '⚠️ ' + displayLine;
+                        displayLine = '⚠️ ' + displayLine;
                     } else if (line.includes('执行:')) {
                         lineClass += ' log-command';
-                        if (!displayLine.startsWith('🔧')) displayLine = '🔧 ' + displayLine;
+                        displayLine = '🔧 ' + displayLine;
                     } else if (line.includes('==========')) {
                         lineClass += ' log-separator';
                     } else if (line.includes('完成') || line.includes('成功')) {
@@ -305,7 +302,7 @@ HTML_PAGE = '''
                     html += `<div class="${lineClass}">${displayLine}</div>`;
                 }
                 
-                if (!hasContent) {
+                if (html === '') {
                     logDiv.innerHTML = '<div class="log-line">暂无日志内容</div>';
                 } else {
                     logDiv.innerHTML = html;
@@ -393,8 +390,7 @@ async def get_log():
     if not content or content.strip() == '':
         return "暂无日志"
     
-    # 关键修复：将字面的 \n 替换为真正的换行符
-    # 这里处理的是两个字符：反斜杠 和 n
+    # 将字面的 \n 替换为真正的换行符
     content = content.replace('\\n', '\n')
     content = content.replace('\\r\\n', '\n')
     
