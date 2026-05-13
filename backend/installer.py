@@ -106,13 +106,13 @@ class LlamaCppInstaller:
             if is_root:
                 # root 用户，直接使用 apt
                 self.log("检测到 root 用户，直接使用 apt")
-                self.run_command(['apt', 'update'], check=False)
-                install_cmd = ['apt', 'install', '-y'] + missing_tools
+                self.run_command(['/usr/bin/apt', 'update'], check=False)
+                install_cmd = ['/usr/bin/apt', 'install', '-y'] + missing_tools
             else:
                 # 非 root 用户，使用 sudo
                 self.log("检测到非 root 用户，使用 sudo")
-                self.run_command(['sudo', 'apt', 'update'], check=False)
-                install_cmd = ['sudo', 'apt', 'install', '-y'] + missing_tools
+                self.run_command(['sudo', '/usr/bin/apt', 'update'], check=False)
+                install_cmd = ['sudo', '/usr/bin/apt', 'install', '-y'] + missing_tools
             
             self.run_command(install_cmd)
             
