@@ -101,8 +101,6 @@ HTML_PAGE = '''
             font-weight: bold;
             border-bottom: 1px solid #555;
             margin: 5px 0;
-        }
-        .log-separator {
             background-color: #2a2a2a;
         }
         .info-grid {
@@ -132,7 +130,6 @@ HTML_PAGE = '''
         .auto-refresh { font-size: 12px; color: #666; display: flex; align-items: center; gap: 5px; }
         hr { margin: 15px 0; border: none; border-top: 1px solid #e2e8f0; }
         
-        /* 滚动条样式 */
         .log-viewer::-webkit-scrollbar {
             width: 8px;
         }
@@ -255,19 +252,19 @@ HTML_PAGE = '''
                 const text = await response.text();
                 const logDiv = document.getElementById('logContent');
                 
-                // 分割日志内容为行
-                const lines = text.split('\\n');
+                // 直接按换行符分割（后端已经写入真正的 \\n）
+                const lines = text.split(/\\r?\\n/);
                 
-                // 格式化每一行
                 let html = '';
                 for (let i = 0; i < lines.length; i++) {
                     let line = lines[i];
                     if (line.trim() === '') {
-                        html += '<div class="log-line log-empty">&nbsp;</div>';
+                        if (i > 0 && i < lines.length - 1) {
+                            html += '<div class="log-line log-empty">&nbsp;</div>';
+                        }
                         continue;
                     }
                     
-                    // 根据日志类型添加不同的样式
                     let lineClass = 'log-line';
                     let displayLine = escapeHtml(line);
                     
@@ -295,6 +292,7 @@ HTML_PAGE = '''
                 logDiv.scrollTop = logDiv.scrollHeight;
             } catch(e) {
                 console.error('刷新日志失败:', e);
+                document.getElementById('logContent').innerHTML = '加载日志失败: ' + e.message;
             }
         }
         
@@ -349,7 +347,6 @@ HTML_PAGE = '''
             setTimeout(() => clearInterval(interval), 300000);
         }
         
-        // 初始化
         refreshStatus();
         refreshLog();
         startAutoRefresh();
