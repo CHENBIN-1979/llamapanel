@@ -249,11 +249,15 @@ HTML_PAGE = '''
         async function refreshLog() {
             try {
                 const response = await fetch('/api/log');
-                const text = await response.text();
+                let text = await response.text();
                 const logDiv = document.getElementById('logContent');
                 
-                // 直接按换行符分割（后端已经写入真正的 \\n）
-                const lines = text.split(/\\r?\\n/);
+                // 关键修复：将字面的 \n 和 \r\n 替换为真正换行
+                text = text.replace(/\\n/g, '\\n');
+                text = text.replace(/\\r\\n/g, '\\n');
+                
+                // 分割日志内容为行
+                const lines = text.split('\\n');
                 
                 let html = '';
                 for (let i = 0; i < lines.length; i++) {
@@ -270,15 +274,15 @@ HTML_PAGE = '''
                     
                     if (line.includes('[ERR]') || line.includes('error') || line.includes('Error') || line.includes('ERROR')) {
                         lineClass += ' log-error';
-                        displayLine = '❌ ' + displayLine;
+                        if (!displayLine.startsWith('❌')) displayLine = '❌ ' + displayLine;
                     } else if (line.includes('✅')) {
                         lineClass += ' log-success';
                     } else if (line.includes('⚠️') || line.includes('Warning') || line.includes('warning')) {
                         lineClass += ' log-warning';
-                        displayLine = '⚠️ ' + displayLine;
+                        if (!displayLine.startsWith('⚠️')) displayLine = '⚠️ ' + displayLine;
                     } else if (line.includes('执行:')) {
                         lineClass += ' log-command';
-                        displayLine = '🔧 ' + displayLine;
+                        if (!displayLine.startsWith('🔧')) displayLine = '🔧 ' + displayLine;
                     } else if (line.includes('==========')) {
                         lineClass += ' log-separator';
                     } else if (line.includes('完成') || line.includes('成功')) {
@@ -369,7 +373,10 @@ async def get_log():
     log_file = installer.log_file
     if log_file.exists():
         with open(log_file, 'r', encoding='utf-8') as f:
-            return f.read()
+            content = f.read()
+            # 永久修复：将字面 \n 和 \r\n 替换为真正的换行符
+            content = content.replace('\\n', '\n').replace('\\r\\n', '\n')
+            return content
     return "暂无日志"
 
 @app.post("/api/install")
