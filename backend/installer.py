@@ -102,6 +102,7 @@ class LlamaCppInstaller:
             'cmake': 'cmake',
             'make': 'make',
             'g++': 'g++',
+            'gcc': 'gcc',
             'python3': 'python3',
             'pip3': 'python3-pip'
         }
@@ -140,10 +141,19 @@ class LlamaCppInstaller:
             if is_root:
                 self.log("检测到 root 用户，直接使用 apt")
                 self.run_command([apt_cmd, 'update'], check=False)
+                # 如果缺少编译工具，同时安装 build-essential
+                if any(tool in missing_tools for tool in ['gcc', 'g++', 'make']):
+                    self.log("检测到缺少编译工具，将安装 build-essential")
+                    if 'build-essential' not in missing_tools:
+                        missing_tools.append('build-essential')
                 install_cmd = [apt_cmd, 'install', '-y'] + missing_tools
             else:
                 self.log("检测到非 root 用户，使用 sudo")
                 self.run_command(['sudo', apt_cmd, 'update'], check=False)
+                if any(tool in missing_tools for tool in ['gcc', 'g++', 'make']):
+                    self.log("检测到缺少编译工具，将安装 build-essential")
+                    if 'build-essential' not in missing_tools:
+                        missing_tools.append('build-essential')
                 install_cmd = ['sudo', apt_cmd, 'install', '-y'] + missing_tools
             
             self.run_command(install_cmd)
@@ -154,7 +164,24 @@ class LlamaCppInstaller:
             
             if is_root:
                 self.log("检测到 root 用户，直接使用 yum")
-                install_cmd = ['yum', 'install', '-y'] + missing_tools
+                # CentOS/RHEL 使用 'gcc-c++' 和 'make' 等
+                yum_tools = []
+                for tool in missing_tools:
+                    if tool == 'g++':
+                        yum_tools.append('gcc-c++')
+                    elif tool == 'gcc':
+                        yum_tools.append('gcc')
+                    elif tool == 'make':
+                        yum_tools.append('make')
+                    elif tool == 'cmake':
+                        yum_tools.append('cmake')
+                    elif tool == 'git':
+                        yum_tools.append('git')
+                    else:
+                        yum_tools.append(tool)
+                # 添加开发工具组
+                yum_tools.append('@development-tools')
+                install_cmd = ['yum', 'install', '-y'] + list(set(yum_tools))
             else:
                 self.log("检测到非 root 用户，使用 sudo")
                 install_cmd = ['sudo', 'yum', 'install', '-y'] + missing_tools
