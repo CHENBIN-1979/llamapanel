@@ -15,6 +15,20 @@ class LlamaCppInstaller:
         self.log_file.parent.mkdir(exist_ok=True)
         self._install_running = False
         
+        # 常用命令的完整路径映射（解决 systemd PATH 问题）
+        self.cmd_paths = {
+            'git': '/usr/bin/git',
+            'cmake': '/usr/bin/cmake',
+            'make': '/usr/bin/make',
+            'g++': '/usr/bin/g++',
+            'gcc': '/usr/bin/gcc',
+            'python3': '/usr/bin/python3',
+            'pip3': '/usr/bin/pip3',
+            'nvidia-smi': '/usr/bin/nvidia-smi',
+            'apt': '/usr/bin/apt',
+            'apt-get': '/usr/bin/apt-get',
+        }
+        
     def log(self, message):
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         log_msg = f"[{timestamp}] {message}"
@@ -22,10 +36,25 @@ class LlamaCppInstaller:
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(log_msg + '\n')
     
+    def get_cmd_path(self, cmd_name):
+        """获取命令的完整路径"""
+        if cmd_name in self.cmd_paths:
+            return self.cmd_paths[cmd_name]
+        return cmd_name
+    
+    def build_full_cmd(self, cmd_parts):
+        """将命令列表中的命令名替换为完整路径"""
+        if not cmd_parts:
+            return cmd_parts
+        first_cmd = self.get_cmd_path(cmd_parts[0])
+        return [first_cmd] + cmd_parts[1:]
+    
     def run_command(self, cmd, cwd=None, check=True):
-        self.log(f"执行: {' '.join(cmd)}")
+        """执行命令，自动使用完整路径"""
+        full_cmd = self.build_full_cmd(cmd)
+        self.log(f"执行: {' '.join(full_cmd)}")
         try:
-            result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=3600)
+            result = subprocess.run(full_cmd, cwd=cwd, capture_output=True, text=True, timeout=3600)
             if result.stdout:
                 for line in result.stdout.split('\n'):
                     if line.strip():
@@ -39,11 +68,14 @@ class LlamaCppInstaller:
             return result
         except subprocess.TimeoutExpired:
             raise Exception("命令执行超时")
+        except FileNotFoundError as e:
+            raise Exception(f"命令未找到: {full_cmd[0]} - {e}")
     
-    def check_command(self, cmd):
-        """检查命令是否存在"""
+    def check_command(self, cmd_parts):
+        """检查命令是否存在（使用完整路径）"""
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            full_cmd = self.build_full_cmd(cmd_parts)
+            subprocess.run(full_cmd, capture_output=True, check=True)
             return True
         except (subprocess.SubprocessError, FileNotFoundError):
             return False
@@ -103,16 +135,16 @@ class LlamaCppInstaller:
             # Ubuntu/Debian 系统
             self.log("使用 apt 安装依赖...")
             
+            apt_cmd = self.get_cmd_path('apt')
+            
             if is_root:
-                # root 用户，直接使用 apt
                 self.log("检测到 root 用户，直接使用 apt")
-                self.run_command(['/usr/bin/apt', 'update'], check=False)
-                install_cmd = ['/usr/bin/apt', 'install', '-y'] + missing_tools
+                self.run_command([apt_cmd, 'update'], check=False)
+                install_cmd = [apt_cmd, 'install', '-y'] + missing_tools
             else:
-                # 非 root 用户，使用 sudo
                 self.log("检测到非 root 用户，使用 sudo")
-                self.run_command(['sudo', '/usr/bin/apt', 'update'], check=False)
-                install_cmd = ['sudo', '/usr/bin/apt', 'install', '-y'] + missing_tools
+                self.run_command(['sudo', apt_cmd, 'update'], check=False)
+                install_cmd = ['sudo', apt_cmd, 'install', '-y'] + missing_tools
             
             self.run_command(install_cmd)
             
@@ -121,11 +153,9 @@ class LlamaCppInstaller:
             self.log("使用 yum 安装依赖...")
             
             if is_root:
-                # root 用户，直接使用 yum
                 self.log("检测到 root 用户，直接使用 yum")
                 install_cmd = ['yum', 'install', '-y'] + missing_tools
             else:
-                # 非 root 用户，使用 sudo
                 self.log("检测到非 root 用户，使用 sudo")
                 install_cmd = ['sudo', 'yum', 'install', '-y'] + missing_tools
             
@@ -151,11 +181,11 @@ class LlamaCppInstaller:
         
         has_nvidia = False
         try:
-            result = subprocess.run(['nvidia-smi'], capture_output=True, text=True)
+            result = subprocess.run([self.get_cmd_path('nvidia-smi')], capture_output=True, text=True)
             if result.returncode == 0:
                 has_nvidia = True
                 self.log("检测到 NVIDIA GPU")
-        except FileNotFoundError:
+        except (FileNotFoundError, Exception):
             self.log("未检测到 NVIDIA GPU")
             
         has_amd = False
@@ -164,7 +194,7 @@ class LlamaCppInstaller:
             if result.returncode == 0:
                 has_amd = True
                 self.log("检测到 AMD GPU")
-        except FileNotFoundError:
+        except (FileNotFoundError, Exception):
             self.log("未检测到 AMD GPU")
             
         return {
@@ -178,7 +208,8 @@ class LlamaCppInstaller:
             self.log(f"目录已存在: {self.llama_dir}，跳过克隆")
             return
         self.log("开始克隆 llama.cpp...")
-        cmd = ['git', 'clone', '--depth', '1', 'https://github.com/ggerganov/llama.cpp.git', str(self.llama_dir)]
+        git_cmd = self.get_cmd_path('git')
+        cmd = [git_cmd, 'clone', '--depth', '1', 'https://github.com/ggerganov/llama.cpp.git', str(self.llama_dir)]
         self.run_command(cmd)
         self.log("克隆完成")
     
@@ -186,7 +217,8 @@ class LlamaCppInstaller:
         if not self.llama_dir.exists():
             raise Exception("llama.cpp 未安装，请先执行安装")
         self.log("更新 llama.cpp...")
-        cmd = ['git', 'pull']
+        git_cmd = self.get_cmd_path('git')
+        cmd = [git_cmd, 'pull']
         self.run_command(cmd, cwd=self.llama_dir)
         self.log("更新完成")
     
@@ -199,7 +231,10 @@ class LlamaCppInstaller:
         hw = self.detect_hardware()
         os.chdir(self.build_dir)
         
-        cmake_args = ['cmake', '..']
+        cmake_cmd = self.get_cmd_path('cmake')
+        make_cmd = self.get_cmd_path('make')
+        
+        cmake_args = [cmake_cmd, '..']
         if hw['has_nvidia']:
             self.log("启用 CUDA 支持")
             cmake_args.append('-DGGML_CUDA=ON')
@@ -212,13 +247,25 @@ class LlamaCppInstaller:
         self.log(f"CMake 配置: {' '.join(cmake_args)}")
         self.run_command(cmake_args, cwd=self.build_dir)
         
-        make_args = ['make', '-j', str(min(hw['cpu_cores'], 8))]
+        make_args = [make_cmd, '-j', str(min(hw['cpu_cores'], 8))]
         self.log(f"编译命令: {' '.join(make_args)}")
         self.run_command(make_args, cwd=self.build_dir)
         self.log("编译完成")
         
-        server_bin = self.build_dir / 'bin' / 'llama-server'
-        if server_bin.exists():
+        # 查找生成的 server 文件
+        possible_paths = [
+            self.build_dir / 'bin' / 'llama-server',
+            self.build_dir / 'llama-server',
+            self.llama_dir / 'llama-server'
+        ]
+        
+        server_bin = None
+        for p in possible_paths:
+            if p.exists():
+                server_bin = p
+                break
+        
+        if server_bin:
             self.log(f"✅ llama-server 已生成: {server_bin}")
         else:
             self.log("⚠️ 未找到 llama-server")
@@ -259,7 +306,10 @@ class LlamaCppInstaller:
     def get_status(self):
         server_bin = self.build_dir / 'bin' / 'llama-server'
         if not server_bin.exists():
-            alt_paths = [self.build_dir / 'llama-server', self.llama_dir / 'llama-server']
+            alt_paths = [
+                self.build_dir / 'llama-server',
+                self.llama_dir / 'llama-server'
+            ]
             for p in alt_paths:
                 if p.exists():
                     server_bin = p
