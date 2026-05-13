@@ -15,7 +15,6 @@ class LlamaCppInstaller:
         self.log_file.parent.mkdir(exist_ok=True)
         self._install_running = False
         
-        # 常用命令的完整路径映射（解决 systemd PATH 问题）
         self.cmd_paths = {
             'git': '/usr/bin/git',
             'cmake': '/usr/bin/cmake',
@@ -37,20 +36,17 @@ class LlamaCppInstaller:
             f.write(log_msg + '\n')
     
     def get_cmd_path(self, cmd_name):
-        """获取命令的完整路径"""
         if cmd_name in self.cmd_paths:
             return self.cmd_paths[cmd_name]
         return cmd_name
     
     def build_full_cmd(self, cmd_parts):
-        """将命令列表中的命令名替换为完整路径"""
         if not cmd_parts:
             return cmd_parts
         first_cmd = self.get_cmd_path(cmd_parts[0])
         return [first_cmd] + cmd_parts[1:]
     
     def run_command(self, cmd, cwd=None, check=True):
-        """执行命令，自动使用完整路径"""
         full_cmd = self.build_full_cmd(cmd)
         self.log(f"执行: {' '.join(full_cmd)}")
         try:
@@ -72,7 +68,6 @@ class LlamaCppInstaller:
             raise Exception(f"命令未找到: {full_cmd[0]} - {e}")
     
     def check_command(self, cmd_parts):
-        """检查命令是否存在（使用完整路径）"""
         try:
             full_cmd = self.build_full_cmd(cmd_parts)
             subprocess.run(full_cmd, capture_output=True, check=True)
@@ -81,10 +76,8 @@ class LlamaCppInstaller:
             return False
     
     def check_and_install_dependencies(self):
-        """检查并安装系统依赖"""
         self.log("========== 检查系统环境 ==========")
         
-        # 检测操作系统
         os_type = "unknown"
         if os.path.exists("/etc/debian_version"):
             os_type = "debian"
@@ -96,7 +89,6 @@ class LlamaCppInstaller:
             self.log("未知操作系统，跳过依赖安装")
             return True
         
-        # 需要检查的工具列表
         tools = {
             'git': 'git',
             'cmake': 'cmake',
@@ -115,7 +107,6 @@ class LlamaCppInstaller:
                 self.log(f"❌ {tool} 未安装")
                 missing_tools.append(package)
         
-        # CUDA 检查（可选）
         if self.check_command(['nvidia-smi']):
             self.log("✅ NVIDIA CUDA 可用")
         else:
@@ -125,23 +116,18 @@ class LlamaCppInstaller:
             self.log("所有依赖已安装")
             return True
         
-        # 安装缺失的依赖
         self.log(f"需要安装: {', '.join(missing_tools)}")
         
-        # 检测是否为 root 用户
         is_root = (os.geteuid() == 0)
         self.log(f"当前用户: {'root' if is_root else '非root用户'}")
         
         if os_type == "debian":
-            # Ubuntu/Debian 系统
             self.log("使用 apt 安装依赖...")
-            
             apt_cmd = self.get_cmd_path('apt')
             
             if is_root:
                 self.log("检测到 root 用户，直接使用 apt")
                 self.run_command([apt_cmd, 'update'], check=False)
-                # 如果缺少编译工具，同时安装 build-essential
                 if any(tool in missing_tools for tool in ['gcc', 'g++', 'make']):
                     self.log("检测到缺少编译工具，将安装 build-essential")
                     if 'build-essential' not in missing_tools:
@@ -159,12 +145,9 @@ class LlamaCppInstaller:
             self.run_command(install_cmd)
             
         elif os_type == "redhat":
-            # CentOS/RHEL 系统
             self.log("使用 yum 安装依赖...")
-            
             if is_root:
                 self.log("检测到 root 用户，直接使用 yum")
-                # CentOS/RHEL 使用 'gcc-c++' 和 'make' 等
                 yum_tools = []
                 for tool in missing_tools:
                     if tool == 'g++':
@@ -179,16 +162,13 @@ class LlamaCppInstaller:
                         yum_tools.append('git')
                     else:
                         yum_tools.append(tool)
-                # 添加开发工具组
                 yum_tools.append('@development-tools')
                 install_cmd = ['yum', 'install', '-y'] + list(set(yum_tools))
             else:
                 self.log("检测到非 root 用户，使用 sudo")
                 install_cmd = ['sudo', 'yum', 'install', '-y'] + missing_tools
-            
             self.run_command(install_cmd)
         
-        # 验证安装结果
         still_missing = []
         for tool, package in tools.items():
             if not self.check_command([tool, '--version']):
@@ -260,8 +240,14 @@ class LlamaCppInstaller:
         
         cmake_cmd = self.get_cmd_path('cmake')
         make_cmd = self.get_cmd_path('make')
+        gcc_cmd = self.get_cmd_path('gcc')
+        gpp_cmd = self.get_cmd_path('g++')
         
-        cmake_args = [cmake_cmd, '..']
+        # 显式指定编译器路径
+        cmake_args = [cmake_cmd, '..',
+                      f'-DCMAKE_C_COMPILER={gcc_cmd}',
+                      f'-DCMAKE_CXX_COMPILER={gpp_cmd}']
+        
         if hw['has_nvidia']:
             self.log("启用 CUDA 支持")
             cmake_args.append('-DGGML_CUDA=ON')
@@ -279,7 +265,6 @@ class LlamaCppInstaller:
         self.run_command(make_args, cwd=self.build_dir)
         self.log("编译完成")
         
-        # 查找生成的 server 文件
         possible_paths = [
             self.build_dir / 'bin' / 'llama-server',
             self.build_dir / 'llama-server',
@@ -313,17 +298,11 @@ class LlamaCppInstaller:
     def full_install(self):
         self.log("========== 开始完整安装 ==========")
         try:
-            # 第一步：检查并安装依赖
             if not self.check_and_install_dependencies():
                 self.log("❌ 依赖安装失败，无法继续")
                 return False
-            
-            # 第二步：克隆代码
             self.clone_llama_cpp()
-            
-            # 第三步：编译
             self.build_llama_cpp()
-            
             self.log("========== 安装完成 ==========")
             return True
         except Exception as e:
