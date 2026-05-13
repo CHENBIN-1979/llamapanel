@@ -268,18 +268,17 @@ HTML_PAGE = '''
                     return;
                 }
                 
-                // 按行分割（兼容 Windows \\r\\n 和 Unix \\n）
-                const lines = text.split(/\\r?\\n/);
+                // 后端已经将字面\\n替换为真正换行，直接按换行符分割
+                const lines = text.split('\n');
                 
                 let html = '';
                 let hasContent = false;
                 
                 for (let i = 0; i < lines.length; i++) {
                     let line = lines[i];
-                    // 跳过完全空的行，但保留有空格的行
                     if (line === null || line === undefined) continue;
                     
-                    // 真正的空行跳过
+                    // 跳过完全空的行
                     if (line.trim() === '' && line.length === 0) continue;
                     
                     hasContent = true;
@@ -391,11 +390,11 @@ async def get_log():
     with open(log_file, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # 如果文件为空
     if not content or content.strip() == '':
         return "暂无日志"
     
-    # 将字面的 \n 替换为真正的换行符
+    # 关键修复：将字面的 \n 替换为真正的换行符
+    # 这里处理的是两个字符：反斜杠 和 n
     content = content.replace('\\n', '\n')
     content = content.replace('\\r\\n', '\n')
     
