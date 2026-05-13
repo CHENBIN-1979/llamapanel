@@ -70,7 +70,41 @@ HTML_PAGE = '''
             overflow-y: auto;
             font-size: 12px;
         }
-        .log-line { margin: 0; padding: 2px 0; border-bottom: 1px solid #333; }
+        .log-line {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 3px 5px;
+            border-bottom: 1px solid #2a2a2a;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 0;
+        }
+        .log-empty {
+            height: 5px;
+            border-bottom: none;
+        }
+        .log-error {
+            color: #ff6b6b;
+            background-color: rgba(255, 107, 107, 0.1);
+        }
+        .log-warning {
+            color: #ffd93d;
+        }
+        .log-success {
+            color: #6bcb77;
+        }
+        .log-command {
+            color: #4d9de0;
+        }
+        .log-separator {
+            color: #c9c9c9;
+            font-weight: bold;
+            border-bottom: 1px solid #555;
+            margin: 5px 0;
+        }
+        .log-separator {
+            background-color: #2a2a2a;
+        }
         .info-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -97,6 +131,22 @@ HTML_PAGE = '''
         .log-controls { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
         .auto-refresh { font-size: 12px; color: #666; display: flex; align-items: center; gap: 5px; }
         hr { margin: 15px 0; border: none; border-top: 1px solid #e2e8f0; }
+        
+        /* 滚动条样式 */
+        .log-viewer::-webkit-scrollbar {
+            width: 8px;
+        }
+        .log-viewer::-webkit-scrollbar-track {
+            background: #1e1e1e;
+            border-radius: 4px;
+        }
+        .log-viewer::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+        .log-viewer::-webkit-scrollbar-thumb:hover {
+            background: #777;
+        }
     </style>
 </head>
 <body>
@@ -204,8 +254,44 @@ HTML_PAGE = '''
                 const response = await fetch('/api/log');
                 const text = await response.text();
                 const logDiv = document.getElementById('logContent');
+                
+                // 分割日志内容为行
                 const lines = text.split('\\n');
-                logDiv.innerHTML = lines.map(line => `<div class="log-line">${escapeHtml(line) || '&nbsp;'}</div>`).join('');
+                
+                // 格式化每一行
+                let html = '';
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i];
+                    if (line.trim() === '') {
+                        html += '<div class="log-line log-empty">&nbsp;</div>';
+                        continue;
+                    }
+                    
+                    // 根据日志类型添加不同的样式
+                    let lineClass = 'log-line';
+                    let displayLine = escapeHtml(line);
+                    
+                    if (line.includes('[ERR]') || line.includes('error') || line.includes('Error') || line.includes('ERROR')) {
+                        lineClass += ' log-error';
+                        displayLine = '❌ ' + displayLine;
+                    } else if (line.includes('✅')) {
+                        lineClass += ' log-success';
+                    } else if (line.includes('⚠️') || line.includes('Warning') || line.includes('warning')) {
+                        lineClass += ' log-warning';
+                        displayLine = '⚠️ ' + displayLine;
+                    } else if (line.includes('执行:')) {
+                        lineClass += ' log-command';
+                        displayLine = '🔧 ' + displayLine;
+                    } else if (line.includes('==========')) {
+                        lineClass += ' log-separator';
+                    } else if (line.includes('完成') || line.includes('成功')) {
+                        lineClass += ' log-success';
+                    }
+                    
+                    html += `<div class="${lineClass}">${displayLine}</div>`;
+                }
+                
+                logDiv.innerHTML = html;
                 logDiv.scrollTop = logDiv.scrollHeight;
             } catch(e) {
                 console.error('刷新日志失败:', e);
@@ -225,7 +311,6 @@ HTML_PAGE = '''
                 btn.innerHTML = '<span class="loading"></span> 安装中...';
                 const result = await fetchAPI('/api/install', 'POST');
                 alert(result.message);
-                // 开始监控进度
                 startMonitoring();
                 btn.disabled = false;
                 btn.innerHTML = '🚀 完整安装 llama.cpp';
