@@ -95,16 +95,40 @@ class LlamaCppInstaller:
         # 安装缺失的依赖
         self.log(f"需要安装: {', '.join(missing_tools)}")
         
+        # 检测是否为 root 用户
+        is_root = (os.geteuid() == 0)
+        self.log(f"当前用户: {'root' if is_root else '非root用户'}")
+        
         if os_type == "debian":
             # Ubuntu/Debian 系统
             self.log("使用 apt 安装依赖...")
-            self.run_command(['sudo', 'apt', 'update'], check=False)
-            install_cmd = ['sudo', 'apt', 'install', '-y'] + missing_tools
+            
+            if is_root:
+                # root 用户，直接使用 apt
+                self.log("检测到 root 用户，直接使用 apt")
+                self.run_command(['apt', 'update'], check=False)
+                install_cmd = ['apt', 'install', '-y'] + missing_tools
+            else:
+                # 非 root 用户，使用 sudo
+                self.log("检测到非 root 用户，使用 sudo")
+                self.run_command(['sudo', 'apt', 'update'], check=False)
+                install_cmd = ['sudo', 'apt', 'install', '-y'] + missing_tools
+            
             self.run_command(install_cmd)
+            
         elif os_type == "redhat":
             # CentOS/RHEL 系统
             self.log("使用 yum 安装依赖...")
-            install_cmd = ['sudo', 'yum', 'install', '-y'] + missing_tools
+            
+            if is_root:
+                # root 用户，直接使用 yum
+                self.log("检测到 root 用户，直接使用 yum")
+                install_cmd = ['yum', 'install', '-y'] + missing_tools
+            else:
+                # 非 root 用户，使用 sudo
+                self.log("检测到非 root 用户，使用 sudo")
+                install_cmd = ['sudo', 'yum', 'install', '-y'] + missing_tools
+            
             self.run_command(install_cmd)
         
         # 验证安装结果
