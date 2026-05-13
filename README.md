@@ -1,7 +1,7 @@
 # LlamaPanel
 
-llama.cpp 图形化管理面板 - 无需命令行
-这只是为了方便操作llama.cpp并非llama.cpp分支，实际使用的还是llama.cpp
+-llama.cpp 图形化管理面板 - 无需命令行
+-这只是为了方便操作llama.cpp并非llama.cpp分支，实际使用的还是llama.cpp
 
 ## 功能
 
