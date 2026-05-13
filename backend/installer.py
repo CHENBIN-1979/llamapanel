@@ -337,7 +337,6 @@ class LlamaCppInstaller:
             try:
                 result = subprocess.run([str(server_bin), '--version'], capture_output=True, text=True, timeout=10)
                 version_text = result.stdout.strip() or result.stderr.strip()
-                # 提取版本号
                 match = re.search(r'version\s+([0-9.]+)', version_text, re.IGNORECASE)
                 if match:
                     status['version'] = f"✅ 已编译 (v{match.group(1)})"
@@ -351,24 +350,18 @@ class LlamaCppInstaller:
         is_building = False
         building_progress = None
         
-        # 检查是否有 make 进程在运行
+        # 使用 ps 命令检查进程（更可靠）
         try:
-            result = subprocess.run(['pgrep', '-f', 'make'], capture_output=True, text=True)
-            if result.returncode == 0 and result.stdout.strip():
+            result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
+            ps_output = result.stdout
+            if 'make' in ps_output and 'llama.cpp' in ps_output:
                 is_building = True
                 building_progress = "正在编译中 (make 进程运行中)..."
+            elif 'cc1plus' in ps_output or 'g++' in ps_output:
+                is_building = True
+                building_progress = "正在编译中 (编译器进程运行中)..."
         except:
             pass
-        
-        # 检查是否有 g++/gcc/cc1plus 进程在运行
-        if not is_building:
-            try:
-                result = subprocess.run(['pgrep', '-f', 'g\\+\\+|cc1plus'], capture_output=True, text=True)
-                if result.returncode == 0 and result.stdout.strip():
-                    is_building = True
-                    building_progress = "正在编译中 (编译器进程运行中)..."
-            except:
-                pass
         
         # 获取编译进度
         if is_building:
