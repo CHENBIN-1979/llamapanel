@@ -243,7 +243,6 @@ class LlamaCppInstaller:
         gcc_cmd = self.get_cmd_path('gcc')
         gpp_cmd = self.get_cmd_path('g++')
         
-        # 显式指定编译器路径
         cmake_args = [cmake_cmd, '..',
                       f'-DCMAKE_C_COMPILER={gcc_cmd}',
                       f'-DCMAKE_CXX_COMPILER={gpp_cmd}']
@@ -310,6 +309,24 @@ class LlamaCppInstaller:
             return False
     
     def get_status(self):
+        # 检测是否正在编译中
+        is_building = False
+        building_progress = None
+        
+        if self.build_dir.exists():
+            cmake_cache = self.build_dir / 'CMakeCache.txt'
+            if cmake_cache.exists():
+                server_check = self.build_dir / 'bin' / 'llama-server'
+                if not server_check.exists():
+                    is_building = True
+                    building_progress = "CMake 配置完成，编译中..."
+                    
+                    build_log = self.build_dir / 'CMakeFiles' / 'CMakeOutput.log'
+                    if build_log.exists():
+                        mtime = build_log.stat().st_mtime
+                        if time.time() - mtime < 60:
+                            building_progress = "正在编译中，请稍候..."
+        
         server_bin = self.build_dir / 'bin' / 'llama-server'
         if not server_bin.exists():
             alt_paths = [
@@ -321,19 +338,25 @@ class LlamaCppInstaller:
                     server_bin = p
                     break
         
+        is_built = server_bin.exists() if server_bin else False
+        
         status = {
             'cloned': self.llama_dir.exists(),
-            'built': server_bin.exists() if server_bin else False,
+            'built': is_built,
+            'building': is_building,
+            'building_progress': building_progress,
             'llama_dir': str(self.llama_dir) if self.llama_dir.exists() else None,
-            'server_path': str(server_bin) if server_bin and server_bin.exists() else None
+            'server_path': str(server_bin) if server_bin and is_built else None
         }
         
-        if status['built'] and server_bin:
+        if is_built and server_bin:
             try:
                 result = subprocess.run([str(server_bin), '--version'], capture_output=True, text=True, timeout=10)
                 status['version'] = result.stdout.strip() or result.stderr.strip()
             except:
                 status['version'] = 'unknown'
+        elif is_building:
+            status['version'] = building_progress
         else:
             status['version'] = 'not built'
         

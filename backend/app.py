@@ -43,6 +43,7 @@ HTML_PAGE = '''
         }
         .status-ok { background: #d4edda; color: #155724; }
         .status-warning { background: #fff3cd; color: #856404; }
+        .status-building { background: #cce5ff; color: #004085; }
         button {
             background: #667eea;
             color: white;
@@ -57,6 +58,8 @@ HTML_PAGE = '''
         }
         button:hover { background: #5a67d8; transform: translateY(-1px); }
         button.danger { background: #e53e3e; }
+        button.danger:hover { background: #c53030; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         .log-viewer {
             background: #1e1e1e;
             color: #d4d4d4;
@@ -80,7 +83,7 @@ HTML_PAGE = '''
             border-radius: 8px;
         }
         .info-label { font-size: 12px; color: #718096; margin-bottom: 4px; }
-        .info-value { font-size: 16px; font-weight: 600; color: #2d3748; }
+        .info-value { font-size: 16px; font-weight: 600; color: #2d3748; word-break: break-all; }
         .loading {
             display: inline-block;
             width: 16px;
@@ -91,6 +94,9 @@ HTML_PAGE = '''
             animation: spin 0.6s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .log-controls { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+        .auto-refresh { font-size: 12px; color: #666; display: flex; align-items: center; gap: 5px; }
+        hr { margin: 15px 0; border: none; border-top: 1px solid #e2e8f0; }
     </style>
 </head>
 <body>
@@ -116,7 +122,12 @@ HTML_PAGE = '''
         
         <div class="card">
             <h2>📋 安装日志</h2>
-            <button onclick="refreshLog()" style="margin-bottom: 10px;">🔄 刷新日志</button>
+            <div class="log-controls">
+                <button onclick="refreshLog()" style="margin-bottom: 0;">🔄 刷新</button>
+                <label class="auto-refresh">
+                    <input type="checkbox" id="autoRefresh" checked> 自动刷新 (2秒)
+                </label>
+            </div>
             <div id="logContent" class="log-viewer">
                 加载日志中...
             </div>
@@ -124,6 +135,17 @@ HTML_PAGE = '''
     </div>
     
     <script>
+        let autoRefreshInterval = null;
+        
+        function startAutoRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            autoRefreshInterval = setInterval(() => {
+                if (document.getElementById('autoRefresh').checked) {
+                    refreshLog();
+                }
+            }, 2000);
+        }
+        
         async function fetchAPI(endpoint, method='GET') {
             const response = await fetch(endpoint, { method: method });
             return await response.json();
@@ -133,6 +155,21 @@ HTML_PAGE = '''
             try {
                 const status = await fetchAPI('/api/status');
                 const info = document.getElementById('statusInfo');
+                
+                let buildStatusHtml = '';
+                let buildStatusClass = '';
+                
+                if (status.built) {
+                    buildStatusHtml = '✅ 已编译';
+                    buildStatusClass = 'status-ok';
+                } else if (status.building) {
+                    buildStatusHtml = '⏳ ' + (status.building_progress || '编译中...');
+                    buildStatusClass = 'status-building';
+                } else {
+                    buildStatusHtml = '❌ 未编译';
+                    buildStatusClass = 'status-warning';
+                }
+                
                 info.innerHTML = `
                     <div class="info-grid">
                         <div class="info-item">
@@ -141,7 +178,7 @@ HTML_PAGE = '''
                         </div>
                         <div class="info-item">
                             <div class="info-label">编译状态</div>
-                            <div class="info-value">${status.built ? '✅ 已编译' : '❌ 未编译'}</div>
+                            <div class="info-value"><span class="status-badge ${buildStatusClass}">${buildStatusHtml}</span></div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">llama.cpp 路径</div>
@@ -149,10 +186,10 @@ HTML_PAGE = '''
                         </div>
                         <div class="info-item">
                             <div class="info-label">llama-server 路径</div>
-                            <div class="info-value">${status.server_path || '未编译'}</div>
+                            <div class="info-value">${status.server_path || (status.building ? '⏳ 编译中...' : '未编译')}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">版本</div>
+                            <div class="info-label">状态</div>
                             <div class="info-value">${status.version || '未知'}</div>
                         </div>
                     </div>
@@ -188,6 +225,8 @@ HTML_PAGE = '''
                 btn.innerHTML = '<span class="loading"></span> 安装中...';
                 const result = await fetchAPI('/api/install', 'POST');
                 alert(result.message);
+                // 开始监控进度
+                startMonitoring();
                 btn.disabled = false;
                 btn.innerHTML = '🚀 完整安装 llama.cpp';
             }
@@ -217,10 +256,19 @@ HTML_PAGE = '''
             }
         }
         
+        function startMonitoring() {
+            const interval = setInterval(() => {
+                refreshStatus();
+                refreshLog();
+            }, 3000);
+            setTimeout(() => clearInterval(interval), 300000);
+        }
+        
+        // 初始化
         refreshStatus();
         refreshLog();
+        startAutoRefresh();
         setInterval(refreshStatus, 5000);
-        setInterval(refreshLog, 3000);
     </script>
 </body>
 </html>
