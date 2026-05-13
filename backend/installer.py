@@ -260,7 +260,12 @@ class LlamaCppInstaller:
         self.log(f"CMake 配置: {' '.join(cmake_args)}")
         self.run_command(cmake_args, cwd=self.build_dir)
         
-        make_args = [make_cmd, '-j', str(min(hw['cpu_cores'], 8))]
+        # 智能选择编译线程数：使用一半核心数，但至少1核
+        total_cores = hw['cpu_cores']
+        compile_jobs = max(1, total_cores // 2)
+        self.log(f"检测到 {total_cores} 核 CPU，使用 {compile_jobs} 线程编译（一半核心数）")
+        
+        make_args = [make_cmd, '-j', str(compile_jobs)]
         self.log(f"编译命令: {' '.join(make_args)}")
         self.run_command(make_args, cwd=self.build_dir)
         self.log("编译完成")
