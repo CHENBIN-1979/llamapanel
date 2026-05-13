@@ -313,20 +313,34 @@ class LlamaCppInstaller:
         is_building = False
         building_progress = None
         
-        if self.build_dir.exists():
-            cmake_cache = self.build_dir / 'CMakeCache.txt'
-            if cmake_cache.exists():
-                server_check = self.build_dir / 'bin' / 'llama-server'
-                if not server_check.exists():
-                    is_building = True
-                    building_progress = "CMake 配置完成，编译中..."
-                    
-                    build_log = self.build_dir / 'CMakeFiles' / 'CMakeOutput.log'
-                    if build_log.exists():
-                        mtime = build_log.stat().st_mtime
-                        if time.time() - mtime < 60:
-                            building_progress = "正在编译中，请稍候..."
+        # 方法1：检查是否有 make 进程在运行
+        try:
+            result = subprocess.run(['pgrep', '-f', 'make'], capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout.strip():
+                is_building = True
+                building_progress = "正在编译中 (make 进程运行中)..."
+        except:
+            pass
         
+        # 方法2：检查是否有 g++/gcc/cc1plus 进程在运行
+        if not is_building:
+            try:
+                result = subprocess.run(['pgrep', '-f', 'g\\+\\+|cc1plus'], capture_output=True, text=True)
+                if result.returncode == 0 and result.stdout.strip():
+                    is_building = True
+                    building_progress = "正在编译中 (编译器进程运行中)..."
+            except:
+                pass
+        
+        # 方法3：检查 CMake 配置是否完成但编译未完成
+        if not is_building and self.build_dir.exists():
+            cmake_cache = self.build_dir / 'CMakeCache.txt'
+            server_check = self.build_dir / 'bin' / 'llama-server'
+            if cmake_cache.exists() and not server_check.exists():
+                is_building = True
+                building_progress = "CMake 配置完成，等待编译..."
+        
+        # 检查最终的 server 文件
         server_bin = self.build_dir / 'bin' / 'llama-server'
         if not server_bin.exists():
             alt_paths = [
@@ -339,6 +353,11 @@ class LlamaCppInstaller:
                     break
         
         is_built = server_bin.exists() if server_bin else False
+        
+        # 如果编译完成但有进程残留，修正状态
+        if is_built:
+            is_building = False
+            building_progress = None
         
         status = {
             'cloned': self.llama_dir.exists(),
@@ -356,7 +375,18 @@ class LlamaCppInstaller:
             except:
                 status['version'] = 'unknown'
         elif is_building:
-            status['version'] = building_progress
+            # 获取编译进度（统计已编译的对象文件数量）
+            try:
+                obj_dir = self.build_dir / 'src' / 'CMakeFiles' / 'llama.dir'
+                if obj_dir.exists():
+                    obj_count = len(list(obj_dir.glob('*.o')))
+                    if obj_count > 0:
+                        building_progress = f"正在编译中... (已编译 {obj_count} 个文件)"
+                        status['building_progress'] = building_progress
+                        status['version'] = building_progress
+            except:
+                pass
+            status['version'] = building_progress or "编译中..."
         else:
             status['version'] = 'not built'
         
