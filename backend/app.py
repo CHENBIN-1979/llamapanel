@@ -187,7 +187,7 @@ HTML_PAGE = '''
         function startAutoRefresh() {
             if (autoRefreshInterval) clearInterval(autoRefreshInterval);
             autoRefreshInterval = setInterval(() => {
-                if (document.getElementById('autoRefresh').checked) {
+                if (document.getElementById('autoRefresh') && document.getElementById('autoRefresh').checked) {
                     refreshLog();
                 }
             }, 2000);
@@ -202,6 +202,7 @@ HTML_PAGE = '''
             try {
                 const status = await fetchAPI('/api/status');
                 const info = document.getElementById('statusInfo');
+                if (!info) return;
                 
                 let buildStatusHtml = '';
                 let buildStatusClass = '';
@@ -246,17 +247,23 @@ HTML_PAGE = '''
             }
         }
         
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
         async function refreshLog() {
             try {
                 const response = await fetch('/api/log');
                 let text = await response.text();
                 const logDiv = document.getElementById('logContent');
+                if (!logDiv) return;
                 
-                // 关键修复：将字面的 \n 和 \r\n 替换为真正换行
-                text = text.replace(/\\n/g, '\\n');
-                text = text.replace(/\\r\\n/g, '\\n');
+                // 将字面的 \n 替换为真正的换行符
+                text = text.replace(/\\\\n/g, '\\n');
                 
-                // 分割日志内容为行
+                // 按换行符分割
                 const lines = text.split('\\n');
                 
                 let html = '';
@@ -296,14 +303,9 @@ HTML_PAGE = '''
                 logDiv.scrollTop = logDiv.scrollHeight;
             } catch(e) {
                 console.error('刷新日志失败:', e);
-                document.getElementById('logContent').innerHTML = '加载日志失败: ' + e.message;
+                const logDiv = document.getElementById('logContent');
+                if (logDiv) logDiv.innerHTML = '加载日志失败: ' + e.message;
             }
-        }
-        
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
         
         async function installLlama() {
@@ -351,6 +353,7 @@ HTML_PAGE = '''
             setTimeout(() => clearInterval(interval), 300000);
         }
         
+        // 初始化
         refreshStatus();
         refreshLog();
         startAutoRefresh();
@@ -374,7 +377,7 @@ async def get_log():
     if log_file.exists():
         with open(log_file, 'r', encoding='utf-8') as f:
             content = f.read()
-            # 永久修复：将字面 \n 和 \r\n 替换为真正的换行符
+            # 永久修复：将字面 \n 替换为真正的换行符
             content = content.replace('\\n', '\n').replace('\\r\\n', '\n')
             return content
     return "暂无日志"
