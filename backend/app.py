@@ -238,7 +238,7 @@ HTML_PAGE = '''
                             <div class="info-value">${status.server_path || (status.building ? '⏳ 编译中...' : '未编译')}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">状态</div>
+                            <div class="info-label">版本</div>
                             <div class="info-value">${status.version || '未知'}</div>
                         </div>
                     </div>
