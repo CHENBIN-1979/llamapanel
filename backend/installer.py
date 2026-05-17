@@ -81,87 +81,37 @@ class LlamaCppInstaller:
             return False
     
     def get_current_version(self):
-        """获取当前版本号（多种方式尝试）"""
-        version = None
+        """获取当前版本号（显示标签+距离+commit）格式: b1059+5 (1a68ec9)"""
+        if not self.llama_dir.exists():
+            return None
         
-        # 方法1：从 git tag 获取（需要完整历史）
-        if self.llama_dir.exists():
-            try:
-                # 先尝试 fetch tags
-                subprocess.run(['git', 'fetch', '--tags'], cwd=self.llama_dir, capture_output=True, timeout=30)
-                result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'],
-                                       cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
-                if result.returncode == 0:
-                    version = result.stdout.strip()
-                    if version.startswith('v'):
-                        version = version[1:]
-                    if version:
-                        return version
-            except:
-                pass
+        try:
+            # 使用 git describe --tags --long 获取详细信息
+            # 输出格式: b1059-5-g1a68ec9
+            result = subprocess.run(['git', 'describe', '--tags', '--long'],
+                                   cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                # 解析格式: tag-commit数-gcommit哈希
+                parts = version.split('-')
+                if len(parts) >= 3:
+                    tag = parts[0]
+                    commit_count = parts[1]
+                    commit_hash = parts[2][1:]  # 去掉 g 前缀
+                    # 格式: b1059+5 (1a68ec9)
+                    return f"{tag}+{commit_count} ({commit_hash})"
+                return version
+        except:
+            pass
         
-        # 方法2：从 CMakeLists.txt 读取 GGML_VERSION
-        cmake_file = self.llama_dir / "CMakeLists.txt"
-        if cmake_file.exists():
-            try:
-                with open(cmake_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    # 查找 GGML_VERSION_MAJOR, MINOR, PATCH
-                    major_match = re.search(r'set\s*\(\s*GGML_VERSION_MAJOR\s+(\d+)', content, re.IGNORECASE)
-                    minor_match = re.search(r'set\s*\(\s*GGML_VERSION_MINOR\s+(\d+)', content, re.IGNORECASE)
-                    patch_match = re.search(r'set\s*\(\s*GGML_VERSION_PATCH\s+(\d+)', content, re.IGNORECASE)
-                    if major_match and minor_match and patch_match:
-                        return f"{major_match.group(1)}.{minor_match.group(1)}.{patch_match.group(1)}"
-                    
-                    # 查找 project VERSION
-                    match = re.search(r'project\s*\(\s*llama\s+VERSION\s+([0-9.]+)', content, re.IGNORECASE)
-                    if match:
-                        return match.group(1)
-            except:
-                pass
-        
-        # 方法3：从 version.h 读取
-        version_h = self.llama_dir / "common" / "version.h"
-        if not version_h.exists():
-            version_h = self.llama_dir / "llama.h"
-        if version_h.exists():
-            try:
-                with open(version_h, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    match = re.search(r'#define\s+LLAMA_VERSION_STRING\s+"([^"]+)"', content)
-                    if match:
-                        return match.group(1)
-            except:
-                pass
-        
-        # 方法4：从编译的二进制获取 build 号
-        server_bin = self.build_dir / 'bin' / 'llama-server'
-        if not server_bin.exists():
-            server_bin = self.build_dir / 'llama-server'
-        if server_bin.exists():
-            try:
-                result = subprocess.run([str(server_bin), '--version'], capture_output=True, text=True, timeout=10)
-                output = result.stdout.strip() or result.stderr.strip()
-                match = re.search(r'b(\d+)', output)
-                if match:
-                    return f"b{match.group(1)}"
-                match = re.search(r'version:\s*(\d+)', output)
-                if match:
-                    return f"v{match.group(1)}"
-            except:
-                pass
-        
-        # 方法5：从 .git 获取 commit hash
-        git_ref = self.llama_dir / ".git" / "refs" / "heads" / "master"
-        if not git_ref.exists():
-            git_ref = self.llama_dir / ".git" / "refs" / "heads" / "main"
-        if git_ref.exists():
-            try:
-                with open(git_ref, 'r') as f:
-                    commit_hash = f.read().strip()[:7]
-                    return f"commit-{commit_hash}"
-            except:
-                pass
+        # 备用：只获取 commit hash
+        try:
+            result = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'],
+                                   cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                return f"dev-{result.stdout.strip()}"
+        except:
+            pass
         
         return None
     
@@ -191,11 +141,10 @@ class LlamaCppInstaller:
         latest = self.get_latest_release_version()
         
         if current and latest:
-            # 提取数字部分进行比较
-            current_num = re.sub(r'[^0-9]', '', current)
-            latest_num = re.sub(r'[^0-9]', '', latest)
+            # 提取标签部分进行比较
+            current_tag = current.split('+')[0] if '+' in current else current
             return {
-                'has_update': current_num != latest_num,
+                'has_update': current_tag != latest,
                 'current': current,
                 'latest': latest
             }
@@ -479,7 +428,7 @@ class LlamaCppInstaller:
         
         is_built = server_bin.exists() if server_bin else False
         
-        # 获取当前版本号（使用增强的版本获取方法）
+        # 获取当前版本号
         current_version = self.get_current_version()
         
         # 调试日志
@@ -487,7 +436,7 @@ class LlamaCppInstaller:
         
         # 检查是否有新版本（每24小时检查一次，即86400秒）
         current_time = time.time()
-        if current_time - self._last_check_time > 86400:  # 24小时 = 86400秒
+        if current_time - self._last_check_time > 86400:
             self._last_check_time = current_time
             update_info = self.check_for_updates()
             if update_info and update_info.get('has_update'):
@@ -508,7 +457,8 @@ class LlamaCppInstaller:
                 'llama_dir': str(self.llama_dir) if self.llama_dir.exists() else None,
                 'server_path': str(server_bin) if server_bin else None,
                 'version': version_text,
-                'has_update': bool(self._latest_version and current_version and current_version != self._latest_version),
+                'has_update': bool(self._latest_version and current_version and 
+                                  self._latest_version != current_version.split('+')[0] if '+' in current_version else current_version != self._latest_version),
                 'latest_version': self._latest_version
             }
             return status
