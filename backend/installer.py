@@ -20,19 +20,10 @@ class LlamaCppInstaller:
         self._latest_version = None
         self._last_check_time = 0
         
+        # 命令路径缓存
         self.cmd_paths = {
-            'git': '/usr/bin/git',
-            'cmake': '/usr/bin/cmake',
-            'make': '/usr/bin/make',
-            'g++': '/usr/bin/g++',
-            'gcc': '/usr/bin/gcc',
-            'python3': '/usr/bin/python3',
-            'pip3': '/usr/bin/pip3',
-            'nvidia-smi': '/usr/bin/nvidia-smi',
             'apt': '/usr/bin/apt',
             'apt-get': '/usr/bin/apt-get',
-            'ccache': '/usr/bin/ccache',
-            'openssl': '/usr/bin/openssl',
         }
         
     def log(self, message):
@@ -43,8 +34,19 @@ class LlamaCppInstaller:
             f.write(log_msg + '\n')
     
     def get_cmd_path(self, cmd_name):
+        """获取命令的完整路径，使用 which 查找"""
         if cmd_name in self.cmd_paths:
             return self.cmd_paths[cmd_name]
+        
+        # 使用 which 查找
+        try:
+            result = subprocess.run(['which', cmd_name], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and result.stdout.strip():
+                cmd_path = result.stdout.strip()
+                self.cmd_paths[cmd_name] = cmd_path
+                return cmd_path
+        except:
+            pass
         return cmd_name
     
     def build_full_cmd(self, cmd_parts):
@@ -58,7 +60,6 @@ class LlamaCppInstaller:
         full_cmd = self.build_full_cmd(cmd)
         self.log(f"执行: {' '.join(full_cmd)}")
         try:
-            # 安全处理 cwd
             if cwd is not None and not os.path.exists(cwd):
                 self.log(f"警告: 目录不存在 {cwd}，使用当前目录")
                 cwd = None
@@ -88,31 +89,29 @@ class LlamaCppInstaller:
             raise Exception(f"命令未找到: {full_cmd[0]} - {e}")
     
     def check_command(self, cmd_parts):
-        """检查命令是否存在，使用完整路径映射"""
+        """检查命令是否存在，使用 which 命令"""
         try:
             cmd_name = cmd_parts[0]
-            # 命令路径映射表
-            cmd_map = {
-                'git': '/usr/bin/git',
-                'cmake': '/usr/bin/cmake',
-                'make': '/usr/bin/make',
-                'g++': '/usr/bin/g++',
-                'gcc': '/usr/bin/gcc',
-                'python3': '/usr/bin/python3',
-                'pip3': '/usr/bin/pip3',
-                'ccache': '/usr/bin/ccache',
-                'openssl': '/usr/bin/openssl',
-                'nvidia-smi': '/usr/bin/nvidia-smi',
-            }
-            
-            if cmd_name in cmd_map:
-                full_cmd = [cmd_map[cmd_name]] + cmd_parts[1:]
-            else:
-                full_cmd = self.build_full_cmd(cmd_parts)
-            
-            subprocess.run(full_cmd, capture_output=True, check=True)
-            return True
+            result = subprocess.run(['which', cmd_name], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and result.stdout.strip():
+                # 记录路径
+                cmd_path = result.stdout.strip()
+                if cmd_name not in self.cmd_paths:
+                    self.cmd_paths[cmd_name] = cmd_path
+                return True
+            return False
         except (subprocess.SubprocessError, FileNotFoundError):
+            return False
+    
+    def check_pip3(self):
+        """检查 pip3 是否可用"""
+        try:
+            result = subprocess.run(['which', 'pip3'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and result.stdout.strip():
+                self.cmd_paths['pip3'] = result.stdout.strip()
+                return True
+            return False
+        except:
             return False
     
     def get_latest_stable_tag(self):
@@ -197,6 +196,7 @@ class LlamaCppInstaller:
             self.log("未知操作系统，跳过依赖安装")
             return True
         
+        # 需要检查的工具列表
         tools = {
             'git': 'git',
             'cmake': 'cmake',
@@ -204,7 +204,6 @@ class LlamaCppInstaller:
             'g++': 'g++',
             'gcc': 'gcc',
             'python3': 'python3',
-            'pip3': 'python3-pip'
         }
         
         missing_tools = []
@@ -214,6 +213,13 @@ class LlamaCppInstaller:
             else:
                 self.log(f"❌ {tool} 未安装")
                 missing_tools.append(package)
+        
+        # 检查 pip3（单独处理）
+        if self.check_pip3():
+            self.log("✅ pip3 已安装")
+        else:
+            self.log("❌ pip3 未安装")
+            missing_tools.append('python3-pip')
         
         # 检查 ccache（用于加速编译）
         ccache_missing = False
@@ -297,6 +303,8 @@ class LlamaCppInstaller:
                         yum_tools.append('ccache')
                     elif tool == 'libssl-dev' or tool == 'openssl-devel':
                         yum_tools.append('openssl-devel')
+                    elif tool == 'python3-pip':
+                        yum_tools.append('python3-pip')
                     else:
                         yum_tools.append(tool)
                 yum_tools.append('@development-tools')
@@ -311,6 +319,9 @@ class LlamaCppInstaller:
         for tool, package in tools.items():
             if not self.check_command([tool, '--version']):
                 still_missing.append(tool)
+        
+        if not self.check_pip3():
+            still_missing.append('python3-pip')
         
         if ccache_missing and not self.check_command(['ccache', '--version']):
             still_missing.append('ccache')
@@ -472,7 +483,6 @@ class LlamaCppInstaller:
     
     def clean_build(self):
         self.log("清理编译产物...")
-        # 重置版本缓存
         self._latest_version = None
         self._last_check_time = 0
         
@@ -482,7 +492,6 @@ class LlamaCppInstaller:
         else:
             self.log("build 目录不存在，无需清理")
         
-        # 只有在 llama.cpp 目录存在时才重新创建 build 目录
         if self.llama_dir.exists():
             self.build_dir.mkdir(parents=True, exist_ok=True)
             self.log("build 目录已重新创建")
@@ -491,11 +500,9 @@ class LlamaCppInstaller:
     
     def rebuild(self):
         self.log("开始重新编译...")
-        # 重置版本缓存
         self._latest_version = None
         self._last_check_time = 0
         
-        # 检查 llama.cpp 目录是否存在
         if not self.llama_dir.exists():
             self.log("❌ llama.cpp 目录不存在，请先点击「完整安装」")
             return False
@@ -522,7 +529,6 @@ class LlamaCppInstaller:
         """删除所有 llama.cpp 相关文件"""
         self.log("========== 删除所有 llama.cpp 文件 ==========")
         
-        # 重置版本缓存
         self._latest_version = None
         self._last_check_time = 0
         
@@ -542,9 +548,7 @@ class LlamaCppInstaller:
         self.log("请点击「完整安装」重新安装")
     
     def get_status(self):
-        # 如果 llama.cpp 目录不存在，返回未克隆状态
         if not self.llama_dir.exists():
-            # 重置版本缓存
             self._latest_version = None
             self._last_check_time = 0
             status = {
