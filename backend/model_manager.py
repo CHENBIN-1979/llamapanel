@@ -29,58 +29,66 @@ class ModelManager:
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(log_msg + '\n')
     
-    def search_huggingface_models(self, query: str, limit: int = 20) -> List[Dict]:
-        """搜索 HuggingFace 上的 GGUF 模型"""
+    def search_huggingface_models(self, query: str, limit: int = 30) -> List[Dict]:
+        """搜索 HuggingFace 上的模型（直接返回API结果）"""
         results = []
         
-        # 方法1：使用 HuggingFace Hub API
         try:
+            # 使用 HuggingFace Hub API 进行搜索
             search_url = f"https://huggingface.co/api/models?search={urllib.parse.quote(query)}&sort=downloads&direction=-1&limit={limit}"
             
             req = urllib.request.Request(
                 search_url,
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                headers={'User-Agent': 'LlamaPanel/1.0'}
             )
             
-            with urllib.request.urlopen(req, timeout=30) as response:
+            with urllib.request.urlopen(req, timeout=15) as response:
                 data = json.loads(response.read().decode('utf-8'))
             
             for model in data:
                 model_id = model.get('modelId', '')
-                if any(x in model_id.lower() for x in ['gguf', 'ggml', 'llama', 'qwen', 'mistral', 'gemma', 'phi']):
-                    results.append({
-                        'id': model_id,
-                        'name': model_id.split('/')[-1],
-                        'author': model_id.split('/')[0],
-                        'likes': model.get('likes', 0),
-                        'downloads': model.get('downloads', 0),
-                        'tags': model.get('tags', [])
-                    })
+                # 返回所有搜索到的模型，不过滤 GGUF
+                results.append({
+                    'id': model_id,
+                    'name': model_id.split('/')[-1],  # 模型短名
+                    'author': model_id.split('/')[0],  # 作者/组织名
+                    'likes': model.get('likes', 0),
+                    'downloads': model.get('downloads', 0),
+                    'tags': model.get('tags', [])
+                })
             
-            if results:
-                self.log(f"搜索 '{query}' 找到 {len(results)} 个模型")
-                return results
+            self.log(f"搜索 '{query}' 成功，找到 {len(results)} 个模型")
+            return results
+            
         except Exception as e:
             self.log(f"HuggingFace API 搜索失败: {e}")
-        
-        # 方法2：使用预定义的常用模型列表
-        popular_models = [
-            {'id': 'TheBloke/Llama-2-7B-Chat-GGUF', 'name': 'Llama-2-7B-Chat-GGUF', 'author': 'TheBloke', 'likes': 1000, 'downloads': 100000},
-            {'id': 'TheBloke/Mistral-7B-Instruct-v0.2-GGUF', 'name': 'Mistral-7B-Instruct-v0.2-GGUF', 'author': 'TheBloke', 'likes': 800, 'downloads': 80000},
-            {'id': 'TheBloke/Qwen-7B-Chat-GGUF', 'name': 'Qwen-7B-Chat-GGUF', 'author': 'TheBloke', 'likes': 600, 'downloads': 60000},
-            {'id': 'TheBloke/gemma-2b-it-GGUF', 'name': 'gemma-2b-it-GGUF', 'author': 'TheBloke', 'likes': 400, 'downloads': 40000},
-            {'id': 'TheBloke/CodeLlama-7B-Instruct-GGUF', 'name': 'CodeLlama-7B-Instruct-GGUF', 'author': 'TheBloke', 'likes': 500, 'downloads': 50000},
-            {'id': 'TheBloke/Phi-3-mini-4k-instruct-GGUF', 'name': 'Phi-3-mini-4k-instruct-GGUF', 'author': 'TheBloke', 'likes': 300, 'downloads': 30000},
-            {'id': 'second-state/StarCoder2-7B-GGUF', 'name': 'StarCoder2-7B-GGUF', 'author': 'second-state', 'likes': 200, 'downloads': 20000},
-            {'id': 'mradermacher/Llama-3.2-1B-Instruct-GGUF', 'name': 'Llama-3.2-1B-Instruct-GGUF', 'author': 'mradermacher', 'likes': 150, 'downloads': 15000},
-            {'id': 'bartowski/Llama-3.2-3B-Instruct-GGUF', 'name': 'Llama-3.2-3B-Instruct-GGUF', 'author': 'bartowski', 'likes': 100, 'downloads': 10000},
-            {'id': 'QuantFactory/DeepSeek-Coder-V2-Lite-Instruct-GGUF', 'name': 'DeepSeek-Coder-V2-Lite-Instruct-GGUF', 'author': 'QuantFactory', 'likes': 80, 'downloads': 8000},
+            # API 失败时使用备用模型列表
+            return self._get_fallback_models(query, limit)
+    
+    def _get_fallback_models(self, query: str, limit: int) -> List[Dict]:
+        """备用模型列表（当 API 不可用时使用）"""
+        self.log("使用备用模型列表")
+        fallback_models = [
+            {'id': 'TheBloke/Llama-2-7B-Chat-GGUF', 'name': 'Llama-2-7B-Chat', 'author': 'TheBloke', 'likes': 1000, 'downloads': 100000},
+            {'id': 'TheBloke/Llama-2-13B-Chat-GGUF', 'name': 'Llama-2-13B-Chat', 'author': 'TheBloke', 'likes': 900, 'downloads': 80000},
+            {'id': 'TheBloke/Mistral-7B-Instruct-v0.2-GGUF', 'name': 'Mistral-7B-Instruct', 'author': 'TheBloke', 'likes': 800, 'downloads': 80000},
+            {'id': 'TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF', 'name': 'Mixtral-8x7B-Instruct', 'author': 'TheBloke', 'likes': 700, 'downloads': 60000},
+            {'id': 'TheBloke/Qwen-7B-Chat-GGUF', 'name': 'Qwen-7B-Chat', 'author': 'TheBloke', 'likes': 600, 'downloads': 60000},
+            {'id': 'TheBloke/Qwen-14B-Chat-GGUF', 'name': 'Qwen-14B-Chat', 'author': 'TheBloke', 'likes': 500, 'downloads': 40000},
+            {'id': 'TheBloke/gemma-2b-it-GGUF', 'name': 'Gemma-2B-it', 'author': 'TheBloke', 'likes': 400, 'downloads': 40000},
+            {'id': 'TheBloke/gemma-7b-it-GGUF', 'name': 'Gemma-7B-it', 'author': 'TheBloke', 'likes': 350, 'downloads': 35000},
+            {'id': 'TheBloke/CodeLlama-7B-Instruct-GGUF', 'name': 'CodeLlama-7B-Instruct', 'author': 'TheBloke', 'likes': 500, 'downloads': 50000},
+            {'id': 'TheBloke/Phi-3-mini-4k-instruct-GGUF', 'name': 'Phi-3-mini-4k-instruct', 'author': 'TheBloke', 'likes': 300, 'downloads': 30000},
+            {'id': 'second-state/StarCoder2-7B-GGUF', 'name': 'StarCoder2-7B', 'author': 'second-state', 'likes': 200, 'downloads': 20000},
+            {'id': 'mradermacher/Llama-3.2-1B-Instruct-GGUF', 'name': 'Llama-3.2-1B-Instruct', 'author': 'mradermacher', 'likes': 150, 'downloads': 15000},
+            {'id': 'bartowski/Llama-3.2-3B-Instruct-GGUF', 'name': 'Llama-3.2-3B-Instruct', 'author': 'bartowski', 'likes': 100, 'downloads': 10000},
         ]
         
         query_lower = query.lower()
-        for model in popular_models:
+        matched = []
+        for model in fallback_models:
             if query_lower in model['id'].lower() or query_lower in model['name'].lower():
-                results.append({
+                matched.append({
                     'id': model['id'],
                     'name': model['name'],
                     'author': model['author'],
@@ -89,20 +97,10 @@ class ModelManager:
                     'tags': []
                 })
         
-        if not results and query:
-            # 返回前10个热门模型
-            for model in popular_models[:10]:
-                results.append({
-                    'id': model['id'],
-                    'name': model['name'],
-                    'author': model['author'],
-                    'likes': model.get('likes', 0),
-                    'downloads': model.get('downloads', 0),
-                    'tags': []
-                })
+        if not matched and query:
+            matched = fallback_models[:limit]
         
-        self.log(f"备用搜索 '{query}' 找到 {len(results)} 个模型")
-        return results[:limit]
+        return matched[:limit]
     
     def get_model_files(self, model_id: str) -> List[Dict]:
         """获取模型的所有 GGUF 文件"""
@@ -110,7 +108,7 @@ class ModelManager:
             api_url = f"https://huggingface.co/api/models/{model_id}"
             req = urllib.request.Request(
                 api_url,
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                headers={'User-Agent': 'LlamaPanel/1.0'}
             )
             
             with urllib.request.urlopen(req, timeout=30) as response:
@@ -138,9 +136,14 @@ class ModelManager:
                         'download_url': f"https://huggingface.co/{model_id}/resolve/main/{filename}"
                     })
             
+            if gguf_files:
+                self.log(f"获取模型 {model_id} 文件成功，找到 {len(gguf_files)} 个 GGUF 文件")
+            else:
+                self.log(f"模型 {model_id} 没有 GGUF 文件")
+            
             return gguf_files
         except Exception as e:
-            self.log(f"获取模型文件失败: {e}")
+            self.log(f"获取模型文件失败 {model_id}: {e}")
             return []
     
     def download_model(self, download_url: str, filename: str, callback=None) -> bool:
@@ -158,9 +161,9 @@ class ModelManager:
             
             self.log(f"开始下载: {download_url}")
             
-            req = urllib.request.Request(download_url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = urllib.request.Request(download_url, headers={'User-Agent': 'LlamaPanel/1.0'})
             
-            with urllib.request.urlopen(req, timeout=60) as response:
+            with urllib.request.urlopen(req, timeout=3600) as response:
                 total_size = int(response.headers.get('Content-Length', 0))
                 downloaded = 0
                 
@@ -178,6 +181,7 @@ class ModelManager:
             
             shutil.move(str(download_path), str(final_path))
             
+            # 创建软链接
             link_path = self.llama_models_dir / safe_filename
             if link_path.exists() and link_path.is_symlink():
                 link_path.unlink()
@@ -220,6 +224,7 @@ class ModelManager:
                 model_path.unlink()
                 self.log(f"删除模型: {filename}")
             
+            # 删除软链接
             link_path = self.llama_models_dir / filename
             if link_path.exists() and link_path.is_symlink():
                 link_path.unlink()
