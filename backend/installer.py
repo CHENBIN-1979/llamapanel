@@ -430,14 +430,25 @@ class LlamaCppInstaller:
             self.log("清理完成")
         else:
             self.log("build 目录不存在，无需清理")
-        self.build_dir.mkdir(parents=True, exist_ok=True)
-        self.log("build 目录已重新创建")
+        
+        # 只有在 llama.cpp 目录存在时才重新创建 build 目录
+        if self.llama_dir.exists():
+            self.build_dir.mkdir(parents=True, exist_ok=True)
+            self.log("build 目录已重新创建")
+        else:
+            self.log("llama.cpp 目录不存在，跳过 build 目录创建")
     
     def rebuild(self):
         self.log("开始重新编译...")
         # 重置版本缓存
         self._latest_version = None
         self._last_check_time = 0
+        
+        # 检查 llama.cpp 目录是否存在
+        if not self.llama_dir.exists():
+            self.log("❌ llama.cpp 目录不存在，请先点击「完整安装」")
+            return False
+        
         self.clean_build()
         self.log("清理完成，开始编译...")
         return self.build_llama_cpp()
