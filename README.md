@@ -29,9 +29,15 @@
  http://主机IP:8000
  
 ## 服务器更新
+
 - cd /opt/llamapanel
 - sudo git pull
 - sudo systemctl restart llamapanel
+
+## 版本更新
+
+- 1.点击更新版本（update_llama_cpp() 只更新代码，不更新 llama-server 二进制文件)
+- 2.点击重新编译（更新代码后需要点击「重新编译」才能生成新的 llama-server)
 
 ## 一键安装
 
