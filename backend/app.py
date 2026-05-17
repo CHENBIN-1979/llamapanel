@@ -173,7 +173,7 @@ HTML_PAGE = '''
             <div class="log-controls">
                 <button onclick="refreshLog()" style="margin-bottom: 0;">🔄 刷新</button>
                 <label class="auto-refresh">
-                    <input type="checkbox" id="autoRefresh" checked> 自动刷新 (2秒)
+                    <input type="checkbox" id="autoRefresh"> 自动刷新 (2秒)
                 </label>
             </div>
             <div id="logContent" class="log-viewer">
@@ -184,15 +184,48 @@ HTML_PAGE = '''
     
     <script>
         let autoRefreshInterval = null;
+        let statusInterval = null;
         
         function startAutoRefresh() {
             if (autoRefreshInterval) clearInterval(autoRefreshInterval);
             autoRefreshInterval = setInterval(() => {
                 const chk = document.getElementById('autoRefresh');
-                if (chk && chk.checked) {
+                if (chk && chk.checked === true) {
                     refreshLog();
                 }
             }, 2000);
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+        
+        // 监听复选框变化
+        function bindAutoRefreshCheckbox() {
+            const chk = document.getElementById('autoRefresh');
+            if (chk) {
+                chk.addEventListener('change', function() {
+                    if (this.checked) {
+                        // 重新启动自动刷新
+                        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+                        autoRefreshInterval = setInterval(() => {
+                            const c = document.getElementById('autoRefresh');
+                            if (c && c.checked === true) {
+                                refreshLog();
+                            }
+                        }, 2000);
+                    } else {
+                        // 停止自动刷新
+                        if (autoRefreshInterval) {
+                            clearInterval(autoRefreshInterval);
+                            autoRefreshInterval = null;
+                        }
+                    }
+                });
+            }
         }
         
         async function fetchAPI(endpoint, method='GET') {
@@ -347,7 +380,7 @@ HTML_PAGE = '''
         }
         
         async function updateLlama() {
-            if (confirm('更新 llama.cpp 到最新稳定版本？\\n这将删除当前版本并重新克隆最新版本。')) {
+            if (confirm('更新 llama.cpp 到最新稳定版本？\\n这将切换代码到最新版本，然后需要重新编译。')) {
                 const btn = document.getElementById('updateBtn');
                 btn.disabled = true;
                 btn.innerHTML = '<span class="loading"></span> 更新中...';
@@ -361,9 +394,14 @@ HTML_PAGE = '''
         
         async function rebuildLlama() {
             if (confirm('重新编译 llama.cpp？')) {
+                const btn = document.getElementById('rebuildBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading"></span> 编译中...';
                 const result = await fetchAPI('/api/rebuild', 'POST');
                 alert(result.message);
                 refreshStatus();
+                btn.disabled = false;
+                btn.innerHTML = '🔨 重新编译';
             }
         }
         
@@ -390,17 +428,22 @@ HTML_PAGE = '''
         }
         
         function startMonitoring() {
-            const interval = setInterval(() => {
+            // 每3秒刷新状态，但不刷新日志（日志由自动刷新控制）
+            if (statusInterval) clearInterval(statusInterval);
+            statusInterval = setInterval(() => {
                 refreshStatus();
-                refreshLog();
             }, 3000);
-            setTimeout(() => clearInterval(interval), 300000);
+            setTimeout(() => {
+                if (statusInterval) clearInterval(statusInterval);
+            }, 300000);
         }
         
         // 初始化
         refreshStatus();
         refreshLog();
         startAutoRefresh();
+        bindAutoRefreshCheckbox();
+        // 每5秒刷新状态（不刷新日志）
         setInterval(refreshStatus, 5000);
     </script>
 </body>
