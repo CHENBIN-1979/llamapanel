@@ -188,6 +188,7 @@ class LlamaCppInstaller:
                 self.log(f"❌ {tool} 未安装")
                 missing_tools.append(package)
         
+        # 检查 ccache（用于加速编译）
         ccache_missing = False
         if self.check_command(['ccache', '--version']):
             self.log("✅ ccache 已安装（编译加速）")
@@ -195,17 +196,31 @@ class LlamaCppInstaller:
             self.log("⚠️ ccache 未安装，将自动安装以加速后续编译")
             ccache_missing = True
         
+        # 检查 OpenSSL（用于 HTTPS 支持）
+        openssl_missing = False
+        if self.check_command(['openssl', 'version']):
+            self.log("✅ OpenSSL 已安装（HTTPS 支持）")
+        else:
+            self.log("⚠️ OpenSSL 未安装，将自动安装以支持 HTTPS")
+            openssl_missing = True
+        
         if self.check_command(['nvidia-smi']):
             self.log("✅ NVIDIA CUDA 可用")
         else:
             self.log("⚠️ NVIDIA CUDA 不可用（将使用 CPU 模式）")
         
-        if not missing_tools and not ccache_missing:
+        if not missing_tools and not ccache_missing and not openssl_missing:
             self.log("所有依赖已安装")
             return True
         
         if ccache_missing:
             missing_tools.append('ccache')
+        
+        if openssl_missing:
+            if os_type == "debian":
+                missing_tools.append('libssl-dev')
+            elif os_type == "redhat":
+                missing_tools.append('openssl-devel')
         
         self.log(f"需要安装: {', '.join(missing_tools)}")
         
@@ -253,6 +268,8 @@ class LlamaCppInstaller:
                         yum_tools.append('git')
                     elif tool == 'ccache':
                         yum_tools.append('ccache')
+                    elif tool == 'libssl-dev' or tool == 'openssl-devel':
+                        yum_tools.append('openssl-devel')
                     else:
                         yum_tools.append(tool)
                 yum_tools.append('@development-tools')
@@ -262,6 +279,7 @@ class LlamaCppInstaller:
                 install_cmd = ['sudo', 'yum', 'install', '-y'] + missing_tools
             self.run_command(install_cmd)
         
+        # 验证安装结果
         still_missing = []
         for tool, package in tools.items():
             if not self.check_command([tool, '--version']):
@@ -270,6 +288,9 @@ class LlamaCppInstaller:
         if ccache_missing and not self.check_command(['ccache', '--version']):
             still_missing.append('ccache')
         
+        if openssl_missing and not self.check_command(['openssl', 'version']):
+            still_missing.append('openssl')
+        
         if still_missing:
             self.log(f"⚠️ 以下工具仍不可用: {still_missing}")
             return False
@@ -277,6 +298,9 @@ class LlamaCppInstaller:
         self.log("✅ 所有依赖安装完成")
         if ccache_missing:
             self.log("✅ ccache 已安装，后续编译将自动加速")
+        if openssl_missing:
+            self.log("✅ OpenSSL 已安装，HTTPS 支持已启用")
+        
         return True
     
     def detect_hardware(self):
