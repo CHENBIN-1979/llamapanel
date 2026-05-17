@@ -30,12 +30,15 @@ class ModelManager:
             f.write(log_msg + '\n')
     
     def search_huggingface_models(self, query: str, limit: int = 30) -> List[Dict]:
-        """搜索 HuggingFace 上的模型"""
+        """搜索 HuggingFace 上的 GGUF 模型（自动添加 GGUF 关键词）"""
         results = []
         
+        # 自动添加 GGUF 关键词，确保只搜索可下载的量化模型
+        search_query = f"{query} GGUF"
+        self.log(f"原始搜索词: '{query}', 实际搜索词: '{search_query}'")
+        
         try:
-            # 使用 HuggingFace Hub API 进行搜索
-            search_url = f"https://huggingface.co/api/models?search={urllib.parse.quote(query)}&sort=downloads&direction=-1&limit={limit}"
+            search_url = f"https://huggingface.co/api/models?search={urllib.parse.quote(search_query)}&sort=downloads&direction=-1&limit={limit}"
             
             req = urllib.request.Request(
                 search_url,
@@ -59,7 +62,7 @@ class ModelManager:
                     'tags': model.get('tags', [])
                 })
             
-            self.log(f"搜索 '{query}' 成功，找到 {len(results)} 个模型")
+            self.log(f"搜索 '{query}' 成功，找到 {len(results)} 个 GGUF 模型")
             return results
             
         except Exception as e:
