@@ -27,6 +27,11 @@
 
 ## 访问地址: 
  http://主机IP:8000
+ 
+## 服务器更新
+- cd /opt/llamapanel
+- sudo git pull
+- sudo systemctl restart llamapanel
 
 ## 一键安装
 
