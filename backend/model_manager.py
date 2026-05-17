@@ -30,7 +30,7 @@ class ModelManager:
             f.write(log_msg + '\n')
     
     def search_huggingface_models(self, query: str, limit: int = 30) -> List[Dict]:
-        """搜索 HuggingFace 上的模型（直接返回API结果）"""
+        """搜索 HuggingFace 上的模型"""
         results = []
         
         try:
@@ -47,11 +47,13 @@ class ModelManager:
             
             for model in data:
                 model_id = model.get('modelId', '')
-                # 返回所有搜索到的模型，不过滤 GGUF
+                if not model_id:
+                    continue
+                
                 results.append({
                     'id': model_id,
-                    'name': model_id.split('/')[-1],  # 模型短名
-                    'author': model_id.split('/')[0],  # 作者/组织名
+                    'name': model_id.split('/')[-1],
+                    'author': model_id.split('/')[0],
                     'likes': model.get('likes', 0),
                     'downloads': model.get('downloads', 0),
                     'tags': model.get('tags', [])
@@ -62,45 +64,7 @@ class ModelManager:
             
         except Exception as e:
             self.log(f"HuggingFace API 搜索失败: {e}")
-            # API 失败时使用备用模型列表
-            return self._get_fallback_models(query, limit)
-    
-    def _get_fallback_models(self, query: str, limit: int) -> List[Dict]:
-        """备用模型列表（当 API 不可用时使用）"""
-        self.log("使用备用模型列表")
-        fallback_models = [
-            {'id': 'TheBloke/Llama-2-7B-Chat-GGUF', 'name': 'Llama-2-7B-Chat', 'author': 'TheBloke', 'likes': 1000, 'downloads': 100000},
-            {'id': 'TheBloke/Llama-2-13B-Chat-GGUF', 'name': 'Llama-2-13B-Chat', 'author': 'TheBloke', 'likes': 900, 'downloads': 80000},
-            {'id': 'TheBloke/Mistral-7B-Instruct-v0.2-GGUF', 'name': 'Mistral-7B-Instruct', 'author': 'TheBloke', 'likes': 800, 'downloads': 80000},
-            {'id': 'TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF', 'name': 'Mixtral-8x7B-Instruct', 'author': 'TheBloke', 'likes': 700, 'downloads': 60000},
-            {'id': 'TheBloke/Qwen-7B-Chat-GGUF', 'name': 'Qwen-7B-Chat', 'author': 'TheBloke', 'likes': 600, 'downloads': 60000},
-            {'id': 'TheBloke/Qwen-14B-Chat-GGUF', 'name': 'Qwen-14B-Chat', 'author': 'TheBloke', 'likes': 500, 'downloads': 40000},
-            {'id': 'TheBloke/gemma-2b-it-GGUF', 'name': 'Gemma-2B-it', 'author': 'TheBloke', 'likes': 400, 'downloads': 40000},
-            {'id': 'TheBloke/gemma-7b-it-GGUF', 'name': 'Gemma-7B-it', 'author': 'TheBloke', 'likes': 350, 'downloads': 35000},
-            {'id': 'TheBloke/CodeLlama-7B-Instruct-GGUF', 'name': 'CodeLlama-7B-Instruct', 'author': 'TheBloke', 'likes': 500, 'downloads': 50000},
-            {'id': 'TheBloke/Phi-3-mini-4k-instruct-GGUF', 'name': 'Phi-3-mini-4k-instruct', 'author': 'TheBloke', 'likes': 300, 'downloads': 30000},
-            {'id': 'second-state/StarCoder2-7B-GGUF', 'name': 'StarCoder2-7B', 'author': 'second-state', 'likes': 200, 'downloads': 20000},
-            {'id': 'mradermacher/Llama-3.2-1B-Instruct-GGUF', 'name': 'Llama-3.2-1B-Instruct', 'author': 'mradermacher', 'likes': 150, 'downloads': 15000},
-            {'id': 'bartowski/Llama-3.2-3B-Instruct-GGUF', 'name': 'Llama-3.2-3B-Instruct', 'author': 'bartowski', 'likes': 100, 'downloads': 10000},
-        ]
-        
-        query_lower = query.lower()
-        matched = []
-        for model in fallback_models:
-            if query_lower in model['id'].lower() or query_lower in model['name'].lower():
-                matched.append({
-                    'id': model['id'],
-                    'name': model['name'],
-                    'author': model['author'],
-                    'likes': model.get('likes', 0),
-                    'downloads': model.get('downloads', 0),
-                    'tags': []
-                })
-        
-        if not matched and query:
-            matched = fallback_models[:limit]
-        
-        return matched[:limit]
+            return []
     
     def get_model_files(self, model_id: str) -> List[Dict]:
         """获取模型的所有 GGUF 文件"""
