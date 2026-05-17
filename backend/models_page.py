@@ -68,7 +68,6 @@ MODELS_PAGE = '''
         button:hover { background: #5a67d8; transform: translateY(-1px); }
         button.danger { background: #e53e3e; }
         button.danger:hover { background: #c53030; }
-        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         button.small { padding: 4px 12px; font-size: 12px; }
         input, select {
             padding: 8px 12px;
@@ -166,15 +165,14 @@ MODELS_PAGE = '''
             animation: spin 0.6s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .status-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 500;
+        .info-text {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f7fafc;
+            border-radius: 8px;
         }
-        .status-success { background: #d4edda; color: #155724; }
-        .status-warning { background: #fff3cd; color: #856404; }
         .tabs {
             display: flex;
             gap: 10px;
@@ -195,14 +193,6 @@ MODELS_PAGE = '''
         }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .info-text {
-            font-size: 12px;
-            color: #718096;
-            margin-top: 10px;
-            padding: 10px;
-            background: #f7fafc;
-            border-radius: 8px;
-        }
     </style>
 </head>
 <body>
@@ -252,7 +242,6 @@ MODELS_PAGE = '''
                     <strong>临时下载目录:</strong> /opt/llamapanel/downloads/<br><br>
                     模型文件独立存储，删除 llama.cpp 目录不会影响已下载的模型。
                 </div>
-                <button onclick="openModelDir()" style="margin-top: 15px;">📂 打开模型目录</button>
             </div>
         </div>
         
@@ -288,6 +277,8 @@ MODELS_PAGE = '''
         
         async function searchModels() {
             const query = document.getElementById('searchInput').value.trim();
+            console.log('搜索关键词:', query);
+            
             if (!query) {
                 alert('请输入搜索关键词');
                 return;
@@ -298,21 +289,23 @@ MODELS_PAGE = '''
             btn.innerHTML = '<span class="loading"></span> 搜索中...';
             
             try {
-                const response = await fetch(`/api/models/search?q=${encodeURIComponent(query)}&limit=30`);
+                const response = await fetch(`/models/api/search?q=${encodeURIComponent(query)}&limit=30`);
                 const data = await response.json();
+                console.log('API返回数据:', data);
                 
                 const resultsDiv = document.getElementById('searchResults');
                 
-                if (data.success && data.results.length > 0) {
+                if (data.success && data.results && data.results.length > 0) {
                     currentSearchResults = data.results;
                     let html = '';
                     for (const model of data.results) {
+                        const safeId = model.id.replace(/[^a-zA-Z0-9]/g, '_');
                         html += `
                             <div class="model-card">
                                 <div class="model-name">📄 ${model.name}</div>
-                                <div class="model-meta">作者: ${model.author} | ❤️ ${model.likes} | 📥 ${model.downloads}</div>
-                                <button onclick="getModelFiles('${model.id}')" id="btn-${model.id.replace(/[^a-zA-Z0-9]/g, '_')}">📂 查看 GGUF 文件</button>
-                                <div id="files-${model.id.replace(/[^a-zA-Z0-9]/g, '_')}" style="margin-top: 12px; display: none;"></div>
+                                <div class="model-meta">作者: ${model.author} | ❤️ ${model.likes} | 📥 ${model.downloads.toLocaleString()}</div>
+                                <button onclick="getModelFiles('${model.id.replace(/'/g, "\\'")}')" id="btn-${safeId}">📂 查看 GGUF 文件</button>
+                                <div id="files-${safeId}" style="margin-top: 12px; display: none;"></div>
                             </div>
                         `;
                     }
@@ -322,7 +315,7 @@ MODELS_PAGE = '''
                 }
             } catch(e) {
                 console.error('搜索失败:', e);
-                document.getElementById('searchResults').innerHTML = '<div class="info-text">❌ 搜索失败，请检查网络</div>';
+                document.getElementById('searchResults').innerHTML = '<div class="info-text">❌ 搜索失败: ' + e.message + '</div>';
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '🔍 搜索';
@@ -336,19 +329,18 @@ MODELS_PAGE = '''
         }
         
         async function getModelFiles(modelId) {
-            const btnId = 'btn-' + modelId.replace(/[^a-zA-Z0-9]/g, '_');
-            const btn = document.getElementById(btnId);
-            const containerId = 'files-' + modelId.replace(/[^a-zA-Z0-9]/g, '_');
-            const container = document.getElementById(containerId);
+            const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
+            const btn = document.getElementById(`btn-${safeId}`);
+            const container = document.getElementById(`files-${safeId}`);
             
             btn.disabled = true;
             btn.innerHTML = '<span class="loading"></span> 加载中...';
             
             try {
-                const response = await fetch(`/api/models/files?model_id=${encodeURIComponent(modelId)}`);
+                const response = await fetch(`/models/api/files?model_id=${encodeURIComponent(modelId)}`);
                 const data = await response.json();
                 
-                if (data.success && data.files.length > 0) {
+                if (data.success && data.files && data.files.length > 0) {
                     let html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
                     for (const file of data.files) {
                         html += `
@@ -368,7 +360,7 @@ MODELS_PAGE = '''
                 }
             } catch(e) {
                 console.error('获取文件失败:', e);
-                container.innerHTML = '<div class="info-text">❌ 获取文件列表失败</div>';
+                container.innerHTML = '<div class="info-text">❌ 获取文件列表失败: ' + e.message + '</div>';
                 container.style.display = 'block';
             } finally {
                 btn.disabled = false;
@@ -387,19 +379,17 @@ MODELS_PAGE = '''
                 progressText.innerText = '开始下载...';
                 
                 try {
-                    const response = await fetch('/api/models/download', {
+                    const response = await fetch('/models/api/download', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ download_url: downloadUrl, filename: filename })
                     });
                     const result = await response.json();
                     alert(result.message);
-                    
-                    // 开始轮询监控下载进度
                     startPollingProgress(filename);
                 } catch(e) {
                     console.error('下载失败:', e);
-                    alert('下载失败');
+                    alert('下载失败: ' + e.message);
                     progressDiv.style.display = 'none';
                 }
             }
@@ -410,10 +400,10 @@ MODELS_PAGE = '''
             modelsDiv.innerHTML = '<div class="loading"></div> 加载中...';
             
             try {
-                const response = await fetch('/api/models/local');
+                const response = await fetch('/models/api/local');
                 const data = await response.json();
                 
-                if (data.success && data.models.length > 0) {
+                if (data.success && data.models && data.models.length > 0) {
                     let html = '<table class="models-table">';
                     html += '<thead><tr><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
                     for (const model of data.models) {
@@ -422,9 +412,7 @@ MODELS_PAGE = '''
                                 <td>${model.name}</td>
                                 <td>${model.size_str}</td>
                                 <td>${model.modified}</td>
-                                <td>
-                                    <button class="small" onclick="deleteModel('${model.name}')">🗑️ 删除</button>
-                                </td>
+                                <td><button class="small" onclick="deleteModel('${model.name}')">🗑️ 删除</button></td>
                             </tr>
                         `;
                     }
@@ -435,14 +423,14 @@ MODELS_PAGE = '''
                 }
             } catch(e) {
                 console.error('刷新失败:', e);
-                modelsDiv.innerHTML = '<div class="info-text">加载失败</div>';
+                modelsDiv.innerHTML = '<div class="info-text">加载失败: ' + e.message + '</div>';
             }
         }
         
         async function deleteModel(filename) {
             if (confirm(`确定删除 ${filename}？`)) {
                 try {
-                    const response = await fetch(`/api/models/delete?filename=${encodeURIComponent(filename)}`, {
+                    const response = await fetch(`/models/api/delete?filename=${encodeURIComponent(filename)}`, {
                         method: 'DELETE'
                     });
                     const data = await response.json();
@@ -450,25 +438,21 @@ MODELS_PAGE = '''
                     refreshLocalModels();
                 } catch(e) {
                     console.error('删除失败:', e);
-                    alert('删除失败');
+                    alert('删除失败: ' + e.message);
                 }
             }
         }
         
         async function createSymlinks() {
             try {
-                const response = await fetch('/api/models/symlinks', { method: 'POST' });
+                const response = await fetch('/models/api/symlinks', { method: 'POST' });
                 const data = await response.json();
                 alert(data.message);
                 refreshLocalModels();
             } catch(e) {
                 console.error('创建软链接失败:', e);
-                alert('创建失败');
+                alert('创建失败: ' + e.message);
             }
-        }
-        
-        function openModelDir() {
-            alert('模型目录: /opt/llamapanel/models/\\n请通过 SSH 访问');
         }
         
         let progressInterval = null;
@@ -489,9 +473,9 @@ MODELS_PAGE = '''
         
         async function checkDownloadStatus(filename) {
             try {
-                const response = await fetch('/api/models/local');
+                const response = await fetch('/models/api/local');
                 const data = await response.json();
-                if (data.success) {
+                if (data.success && data.models) {
                     const found = data.models.find(m => m.name === filename);
                     if (found) {
                         document.getElementById('progressFill').style.width = '100%';
