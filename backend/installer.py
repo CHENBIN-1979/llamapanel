@@ -80,43 +80,8 @@ class LlamaCppInstaller:
         except (subprocess.SubprocessError, FileNotFoundError):
             return False
     
-    def get_current_version(self):
-        """获取当前版本号（显示标签+距离+commit）格式: b1059+5 (1a68ec9)"""
-        if not self.llama_dir.exists():
-            return None
-        
-        try:
-            # 使用 git describe --tags --long 获取详细信息
-            # 输出格式: b1059-5-g1a68ec9
-            result = subprocess.run(['git', 'describe', '--tags', '--long'],
-                                   cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                version = result.stdout.strip()
-                # 解析格式: tag-commit数-gcommit哈希
-                parts = version.split('-')
-                if len(parts) >= 3:
-                    tag = parts[0]
-                    commit_count = parts[1]
-                    commit_hash = parts[2][1:]  # 去掉 g 前缀
-                    # 格式: b1059+5 (1a68ec9)
-                    return f"{tag}+{commit_count} ({commit_hash})"
-                return version
-        except:
-            pass
-        
-        # 备用：只获取 commit hash
-        try:
-            result = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'],
-                                   cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                return f"dev-{result.stdout.strip()}"
-        except:
-            pass
-        
-        return None
-    
-    def get_latest_release_version(self):
-        """从 GitHub API 获取最新 Releases 版本号"""
+    def get_latest_stable_tag(self):
+        """从 GitHub API 获取最新稳定版本标签"""
         try:
             req = urllib.request.Request(
                 'https://api.github.com/repos/ggerganov/llama.cpp/releases/latest',
@@ -129,8 +94,43 @@ class LlamaCppInstaller:
                     tag_name = tag_name[1:]
                 return tag_name
         except Exception as e:
-            self.log(f"获取最新版本失败: {e}")
+            self.log(f"获取最新稳定版本失败: {e}")
             return None
+    
+    def get_current_version(self):
+        """获取当前版本号（稳定版标签）"""
+        if not self.llama_dir.exists():
+            return None
+        
+        try:
+            # 获取当前标签
+            result = subprocess.run(['git', 'describe', '--tags', '--exact-match'],
+                                   cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                if version.startswith('v'):
+                    version = version[1:]
+                return version
+        except:
+            pass
+        
+        # 如果不是精确标签，获取最近的标签
+        try:
+            result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'],
+                                   cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                if version.startswith('v'):
+                    version = version[1:]
+                return version
+        except:
+            pass
+        
+        return None
+    
+    def get_latest_release_version(self):
+        """从 GitHub API 获取最新 Releases 版本号（别名）"""
+        return self.get_latest_stable_tag()
     
     def check_for_updates(self):
         """检查是否有新版本可用"""
@@ -138,13 +138,11 @@ class LlamaCppInstaller:
         if not current:
             return None
         
-        latest = self.get_latest_release_version()
+        latest = self.get_latest_stable_tag()
         
         if current and latest:
-            # 提取标签部分进行比较
-            current_tag = current.split('+')[0] if '+' in current else current
             return {
-                'has_update': current_tag != latest,
+                'has_update': current != latest,
                 'current': current,
                 'latest': latest
             }
@@ -310,19 +308,58 @@ class LlamaCppInstaller:
         if self.llama_dir.exists():
             self.log(f"目录已存在: {self.llama_dir}，跳过克隆")
             return
+        
         self.log("开始克隆 llama.cpp...")
         git_cmd = self.get_cmd_path('git')
-        cmd = [git_cmd, 'clone', '--depth', '1', 'https://github.com/ggerganov/llama.cpp.git', str(self.llama_dir)]
+        
+        # 获取最新的稳定版本标签
+        latest_tag = self.get_latest_stable_tag()
+        
+        if latest_tag:
+            self.log(f"获取到最新稳定版本: {latest_tag}")
+            self.log(f"克隆稳定版本 {latest_tag}...")
+            cmd = [git_cmd, 'clone', '--branch', latest_tag, '--depth', '1', 
+                   'https://github.com/ggerganov/llama.cpp.git', str(self.llama_dir)]
+        else:
+            self.log("获取稳定版本失败，使用 master 分支")
+            cmd = [git_cmd, 'clone', '--depth', '1', 'https://github.com/ggerganov/llama.cpp.git', str(self.llama_dir)]
+        
         self.run_command(cmd)
         self.log("克隆完成")
     
     def update_llama_cpp(self):
         if not self.llama_dir.exists():
             raise Exception("llama.cpp 未安装，请先执行安装")
-        self.log("更新 llama.cpp...")
+        
+        self.log("更新 llama.cpp 到最新稳定版本...")
         git_cmd = self.get_cmd_path('git')
-        cmd = [git_cmd, 'pull']
-        self.run_command(cmd, cwd=self.llama_dir)
+        
+        # 获取最新的稳定版本标签
+        latest_tag = self.get_latest_stable_tag()
+        
+        if latest_tag:
+            current_version = self.get_current_version()
+            if current_version == latest_tag:
+                self.log(f"当前已是最新稳定版本: {latest_tag}")
+                return
+            
+            self.log(f"发现新版本: {current_version} -> {latest_tag}")
+            self.log(f"切换到稳定版本 {latest_tag}...")
+            
+            # 获取标签信息
+            self.run_command([git_cmd, 'fetch', '--tags'], cwd=self.llama_dir)
+            
+            # 切换到指定标签
+            self.run_command([git_cmd, 'checkout', latest_tag], cwd=self.llama_dir)
+            
+            # 清理 build 目录，因为版本变了需要重新编译
+            if self.build_dir.exists():
+                shutil.rmtree(self.build_dir)
+                self.log("已清理旧的编译目录，请重新编译")
+        else:
+            self.log("获取稳定版本失败，执行 git pull...")
+            self.run_command([git_cmd, 'pull'], cwd=self.llama_dir)
+        
         self.log("更新完成")
     
     def build_llama_cpp(self):
@@ -457,8 +494,7 @@ class LlamaCppInstaller:
                 'llama_dir': str(self.llama_dir) if self.llama_dir.exists() else None,
                 'server_path': str(server_bin) if server_bin else None,
                 'version': version_text,
-                'has_update': bool(self._latest_version and current_version and 
-                                  self._latest_version != current_version.split('+')[0] if '+' in current_version else current_version != self._latest_version),
+                'has_update': bool(self._latest_version and current_version and current_version != self._latest_version),
                 'latest_version': self._latest_version
             }
             return status
