@@ -99,11 +99,20 @@ MODELS_PAGE = '''
             font-weight: bold;
             font-size: 16px;
             margin-bottom: 5px;
+            cursor: pointer;
+            padding: 8px;
+            background: #f7fafc;
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
+        .model-name:hover {
+            background: #edf2f7;
         }
         .model-meta {
             font-size: 12px;
             color: #718096;
             margin-bottom: 10px;
+            padding-left: 8px;
         }
         .file-list {
             margin-top: 12px;
@@ -193,6 +202,10 @@ MODELS_PAGE = '''
         }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        .downloads-count {
+            font-weight: bold;
+            color: #667eea;
+        }
     </style>
 </head>
 <body>
@@ -215,9 +228,12 @@ MODELS_PAGE = '''
             <!-- 下载模型标签页 -->
             <div id="tab-download" class="tab-content active">
                 <div class="search-box">
-                    <input type="text" id="searchInput" placeholder="搜索 HuggingFace 模型... (例如: llama, qwen, mistral)">
+                    <input type="text" id="searchInput" placeholder="搜索 GGUF 模型... (例如: llama, qwen, mistral)">
                     <button onclick="searchModels()" id="searchBtn">🔍 搜索</button>
                     <button onclick="clearSearch()">🗑️ 清空</button>
+                </div>
+                <div class="info-text" style="margin-bottom: 10px;">
+                    💡 提示：搜索会自动添加 "GGUF" 关键词，只显示可下载的量化模型。
                 </div>
                 <div id="searchResults"></div>
             </div>
@@ -257,6 +273,7 @@ MODELS_PAGE = '''
     
     <script>
         let currentSearchResults = [];
+        let activeFileContainer = null;
         
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
@@ -272,6 +289,26 @@ MODELS_PAGE = '''
             } else if (tabName === 'settings') {
                 document.querySelectorAll('.tab')[2].classList.add('active');
                 document.getElementById('tab-settings').classList.add('active');
+            }
+        }
+        
+        function formatDownloads(downloads) {
+            if (downloads >= 1000000) {
+                return (downloads / 1000000).toFixed(1) + 'M';
+            } else if (downloads >= 1000) {
+                return (downloads / 1000).toFixed(0) + 'K';
+            }
+            return downloads.toString();
+        }
+        
+        function toggleModelFiles(safeId) {
+            const container = document.getElementById(`files-${safeId}`);
+            if (container) {
+                if (container.style.display === 'none' || container.style.display === '') {
+                    container.style.display = 'block';
+                } else {
+                    container.style.display = 'none';
+                }
             }
         }
         
@@ -300,10 +337,15 @@ MODELS_PAGE = '''
                     let html = '';
                     for (const model of data.results) {
                         const safeId = model.id.replace(/[^a-zA-Z0-9]/g, '_');
+                        const downloadsFormatted = formatDownloads(model.downloads);
                         html += `
-                            <div class="model-card">
-                                <div class="model-name">📄 ${model.name}</div>
-                                <div class="model-meta">作者: ${model.author} | ❤️ ${model.likes} | 📥 ${model.downloads.toLocaleString()}</div>
+                            <div class="model-card" id="card-${safeId}">
+                                <div class="model-name" onclick="toggleModelFiles('${safeId}')">
+                                    📄 ${model.name}
+                                </div>
+                                <div class="model-meta">
+                                    作者: ${model.author} | ❤️ ${model.likes} | 📥 <span class="downloads-count">${downloadsFormatted}</span>
+                                </div>
                                 <button onclick="getModelFiles('${model.id.replace(/'/g, "\\'")}')" id="btn-${safeId}">📂 查看 GGUF 文件</button>
                                 <div id="files-${safeId}" style="margin-top: 12px; display: none;"></div>
                             </div>
@@ -311,7 +353,7 @@ MODELS_PAGE = '''
                     }
                     resultsDiv.innerHTML = html;
                 } else {
-                    resultsDiv.innerHTML = '<div class="info-text">❌ 未找到相关模型</div>';
+                    resultsDiv.innerHTML = '<div class="info-text">❌ 未找到相关 GGUF 模型</div>';
                 }
             } catch(e) {
                 console.error('搜索失败:', e);
@@ -333,6 +375,12 @@ MODELS_PAGE = '''
             const btn = document.getElementById(`btn-${safeId}`);
             const container = document.getElementById(`files-${safeId}`);
             
+            // 如果已经展开，则收拢
+            if (container.style.display === 'block') {
+                container.style.display = 'none';
+                return;
+            }
+            
             btn.disabled = true;
             btn.innerHTML = '<span class="loading"></span> 加载中...';
             
@@ -341,7 +389,7 @@ MODELS_PAGE = '''
                 const data = await response.json();
                 
                 if (data.success && data.files && data.files.length > 0) {
-                    let html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
+                    let html = '<div class="file-list"><strong>📁 GGUF 文件列表 (点击模型名称可折叠):</strong>';
                     for (const file of data.files) {
                         html += `
                             <div class="file-item">
@@ -355,7 +403,7 @@ MODELS_PAGE = '''
                     container.innerHTML = html;
                     container.style.display = 'block';
                 } else {
-                    container.innerHTML = '<div class="info-text">❌ 没有找到 GGUF 文件</div>';
+                    container.innerHTML = '<div class="info-text">⚠️ 该模型没有 GGUF 文件</div>';
                     container.style.display = 'block';
                 }
             } catch(e) {
