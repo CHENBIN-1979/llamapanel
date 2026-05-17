@@ -92,6 +92,7 @@ class LlamaCppInstaller:
                 tag_name = data.get('tag_name', '')
                 if tag_name.startswith('v'):
                     tag_name = tag_name[1:]
+                self.log(f"获取到最新版本: {tag_name}")
                 return tag_name
         except Exception as e:
             self.log(f"获取最新稳定版本失败: {e}")
@@ -103,7 +104,6 @@ class LlamaCppInstaller:
             return None
         
         try:
-            # 获取当前标签
             result = subprocess.run(['git', 'describe', '--tags', '--exact-match'],
                                    cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
@@ -114,7 +114,6 @@ class LlamaCppInstaller:
         except:
             pass
         
-        # 如果不是精确标签，获取最近的标签
         try:
             result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'],
                                    cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
@@ -141,8 +140,10 @@ class LlamaCppInstaller:
         latest = self.get_latest_stable_tag()
         
         if current and latest:
+            current_num = re.sub(r'[^0-9]', '', current)
+            latest_num = re.sub(r'[^0-9]', '', latest)
             return {
-                'has_update': current != latest,
+                'has_update': current_num != latest_num,
                 'current': current,
                 'latest': latest
             }
@@ -180,7 +181,6 @@ class LlamaCppInstaller:
                 self.log(f"❌ {tool} 未安装")
                 missing_tools.append(package)
         
-        # 检查 ccache（用于加速编译）- 如果不存在，添加到安装列表
         ccache_missing = False
         if self.check_command(['ccache', '--version']):
             self.log("✅ ccache 已安装（编译加速）")
@@ -197,7 +197,6 @@ class LlamaCppInstaller:
             self.log("所有依赖已安装")
             return True
         
-        # 将 ccache 加入安装列表
         if ccache_missing:
             missing_tools.append('ccache')
         
@@ -256,13 +255,11 @@ class LlamaCppInstaller:
                 install_cmd = ['sudo', 'yum', 'install', '-y'] + missing_tools
             self.run_command(install_cmd)
         
-        # 验证安装结果
         still_missing = []
         for tool, package in tools.items():
             if not self.check_command([tool, '--version']):
                 still_missing.append(tool)
         
-        # 验证 ccache 安装
         if ccache_missing and not self.check_command(['ccache', '--version']):
             still_missing.append('ccache')
         
@@ -312,7 +309,6 @@ class LlamaCppInstaller:
         self.log("开始克隆 llama.cpp...")
         git_cmd = self.get_cmd_path('git')
         
-        # 获取最新的稳定版本标签
         latest_tag = self.get_latest_stable_tag()
         
         if latest_tag:
@@ -334,7 +330,6 @@ class LlamaCppInstaller:
         self.log("更新 llama.cpp 到最新稳定版本...")
         git_cmd = self.get_cmd_path('git')
         
-        # 获取最新的稳定版本标签
         latest_tag = self.get_latest_stable_tag()
         
         if latest_tag:
@@ -346,13 +341,9 @@ class LlamaCppInstaller:
             self.log(f"发现新版本: {current_version} -> {latest_tag}")
             self.log(f"切换到稳定版本 {latest_tag}...")
             
-            # 获取标签信息
             self.run_command([git_cmd, 'fetch', '--tags'], cwd=self.llama_dir)
-            
-            # 切换到指定标签
             self.run_command([git_cmd, 'checkout', latest_tag], cwd=self.llama_dir)
             
-            # 清理 build 目录，因为版本变了需要重新编译
             if self.build_dir.exists():
                 shutil.rmtree(self.build_dir)
                 self.log("已清理旧的编译目录，请重新编译")
@@ -392,12 +383,10 @@ class LlamaCppInstaller:
         self.log(f"CMake 配置: {' '.join(cmake_args)}")
         self.run_command(cmake_args, cwd=self.build_dir)
         
-        # 智能选择编译线程数：使用一半核心数，但至少1核
         total_cores = hw['cpu_cores']
         compile_jobs = max(1, total_cores // 2)
         self.log(f"检测到 {total_cores} 核 CPU，使用 {compile_jobs} 线程编译（一半核心数）")
         
-        # 提示 ccache 状态
         if self.check_command(['ccache', '--version']):
             self.log("✅ 使用 ccache 加速编译")
         
@@ -451,7 +440,6 @@ class LlamaCppInstaller:
             return False
     
     def get_status(self):
-        # 检查最终的 server 文件是否存在（编译完成标志）
         server_bin = self.build_dir / 'bin' / 'llama-server'
         if not server_bin.exists():
             alt_paths = [
@@ -465,26 +453,33 @@ class LlamaCppInstaller:
         
         is_built = server_bin.exists() if server_bin else False
         
-        # 获取当前版本号
         current_version = self.get_current_version()
         
-        # 调试日志
-        #self.log(f"[DEBUG] 获取到的版本号: {current_version}")
+        # 获取最新版本（如果还没有）
+        if self._latest_version is None:
+            latest = self.get_latest_stable_tag()
+            if latest:
+                self._latest_version = latest
         
-        # 检查是否有新版本（每24小时检查一次，即86400秒）
+        # 检查是否有新版本（每24小时检查一次）
         current_time = time.time()
         if current_time - self._last_check_time > 86400:
             self._last_check_time = current_time
             update_info = self.check_for_updates()
-            if update_info and update_info.get('has_update'):
+            if update_info:
                 self._latest_version = update_info.get('latest')
         
-        # 如果已编译完成
         if is_built:
             if current_version:
                 version_text = f"llama.cpp {current_version}"
             else:
                 version_text = "✅ 已编译"
+            
+            has_update = False
+            if self._latest_version and current_version:
+                current_num = re.sub(r'[^0-9]', '', current_version)
+                latest_num = re.sub(r'[^0-9]', '', self._latest_version)
+                has_update = current_num != latest_num
             
             status = {
                 'cloned': self.llama_dir.exists(),
@@ -494,16 +489,14 @@ class LlamaCppInstaller:
                 'llama_dir': str(self.llama_dir) if self.llama_dir.exists() else None,
                 'server_path': str(server_bin) if server_bin else None,
                 'version': version_text,
-                'has_update': bool(self._latest_version and current_version and current_version != self._latest_version),
+                'has_update': has_update,
                 'latest_version': self._latest_version
             }
             return status
         
-        # 未编译完成，检测编译进程
         is_building = False
         building_progress = None
         
-        # 使用 ps 命令检查进程（更可靠）
         try:
             result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
             ps_output = result.stdout
@@ -516,7 +509,6 @@ class LlamaCppInstaller:
         except:
             pass
         
-        # 获取编译进度
         if is_building:
             try:
                 obj_dir = self.build_dir / 'src' / 'CMakeFiles' / 'llama.dir'
@@ -527,13 +519,11 @@ class LlamaCppInstaller:
             except:
                 pass
         else:
-            # 没有进程在运行，检查 CMake 配置状态
             cmake_cache = self.build_dir / 'CMakeCache.txt'
             if cmake_cache.exists():
                 is_building = True
                 building_progress = "CMake 配置完成，等待编译启动..."
         
-        # 显示版本信息（即使未编译也显示源码版本）
         if current_version:
             version_text = f"llama.cpp {current_version} (未编译)"
         else:
@@ -548,7 +538,7 @@ class LlamaCppInstaller:
             'server_path': None,
             'version': version_text,
             'has_update': False,
-            'latest_version': None
+            'latest_version': self._latest_version
         }
         
         return status

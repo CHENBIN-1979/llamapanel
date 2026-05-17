@@ -219,22 +219,18 @@ HTML_PAGE = '''
                     buildStatusClass = 'status-warning';
                 }
                 
-                // 版本显示：第一行当前版本，第二行最新版本
                 let currentVersionText = status.version || '未知';
                 let latestVersionHtml = '';
                 
                 if (status.has_update && status.latest_version) {
-                    // 有新版本：第二行显示新版本提示
                     latestVersionHtml = `<div class="info-value" style="color: #e53e3e; font-size: 14px; margin-top: 5px;">
                                             ⚠️ 最新版本: ${status.latest_version} (点击「更新代码」)
                                         </div>`;
                 } else if (status.latest_version) {
-                    // 没有新版本：第二行显示已是最新
                     latestVersionHtml = `<div class="info-value" style="color: #6bcb77; font-size: 14px; margin-top: 5px;">
                                             ✅ 已是最新版本: ${status.latest_version}
                                         </div>`;
                 } else {
-                    // 无法获取最新版本
                     latestVersionHtml = `<div class="info-value" style="color: #888; font-size: 14px; margin-top: 5px;">
                                             📡 正在检查更新...
                                         </div>`;
@@ -290,11 +286,9 @@ HTML_PAGE = '''
                     return;
                 }
                 
-                // 将字面的 \\n 或 \\r\\n 替换为真正换行（兼容新旧日志）
                 let processed = text.replace(/\\\\n/g, '\\n');
                 processed = processed.replace(/\\\\r\\\\n/g, '\\n');
                 
-                // 按换行符分割
                 const lines = processed.split('\\n');
                 
                 let html = '';
@@ -374,110 +368,4 @@ HTML_PAGE = '''
         
         async function cleanBuild() {
             if (confirm('清理所有编译产物？')) {
-                const result = await fetchAPI('/api/clean', 'POST');
-                alert(result.message);
-                refreshStatus();
-            }
-        }
-        
-        function startMonitoring() {
-            const interval = setInterval(() => {
-                refreshStatus();
-                refreshLog();
-            }, 3000);
-            setTimeout(() => clearInterval(interval), 300000);
-        }
-        
-        // 初始化
-        refreshStatus();
-        refreshLog();
-        startAutoRefresh();
-        setInterval(refreshStatus, 5000);
-    </script>
-</body>
-</html>
-'''
-
-@app.get("/")
-async def root():
-    return HTMLResponse(content=HTML_PAGE)
-
-@app.get("/api/status")
-async def get_status():
-    return installer.get_status()
-
-@app.get("/api/log")
-async def get_log():
-    log_file = installer.log_file
-    if not log_file.exists():
-        return "暂无日志"
-    
-    with open(log_file, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    if not content or content.strip() == '':
-        return "暂无日志"
-    
-    # 将字面的 \n 替换为真正的换行符
-    content = content.replace('\\n', '\n')
-    content = content.replace('\\r\\n', '\n')
-    
-    return content
-
-@app.post("/api/install")
-async def install_llama(background_tasks: BackgroundTasks):
-    if installer._install_running:
-        return {"success": False, "message": "安装已在运行中"}
-    def run_install():
-        installer._install_running = True
-        try:
-            installer.full_install()
-        finally:
-            installer._install_running = False
-    background_tasks.add_task(run_install)
-    return {"success": True, "message": "安装任务已启动，请查看日志面板"}
-
-@app.post("/api/update")
-async def update_llama(background_tasks: BackgroundTasks):
-    if installer._install_running:
-        return {"success": False, "message": "已有任务正在运行中"}
-    def run_update():
-        installer._install_running = True
-        try:
-            installer.update_llama_cpp()
-        finally:
-            installer._install_running = False
-    background_tasks.add_task(run_update)
-    return {"success": True, "message": "更新任务已启动，请查看日志面板"}
-
-@app.post("/api/rebuild")
-async def rebuild_llama(background_tasks: BackgroundTasks):
-    if installer._install_running:
-        return {"success": False, "message": "已有任务正在运行中"}
-    def run_rebuild():
-        installer._install_running = True
-        try:
-            installer.rebuild()
-        finally:
-            installer._install_running = False
-    background_tasks.add_task(run_rebuild)
-    return {"success": True, "message": "重新编译任务已启动，请查看日志面板"}
-
-@app.post("/api/clean")
-async def clean_build(background_tasks: BackgroundTasks):
-    if installer._install_running:
-        return {"success": False, "message": "已有任务正在运行中"}
-    def run_clean():
-        installer._install_running = True
-        try:
-            installer.clean_build()
-        finally:
-            installer._install_running = False
-    background_tasks.add_task(run_clean)
-    return {"success": True, "message": "清理任务已启动，请查看日志面板"}
-
-if __name__ == "__main__":
-    import uvicorn
-    print("🦙 LlamaPanel 启动中...")
-    print("访问地址: http://0.0.0.0:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+                const result = await fetch
