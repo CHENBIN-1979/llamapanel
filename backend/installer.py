@@ -5,6 +5,8 @@ import shutil
 import time
 import sys
 import re
+import json
+import urllib.request
 from pathlib import Path
 
 class LlamaCppInstaller:
@@ -15,6 +17,8 @@ class LlamaCppInstaller:
         self.log_file = self.base_dir / "logs" / "install.log"
         self.log_file.parent.mkdir(exist_ok=True)
         self._install_running = False
+        self._latest_version = None
+        self._last_check_time = 0
         
         self.cmd_paths = {
             'git': '/usr/bin/git',
@@ -76,58 +80,99 @@ class LlamaCppInstaller:
         except (subprocess.SubprocessError, FileNotFoundError):
             return False
     
-    def _get_llama_version(self):
-        """从源码获取真实的 llama.cpp 版本号"""
-        version = None
+    def get_current_version_from_git(self):
+        """从 git tag 获取当前版本号"""
+        if not self.llama_dir.exists():
+            return None
+        try:
+            result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'],
+                                   cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                if version.startswith('v'):
+                    version = version[1:]
+                return version
+        except:
+            pass
+        return None
+    
+    def get_latest_release_version(self):
+        """从 GitHub API 获取最新 Releases 版本号"""
+        try:
+            # 使用 GitHub API 获取最新 release
+            req = urllib.request.Request(
+                'https://api.github.com/repos/ggerganov/llama.cpp/releases/latest',
+                headers={'User-Agent': 'LlamaPanel/1.0'}
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                tag_name = data.get('tag_name', '')
+                if tag_name.startswith('v'):
+                    tag_name = tag_name[1:]
+                return tag_name
+        except Exception as e:
+            self.log(f"获取最新版本失败: {e}")
+            return None
+    
+    def check_for_updates(self):
+        """检查是否有新版本可用"""
+        current = self.get_current_version_from_git()
+        if not current:
+            # 如果获取不到 git tag，尝试从 CMakeLists.txt 获取
+            current = self._get_llama_version_from_cmake()
         
-        # 方法1：从 CMakeLists.txt 读取
+        latest = self.get_latest_release_version()
+        
+        if current and latest:
+            # 比较版本号（简单比较，bXXXX 格式直接比较数字）
+            return {
+                'has_update': current != latest,
+                'current': current,
+                'latest': latest
+            }
+        return None
+    
+    def _get_llama_version_from_cmake(self):
+        """从 CMakeLists.txt 读取版本号"""
         cmake_file = self.llama_dir / "CMakeLists.txt"
         if cmake_file.exists():
             try:
                 with open(cmake_file, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    # 查找 project(llama VERSION x.x.x)
                     match = re.search(r'project\s*\(\s*llama\s+VERSION\s+([0-9.]+)', content, re.IGNORECASE)
-                    if not match:
-                        match = re.search(r'SET\s*\(\s*VERSION\s+([0-9.]+)', content, re.IGNORECASE)
-                    if not match:
-                        match = re.search(r'VERSION\s+([0-9.]+)', content)
                     if match:
-                        version = match.group(1)
+                        return match.group(1)
             except:
                 pass
+        return None
+    
+    def _get_llama_version(self):
+        """获取真实的 llama.cpp 版本号（优先使用 git tag）"""
+        # 优先从 git tag 获取
+        version = self.get_current_version_from_git()
+        if version:
+            return version
         
-        # 方法2：从 version.h 读取
-        if not version:
-            version_h = self.llama_dir / "common" / "version.h"
-            if not version_h.exists():
-                version_h = self.llama_dir / "llama.h"
-            if version_h.exists():
-                try:
-                    with open(version_h, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                        match = re.search(r'#define\s+LLAMA_VERSION_STRING\s+"([^"]+)"', content)
-                        if not match:
-                            match = re.search(r'#define\s+VERSION\s+"([^"]+)"', content)
-                        if match:
-                            version = match.group(1)
-                except:
-                    pass
+        # 从 CMakeLists.txt 读取
+        version = self._get_llama_version_from_cmake()
+        if version:
+            return version
         
-        # 方法3：从 git tag 获取
-        if not version and self.llama_dir.exists():
+        # 从 version.h 读取
+        version_h = self.llama_dir / "common" / "version.h"
+        if not version_h.exists():
+            version_h = self.llama_dir / "llama.h"
+        if version_h.exists():
             try:
-                result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'], 
-                                       cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
-                if result.returncode == 0:
-                    version = result.stdout.strip()
-                    # 移除开头的 v
-                    if version.startswith('v'):
-                        version = version[1:]
+                with open(version_h, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    match = re.search(r'#define\s+LLAMA_VERSION_STRING\s+"([^"]+)"', content)
+                    if match:
+                        return match.group(1)
             except:
                 pass
         
-        return version
+        return None
     
     def check_and_install_dependencies(self):
         self.log("========== 检查系统环境 ==========")
@@ -407,13 +452,25 @@ class LlamaCppInstaller:
         
         is_built = server_bin.exists() if server_bin else False
         
-        # 获取真实的 llama.cpp 版本号（从源码）
-        real_version = self._get_llama_version()
+        # 获取当前版本号（从 git tag）
+        current_version = self.get_current_version_from_git()
+        
+        # 检查是否有新版本（每30分钟检查一次）
+        update_info = None
+        current_time = time.time()
+        if current_time - self._last_check_time > 1800:  # 30分钟
+            self._last_check_time = current_time
+            update_info = self.check_for_updates()
+            if update_info and update_info.get('has_update'):
+                self._latest_version = update_info.get('latest')
         
         # 如果已编译完成
         if is_built:
-            if real_version:
-                version_text = f"llama.cpp v{real_version}"
+            if current_version:
+                version_text = f"llama.cpp {current_version}"
+                # 如果有新版本，添加提示
+                if self._latest_version and current_version != self._latest_version:
+                    version_text += f" ⚠️ 新版本 {self._latest_version} 可用！点击「更新代码」"
             else:
                 # 尝试从二进制获取 build 号
                 try:
@@ -434,7 +491,9 @@ class LlamaCppInstaller:
                 'building_progress': None,
                 'llama_dir': str(self.llama_dir) if self.llama_dir.exists() else None,
                 'server_path': str(server_bin) if server_bin else None,
-                'version': version_text
+                'version': version_text,
+                'has_update': bool(self._latest_version and current_version and current_version != self._latest_version),
+                'latest_version': self._latest_version
             }
             return status
         
@@ -473,8 +532,8 @@ class LlamaCppInstaller:
                 building_progress = "CMake 配置完成，等待编译启动..."
         
         # 显示版本信息（即使未编译也显示源码版本）
-        if real_version:
-            version_text = f"llama.cpp v{real_version} (未编译)"
+        if current_version:
+            version_text = f"llama.cpp {current_version} (未编译)"
         else:
             version_text = building_progress if is_building else "❌ 未编译"
         
@@ -485,7 +544,9 @@ class LlamaCppInstaller:
             'building_progress': building_progress,
             'llama_dir': str(self.llama_dir) if self.llama_dir.exists() else None,
             'server_path': None,
-            'version': version_text
+            'version': version_text,
+            'has_update': False,
+            'latest_version': None
         }
         
         return status
