@@ -5,9 +5,13 @@ from pathlib import Path
 import sys
 sys.path.append('/opt/llamapanel/backend')
 from installer import LlamaCppInstaller
+from models_page import router as models_router
 
 app = FastAPI(title="LlamaPanel", description="llama.cpp 管理面板")
 installer = LlamaCppInstaller()
+
+# 注册模型管理路由
+app.include_router(models_router)
 
 HTML_PAGE = '''
 <!DOCTYPE html>
@@ -25,6 +29,27 @@ HTML_PAGE = '''
             padding: 20px;
         }
         .container { max-width: 1200px; margin: 0 auto; }
+        .nav-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .nav-bar a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.2);
+            transition: all 0.3s;
+        }
+        .nav-bar a:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .nav-bar a.active {
+            background: white;
+            color: #667eea;
+        }
         .card {
             background: white;
             border-radius: 16px;
@@ -148,6 +173,11 @@ HTML_PAGE = '''
 </head>
 <body>
     <div class="container">
+        <div class="nav-bar">
+            <a href="/" class="active">🏠 主页</a>
+            <a href="/models">📦 模型管理</a>
+        </div>
+        
         <div class="card">
             <h1>🦙 LlamaPanel</h1>
             <p class="subtitle">llama.cpp 图形化管理面板 - 无需命令行</p>

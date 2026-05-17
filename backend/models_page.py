@@ -1,0 +1,570 @@
+#!/usr/bin/env python3
+from fastapi import APIRouter, Request, BackgroundTasks
+from fastapi.responses import HTMLResponse
+from model_manager import ModelManager
+
+router = APIRouter(prefix="/models", tags=["models"])
+model_manager = ModelManager()
+
+# 模型管理页面的 HTML
+MODELS_PAGE = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LlamaPanel - 模型管理</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-bottom: 8px; }
+        h2 { color: #333; margin-bottom: 16px; font-size: 18px; }
+        h3 { color: #555; margin-bottom: 12px; font-size: 16px; }
+        .subtitle { color: #666; margin-bottom: 24px; }
+        .nav-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .nav-bar a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.2);
+            transition: all 0.3s;
+        }
+        .nav-bar a:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .nav-bar a.active {
+            background: white;
+            color: #667eea;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        button:hover { background: #5a67d8; transform: translateY(-1px); }
+        button.danger { background: #e53e3e; }
+        button.danger:hover { background: #c53030; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        button.small { padding: 4px 12px; font-size: 12px; }
+        input, select {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .search-box input {
+            flex: 1;
+            min-width: 200px;
+        }
+        .model-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        .model-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .model-name {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .model-meta {
+            font-size: 12px;
+            color: #718096;
+            margin-bottom: 10px;
+        }
+        .file-list {
+            margin-top: 12px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 12px;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .file-name {
+            font-family: monospace;
+            font-size: 13px;
+            word-break: break-all;
+            flex: 1;
+        }
+        .file-size {
+            font-size: 12px;
+            color: #718096;
+            white-space: nowrap;
+        }
+        .models-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .models-table th, .models-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .models-table th {
+            background: #f7fafc;
+            font-weight: 600;
+        }
+        .progress-bar {
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            width: 0%;
+            height: 20px;
+            background: #667eea;
+            transition: width 0.3s;
+        }
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e2e8f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-warning { background: #fff3cd; color: #856404; }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: #718096;
+        }
+        .tab.active {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            border-radius: 0;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .info-text {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav-bar">
+            <a href="/">🏠 主页</a>
+            <a href="/models" class="active">📦 模型管理</a>
+        </div>
+        
+        <div class="card">
+            <h1>📦 模型管理</h1>
+            <p class="subtitle">搜索、下载和管理 GGUF 模型</p>
+            
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('download')">📥 下载模型</button>
+                <button class="tab" onclick="switchTab('local')">💾 本地模型</button>
+                <button class="tab" onclick="switchTab('settings')">⚙️ 设置</button>
+            </div>
+            
+            <!-- 下载模型标签页 -->
+            <div id="tab-download" class="tab-content active">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="搜索 HuggingFace 模型... (例如: llama, qwen, mistral)">
+                    <button onclick="searchModels()" id="searchBtn">🔍 搜索</button>
+                    <button onclick="clearSearch()">🗑️ 清空</button>
+                </div>
+                <div id="searchResults"></div>
+            </div>
+            
+            <!-- 本地模型标签页 -->
+            <div id="tab-local" class="tab-content">
+                <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                    <button onclick="refreshLocalModels()">🔄 刷新列表</button>
+                    <button onclick="createSymlinks()">🔗 创建软链接</button>
+                </div>
+                <div id="localModelsList">
+                    <div class="loading"></div> 加载中...
+                </div>
+            </div>
+            
+            <!-- 设置标签页 -->
+            <div id="tab-settings" class="tab-content">
+                <h3>模型存储路径</h3>
+                <div class="info-text">
+                    <strong>模型目录:</strong> /opt/llamapanel/models/<br>
+                    <strong>软链接目录:</strong> /opt/llamapanel/llama.cpp/models/<br>
+                    <strong>临时下载目录:</strong> /opt/llamapanel/downloads/<br><br>
+                    模型文件独立存储，删除 llama.cpp 目录不会影响已下载的模型。
+                </div>
+                <button onclick="openModelDir()" style="margin-top: 15px;">📂 打开模型目录</button>
+            </div>
+        </div>
+        
+        <!-- 下载进度 -->
+        <div id="downloadProgress" class="card" style="display: none;">
+            <h2>📥 下载进度</h2>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <div id="progressText" style="font-size: 14px;">准备下载...</div>
+        </div>
+    </div>
+    
+    <script>
+        let currentSearchResults = [];
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            if (tabName === 'download') {
+                document.querySelector('.tab:first-child').classList.add('active');
+                document.getElementById('tab-download').classList.add('active');
+            } else if (tabName === 'local') {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('tab-local').classList.add('active');
+                refreshLocalModels();
+            } else if (tabName === 'settings') {
+                document.querySelectorAll('.tab')[2].classList.add('active');
+                document.getElementById('tab-settings').classList.add('active');
+            }
+        }
+        
+        async function searchModels() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                alert('请输入搜索关键词');
+                return;
+            }
+            
+            const btn = document.getElementById('searchBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> 搜索中...';
+            
+            try {
+                const response = await fetch(`/api/models/search?q=${encodeURIComponent(query)}&limit=30`);
+                const data = await response.json();
+                
+                const resultsDiv = document.getElementById('searchResults');
+                
+                if (data.success && data.results.length > 0) {
+                    currentSearchResults = data.results;
+                    let html = '';
+                    for (const model of data.results) {
+                        html += `
+                            <div class="model-card">
+                                <div class="model-name">📄 ${model.name}</div>
+                                <div class="model-meta">作者: ${model.author} | ❤️ ${model.likes} | 📥 ${model.downloads}</div>
+                                <button onclick="getModelFiles('${model.id}')" id="btn-${model.id.replace(/[^a-zA-Z0-9]/g, '_')}">📂 查看 GGUF 文件</button>
+                                <div id="files-${model.id.replace(/[^a-zA-Z0-9]/g, '_')}" style="margin-top: 12px; display: none;"></div>
+                            </div>
+                        `;
+                    }
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = '<div class="info-text">❌ 未找到相关模型</div>';
+                }
+            } catch(e) {
+                console.error('搜索失败:', e);
+                document.getElementById('searchResults').innerHTML = '<div class="info-text">❌ 搜索失败，请检查网络</div>';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔍 搜索';
+            }
+        }
+        
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchResults').innerHTML = '';
+            currentSearchResults = [];
+        }
+        
+        async function getModelFiles(modelId) {
+            const btnId = 'btn-' + modelId.replace(/[^a-zA-Z0-9]/g, '_');
+            const btn = document.getElementById(btnId);
+            const containerId = 'files-' + modelId.replace(/[^a-zA-Z0-9]/g, '_');
+            const container = document.getElementById(containerId);
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> 加载中...';
+            
+            try {
+                const response = await fetch(`/api/models/files?model_id=${encodeURIComponent(modelId)}`);
+                const data = await response.json();
+                
+                if (data.success && data.files.length > 0) {
+                    let html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
+                    for (const file of data.files) {
+                        html += `
+                            <div class="file-item">
+                                <span class="file-name">${file.filename}</span>
+                                <span class="file-size">${file.size_str}</span>
+                                <button class="small" onclick="downloadModel('${file.download_url}', '${file.filename}')">⬇️ 下载</button>
+                            </div>
+                        `;
+                    }
+                    html += '</div>';
+                    container.innerHTML = html;
+                    container.style.display = 'block';
+                } else {
+                    container.innerHTML = '<div class="info-text">❌ 没有找到 GGUF 文件</div>';
+                    container.style.display = 'block';
+                }
+            } catch(e) {
+                console.error('获取文件失败:', e);
+                container.innerHTML = '<div class="info-text">❌ 获取文件列表失败</div>';
+                container.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '📂 查看 GGUF 文件';
+            }
+        }
+        
+        async function downloadModel(downloadUrl, filename) {
+            if (confirm(`下载 ${filename}？\\n文件可能较大，请耐心等待。`)) {
+                const progressDiv = document.getElementById('downloadProgress');
+                const progressFill = document.getElementById('progressFill');
+                const progressText = document.getElementById('progressText');
+                
+                progressDiv.style.display = 'block';
+                progressFill.style.width = '0%';
+                progressText.innerText = '开始下载...';
+                
+                try {
+                    const response = await fetch('/api/models/download', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ download_url: downloadUrl, filename: filename })
+                    });
+                    const result = await response.json();
+                    alert(result.message);
+                    
+                    // 开始轮询监控下载进度
+                    startPollingProgress(filename);
+                } catch(e) {
+                    console.error('下载失败:', e);
+                    alert('下载失败');
+                    progressDiv.style.display = 'none';
+                }
+            }
+        }
+        
+        async function refreshLocalModels() {
+            const modelsDiv = document.getElementById('localModelsList');
+            modelsDiv.innerHTML = '<div class="loading"></div> 加载中...';
+            
+            try {
+                const response = await fetch('/api/models/local');
+                const data = await response.json();
+                
+                if (data.success && data.models.length > 0) {
+                    let html = '<table class="models-table">';
+                    html += '<thead><tr><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
+                    for (const model of data.models) {
+                        html += `
+                            <tr>
+                                <td>${model.name}</td>
+                                <td>${model.size_str}</td>
+                                <td>${model.modified}</td>
+                                <td>
+                                    <button class="small" onclick="deleteModel('${model.name}')">🗑️ 删除</button>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                    html += '</tbody></table>';
+                    modelsDiv.innerHTML = html;
+                } else {
+                    modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
+                }
+            } catch(e) {
+                console.error('刷新失败:', e);
+                modelsDiv.innerHTML = '<div class="info-text">加载失败</div>';
+            }
+        }
+        
+        async function deleteModel(filename) {
+            if (confirm(`确定删除 ${filename}？`)) {
+                try {
+                    const response = await fetch(`/api/models/delete?filename=${encodeURIComponent(filename)}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+                    alert(data.message);
+                    refreshLocalModels();
+                } catch(e) {
+                    console.error('删除失败:', e);
+                    alert('删除失败');
+                }
+            }
+        }
+        
+        async function createSymlinks() {
+            try {
+                const response = await fetch('/api/models/symlinks', { method: 'POST' });
+                const data = await response.json();
+                alert(data.message);
+                refreshLocalModels();
+            } catch(e) {
+                console.error('创建软链接失败:', e);
+                alert('创建失败');
+            }
+        }
+        
+        function openModelDir() {
+            alert('模型目录: /opt/llamapanel/models/\\n请通过 SSH 访问');
+        }
+        
+        let progressInterval = null;
+        
+        function startPollingProgress(filename) {
+            if (progressInterval) clearInterval(progressInterval);
+            progressInterval = setInterval(() => {
+                checkDownloadStatus(filename);
+            }, 2000);
+            setTimeout(() => {
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                    document.getElementById('downloadProgress').style.display = 'none';
+                }
+            }, 60000);
+        }
+        
+        async function checkDownloadStatus(filename) {
+            try {
+                const response = await fetch('/api/models/local');
+                const data = await response.json();
+                if (data.success) {
+                    const found = data.models.find(m => m.name === filename);
+                    if (found) {
+                        document.getElementById('progressFill').style.width = '100%';
+                        document.getElementById('progressText').innerText = '下载完成！';
+                        setTimeout(() => {
+                            document.getElementById('downloadProgress').style.display = 'none';
+                            if (progressInterval) clearInterval(progressInterval);
+                            refreshLocalModels();
+                        }, 2000);
+                    }
+                }
+            } catch(e) {
+                console.error('检查状态失败:', e);
+            }
+        }
+        
+        // 初始化
+        refreshLocalModels();
+    </script>
+</body>
+</html>
+'''
+
+@router.get("")
+async def models_page():
+    """模型管理页面"""
+    return HTMLResponse(content=MODELS_PAGE)
+
+@router.get("/api/search")
+async def search_models(q: str, limit: int = 30):
+    """搜索 HuggingFace 模型"""
+    results = model_manager.search_huggingface_models(q, limit)
+    return {"success": True, "results": results}
+
+@router.get("/api/files")
+async def get_model_files(model_id: str):
+    """获取模型的 GGUF 文件列表"""
+    files = model_manager.get_model_files(model_id)
+    return {"success": True, "files": files}
+
+@router.post("/api/download")
+async def download_model(request: Request, background_tasks: BackgroundTasks):
+    """下载模型（后台任务）"""
+    data = await request.json()
+    download_url = data.get('download_url')
+    filename = data.get('filename')
+    
+    if not download_url or not filename:
+        return {"success": False, "message": "缺少必要参数"}
+    
+    def run_download():
+        model_manager.download_model(download_url, filename)
+    
+    background_tasks.add_task(run_download)
+    return {"success": True, "message": f"开始下载 {filename}"}
+
+@router.get("/api/local")
+async def get_local_models():
+    """获取本地已下载的模型列表"""
+    models = model_manager.get_local_models()
+    return {"success": True, "models": models}
+
+@router.delete("/api/delete")
+async def delete_model(filename: str):
+    """删除本地模型"""
+    success = model_manager.delete_model(filename)
+    if success:
+        return {"success": True, "message": f"已删除 {filename}"}
+    else:
+        return {"success": False, "message": "删除失败"}
+
+@router.post("/api/symlinks")
+async def create_symlinks():
+    """创建所有模型的软链接"""
+    count = model_manager.create_symlinks()
+    return {"success": True, "message": f"已创建 {count} 个软链接"}
