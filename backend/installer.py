@@ -52,23 +52,35 @@ class LlamaCppInstaller:
         return [first_cmd] + cmd_parts[1:]
     
     def run_command(self, cmd, cwd=None, check=True):
+        """执行命令并实时输出日志"""
         full_cmd = self.build_full_cmd(cmd)
         self.log(f"执行: {' '.join(full_cmd)}")
         try:
-            result = subprocess.run(full_cmd, cwd=cwd, capture_output=True, text=True, timeout=3600)
-            if result.stdout:
-                for line in result.stdout.split('\n'):
-                    if line.strip():
-                        self.log(f"  {line}")
-            if result.stderr:
-                for line in result.stderr.split('\n'):
-                    if line.strip():
-                        self.log(f"  [ERR] {line}")
-            if check and result.returncode != 0:
-                raise Exception(f"命令执行失败，返回码: {result.returncode}")
-            return result
-        except subprocess.TimeoutExpired:
-            raise Exception("命令执行超时")
+            # 使用 Popen 实现实时输出
+            process = subprocess.Popen(
+                full_cmd,
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
+            )
+            
+            # 实时读取并输出每一行
+            for line in process.stdout:
+                line = line.rstrip()
+                if line.strip():
+                    self.log(f"  {line}")
+            
+            # 等待进程结束
+            returncode = process.wait()
+            
+            if check and returncode != 0:
+                raise Exception(f"命令执行失败，返回码: {returncode}")
+            
+            # 返回一个模拟的 CompletedProcess 对象
+            return type('obj', (object,), {'returncode': returncode, 'stdout': '', 'stderr': ''})()
+            
         except FileNotFoundError as e:
             raise Exception(f"命令未找到: {full_cmd[0]} - {e}")
     
