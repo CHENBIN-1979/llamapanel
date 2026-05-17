@@ -69,8 +69,39 @@ class ModelManager:
             self.log(f"HuggingFace API 搜索失败: {e}")
             return []
     
+    def get_file_size_from_url(self, url: str) -> tuple:
+        """通过 HEAD 请求获取文件大小"""
+        try:
+            req = urllib.request.Request(url, method='HEAD')
+            req.add_header('User-Agent', 'LlamaPanel/1.0')
+            with urllib.request.urlopen(req, timeout=10) as response:
+                size = int(response.headers.get('Content-Length', 0))
+                return size, True
+        except Exception as e:
+            self.log(f"获取文件大小失败 {url}: {e}")
+            return 0, False
+    
+    def format_size(self, size: int) -> str:
+        """格式化文件大小"""
+        if size <= 0:
+            return "未知大小"
+        
+        size_gb = size / (1024 * 1024 * 1024)
+        if size_gb >= 1:
+            return f"{size_gb:.2f} GB"
+        
+        size_mb = size / (1024 * 1024)
+        if size_mb >= 1:
+            return f"{size_mb:.0f} MB"
+        
+        size_kb = size / 1024
+        if size_kb >= 1:
+            return f"{size_kb:.0f} KB"
+        
+        return f"{size} B"
+    
     def get_model_files(self, model_id: str) -> List[Dict]:
-        """获取模型的所有 GGUF 文件"""
+        """获取模型的所有 GGUF 文件（通过 HEAD 请求获取准确大小）"""
         try:
             api_url = f"https://huggingface.co/api/models/{model_id}"
             req = urllib.request.Request(
@@ -84,24 +115,49 @@ class ModelManager:
             siblings = data.get('siblings', [])
             gguf_files = []
             
+            # 先收集所有 GGUF 文件名和下载 URL
+            file_list = []
             for sibling in siblings:
                 filename = sibling.get('rfilename', '')
                 if filename.endswith('.gguf'):
-                    size = sibling.get('size', 0)
-                    size_mb = size / (1024 * 1024)
-                    size_gb = size / (1024 * 1024 * 1024)
-                    
-                    if size_gb >= 1:
-                        size_str = f"{size_gb:.2f} GB"
-                    else:
-                        size_str = f"{size_mb:.0f} MB"
-                    
-                    gguf_files.append({
+                    download_url = f"https://huggingface.co/{model_id}/resolve/main/{filename}"
+                    file_list.append({
                         'filename': filename,
-                        'size': size,
-                        'size_str': size_str,
-                        'download_url': f"https://huggingface.co/{model_id}/resolve/main/{filename}"
+                        'download_url': download_url,
+                        'api_size': sibling.get('size', 0)
                     })
+            
+            # 获取每个文件的准确大小
+            self.log(f"正在获取 {len(file_list)} 个文件的大小信息...")
+            
+            for file_info in file_list:
+                filename = file_info['filename']
+                download_url = file_info['download_url']
+                api_size = file_info['api_size']
+                
+                # 优先使用 HEAD 请求获取准确大小
+                real_size, success = self.get_file_size_from_url(download_url)
+                
+                if success and real_size > 0:
+                    size = real_size
+                    size_str = self.format_size(size)
+                elif api_size > 0:
+                    size = api_size
+                    size_str = self.format_size(size)
+                else:
+                    size = 0
+                    size_str = "获取中..."
+                    # 异步获取大小（标记为稍后更新）
+                
+                gguf_files.append({
+                    'filename': filename,
+                    'size': size,
+                    'size_str': size_str,
+                    'download_url': download_url
+                })
+            
+            # 按文件大小排序（大的在前）
+            gguf_files.sort(key=lambda x: x['size'], reverse=True)
             
             if gguf_files:
                 self.log(f"获取模型 {model_id} 文件成功，找到 {len(gguf_files)} 个 GGUF 文件")
