@@ -81,7 +81,7 @@ class LlamaCppInstaller:
             return False
     
     def get_current_version_from_git(self):
-        """从 git tag 获取当前版本号"""
+        """从 git tag 获取当前版本号（如 b9190）"""
         if not self.llama_dir.exists():
             return None
         try:
@@ -99,7 +99,6 @@ class LlamaCppInstaller:
     def get_latest_release_version(self):
         """从 GitHub API 获取最新 Releases 版本号"""
         try:
-            # 使用 GitHub API 获取最新 release
             req = urllib.request.Request(
                 'https://api.github.com/repos/ggerganov/llama.cpp/releases/latest',
                 headers={'User-Agent': 'LlamaPanel/1.0'}
@@ -118,60 +117,16 @@ class LlamaCppInstaller:
         """检查是否有新版本可用"""
         current = self.get_current_version_from_git()
         if not current:
-            # 如果获取不到 git tag，尝试从 CMakeLists.txt 获取
-            current = self._get_llama_version_from_cmake()
+            return None
         
         latest = self.get_latest_release_version()
         
         if current and latest:
-            # 比较版本号（简单比较，bXXXX 格式直接比较数字）
             return {
                 'has_update': current != latest,
                 'current': current,
                 'latest': latest
             }
-        return None
-    
-    def _get_llama_version_from_cmake(self):
-        """从 CMakeLists.txt 读取版本号"""
-        cmake_file = self.llama_dir / "CMakeLists.txt"
-        if cmake_file.exists():
-            try:
-                with open(cmake_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    match = re.search(r'project\s*\(\s*llama\s+VERSION\s+([0-9.]+)', content, re.IGNORECASE)
-                    if match:
-                        return match.group(1)
-            except:
-                pass
-        return None
-    
-    def _get_llama_version(self):
-        """获取真实的 llama.cpp 版本号（优先使用 git tag）"""
-        # 优先从 git tag 获取
-        version = self.get_current_version_from_git()
-        if version:
-            return version
-        
-        # 从 CMakeLists.txt 读取
-        version = self._get_llama_version_from_cmake()
-        if version:
-            return version
-        
-        # 从 version.h 读取
-        version_h = self.llama_dir / "common" / "version.h"
-        if not version_h.exists():
-            version_h = self.llama_dir / "llama.h"
-        if version_h.exists():
-            try:
-                with open(version_h, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    match = re.search(r'#define\s+LLAMA_VERSION_STRING\s+"([^"]+)"', content)
-                    if match:
-                        return match.group(1)
-            except:
-                pass
-        
         return None
     
     def check_and_install_dependencies(self):
@@ -455,10 +410,10 @@ class LlamaCppInstaller:
         # 获取当前版本号（从 git tag）
         current_version = self.get_current_version_from_git()
         
-        # 检查是否有新版本（每30分钟检查一次）
+        # 检查是否有新版本（每24小时检查一次，即86400秒）
         update_info = None
         current_time = time.time()
-        if current_time - self._last_check_time > 1800:  # 30分钟
+        if current_time - self._last_check_time > 86400:  # 24小时 = 86400秒
             self._last_check_time = current_time
             update_info = self.check_for_updates()
             if update_info and update_info.get('has_update'):
@@ -468,21 +423,8 @@ class LlamaCppInstaller:
         if is_built:
             if current_version:
                 version_text = f"llama.cpp {current_version}"
-                # 如果有新版本，添加提示
-                if self._latest_version and current_version != self._latest_version:
-                    version_text += f" ⚠️ 新版本 {self._latest_version} 可用！点击「更新代码」"
             else:
-                # 尝试从二进制获取 build 号
-                try:
-                    result = subprocess.run([str(server_bin), '--version'], capture_output=True, text=True, timeout=10)
-                    output = result.stdout.strip() or result.stderr.strip()
-                    match = re.search(r'b(\d+)', output)
-                    if match:
-                        version_text = f"llama.cpp build {match.group(1)}"
-                    else:
-                        version_text = "✅ 已编译"
-                except:
-                    version_text = "✅ 已编译"
+                version_text = "✅ 已编译"
             
             status = {
                 'cloned': self.llama_dir.exists(),
