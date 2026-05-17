@@ -154,9 +154,10 @@ HTML_PAGE = '''
             
             <div style="margin-top: 20px;">
                 <button onclick="installLlama()" id="installBtn">🚀 完整安装 llama.cpp</button>
-                <button onclick="updateLlama()" id="updateBtn">🔄 更新代码</button>
+                <button onclick="updateLlama()" id="updateBtn">🔄 更新版本</button>
                 <button onclick="rebuildLlama()" id="rebuildBtn">🔨 重新编译</button>
                 <button onclick="cleanBuild()" class="danger" id="cleanBtn">🧹 清理编译</button>
+                <button onclick="deleteAll()" class="danger" id="deleteBtn">🗑️ 删除所有</button>
             </div>
         </div>
         
@@ -224,7 +225,7 @@ HTML_PAGE = '''
                 
                 if (status.has_update && status.latest_version) {
                     latestVersionHtml = `<div class="info-value" style="color: #e53e3e; font-size: 14px; margin-top: 5px;">
-                                            ⚠️ 最新版本: ${status.latest_version} (点击「更新代码」)
+                                            ⚠️ 最新版本: ${status.latest_version} (点击「更新版本」)
                                         </div>`;
                 } else if (status.latest_version) {
                     latestVersionHtml = `<div class="info-value" style="color: #6bcb77; font-size: 14px; margin-top: 5px;">
@@ -346,7 +347,7 @@ HTML_PAGE = '''
         }
         
         async function updateLlama() {
-            if (confirm('更新 llama.cpp 到最新版本？')) {
+            if (confirm('更新 llama.cpp 到最新稳定版本？\\n这将删除当前版本并重新克隆最新版本。')) {
                 const btn = document.getElementById('updateBtn');
                 btn.disabled = true;
                 btn.innerHTML = '<span class="loading"></span> 更新中...';
@@ -354,7 +355,7 @@ HTML_PAGE = '''
                 alert(result.message);
                 refreshStatus();
                 btn.disabled = false;
-                btn.innerHTML = '🔄 更新代码';
+                btn.innerHTML = '🔄 更新版本';
             }
         }
         
@@ -371,6 +372,20 @@ HTML_PAGE = '''
                 const result = await fetchAPI('/api/clean', 'POST');
                 alert(result.message);
                 refreshStatus();
+            }
+        }
+        
+        async function deleteAll() {
+            if (confirm('⚠️ 警告：这将删除整个 llama.cpp 目录及其所有文件！\\n删除后需要重新点击「完整安装」。\\n确定要继续吗？')) {
+                const btn = document.getElementById('deleteBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading"></span> 删除中...';
+                const result = await fetchAPI('/api/delete_all', 'POST');
+                alert(result.message);
+                refreshStatus();
+                refreshLog();
+                btn.disabled = false;
+                btn.innerHTML = '🗑️ 删除所有';
             }
         }
         
@@ -468,6 +483,19 @@ async def clean_build(background_tasks: BackgroundTasks):
             installer._install_running = False
     background_tasks.add_task(run_clean)
     return {"success": True, "message": "清理任务已启动，请查看日志面板"}
+
+@app.post("/api/delete_all")
+async def delete_all(background_tasks: BackgroundTasks):
+    if installer._install_running:
+        return {"success": False, "message": "已有任务正在运行中"}
+    def run_delete():
+        installer._install_running = True
+        try:
+            installer.delete_all()
+        finally:
+            installer._install_running = False
+    background_tasks.add_task(run_delete)
+    return {"success": True, "message": "删除任务已启动，请查看日志面板"}
 
 if __name__ == "__main__":
     import uvicorn

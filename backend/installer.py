@@ -355,7 +355,6 @@ class LlamaCppInstaller:
     def build_llama_cpp(self):
         self.log("开始编译 llama.cpp...")
         
-        # 确保 build 目录存在
         if not self.build_dir.exists():
             self.build_dir.mkdir(parents=True, exist_ok=True)
         
@@ -419,7 +418,6 @@ class LlamaCppInstaller:
             self.log("清理完成")
         else:
             self.log("build 目录不存在，无需清理")
-        # 确保重新创建 build 目录
         self.build_dir.mkdir(parents=True, exist_ok=True)
         self.log("build 目录已重新创建")
     
@@ -442,6 +440,25 @@ class LlamaCppInstaller:
         except Exception as e:
             self.log(f"❌ 安装失败: {e}")
             return False
+    
+    def delete_all(self):
+        """删除所有 llama.cpp 相关文件"""
+        self.log("========== 删除所有 llama.cpp 文件 ==========")
+        
+        if self.llama_dir.exists():
+            self.log(f"删除目录: {self.llama_dir}")
+            shutil.rmtree(self.llama_dir)
+            self.log("✅ llama.cpp 目录已删除")
+        else:
+            self.log("llama.cpp 目录不存在，跳过")
+        
+        if self.build_dir.exists():
+            self.log(f"删除目录: {self.build_dir}")
+            shutil.rmtree(self.build_dir)
+            self.log("✅ build 目录已删除")
+        
+        self.log("========== 删除完成 ==========")
+        self.log("请点击「完整安装」重新安装")
     
     def get_status(self):
         server_bin = self.build_dir / 'bin' / 'llama-server'
