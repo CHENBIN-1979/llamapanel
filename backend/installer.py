@@ -38,7 +38,6 @@ class LlamaCppInstaller:
         if cmd_name in self.cmd_paths:
             return self.cmd_paths[cmd_name]
         
-        # 使用 which 查找
         try:
             result = subprocess.run(['which', cmd_name], capture_output=True, text=True, timeout=5)
             if result.returncode == 0 and result.stdout.strip():
@@ -94,7 +93,6 @@ class LlamaCppInstaller:
             cmd_name = cmd_parts[0]
             result = subprocess.run(['which', cmd_name], capture_output=True, text=True, timeout=5)
             if result.returncode == 0 and result.stdout.strip():
-                # 记录路径
                 cmd_path = result.stdout.strip()
                 if cmd_name not in self.cmd_paths:
                     self.cmd_paths[cmd_name] = cmd_path
@@ -113,6 +111,16 @@ class LlamaCppInstaller:
             return False
         except:
             return False
+    
+    def check_openssl_dev(self):
+        """检查 OpenSSL 开发库是否安装（检查头文件）"""
+        # Debian/Ubuntu 检查头文件
+        if os.path.exists('/usr/include/openssl/ssl.h'):
+            return True
+        # CentOS/RHEL 检查头文件
+        if os.path.exists('/usr/include/openssl/opensslconf.h'):
+            return True
+        return False
     
     def get_latest_stable_tag(self):
         """从 GitHub API 获取最新稳定版本标签"""
@@ -229,27 +237,27 @@ class LlamaCppInstaller:
             self.log("⚠️ ccache 未安装，将自动安装以加速后续编译")
             ccache_missing = True
         
-        # 检查 OpenSSL（用于 HTTPS 支持）
-        openssl_missing = False
-        if self.check_command(['openssl', 'version']):
-            self.log("✅ OpenSSL 已安装（HTTPS 支持）")
+        # 检查 OpenSSL 开发库（用于 HTTPS 支持）- 使用头文件检查
+        openssl_dev_missing = False
+        if self.check_openssl_dev():
+            self.log("✅ OpenSSL 开发库已安装（HTTPS 支持）")
         else:
-            self.log("⚠️ OpenSSL 未安装，将自动安装以支持 HTTPS")
-            openssl_missing = True
+            self.log("⚠️ OpenSSL 开发库未安装，将自动安装以支持 HTTPS")
+            openssl_dev_missing = True
         
         if self.check_command(['nvidia-smi']):
             self.log("✅ NVIDIA CUDA 可用")
         else:
             self.log("⚠️ NVIDIA CUDA 不可用（将使用 CPU 模式）")
         
-        if not missing_tools and not ccache_missing and not openssl_missing:
+        if not missing_tools and not ccache_missing and not openssl_dev_missing:
             self.log("所有依赖已安装")
             return True
         
         if ccache_missing:
             missing_tools.append('ccache')
         
-        if openssl_missing:
+        if openssl_dev_missing:
             if os_type == "debian":
                 missing_tools.append('libssl-dev')
             elif os_type == "redhat":
@@ -326,8 +334,9 @@ class LlamaCppInstaller:
         if ccache_missing and not self.check_command(['ccache', '--version']):
             still_missing.append('ccache')
         
-        if openssl_missing and not self.check_command(['openssl', 'version']):
-            still_missing.append('openssl')
+        # 验证 OpenSSL 开发库安装
+        if openssl_dev_missing and not self.check_openssl_dev():
+            still_missing.append('libssl-dev')
         
         if still_missing:
             self.log(f"⚠️ 以下工具仍不可用: {still_missing}")
@@ -336,8 +345,8 @@ class LlamaCppInstaller:
         self.log("✅ 所有依赖安装完成")
         if ccache_missing:
             self.log("✅ ccache 已安装，后续编译将自动加速")
-        if openssl_missing:
-            self.log("✅ OpenSSL 已安装，HTTPS 支持已启用")
+        if openssl_dev_missing:
+            self.log("✅ OpenSSL 开发库已安装，HTTPS 支持已启用")
         
         return True
     
