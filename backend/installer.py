@@ -421,6 +421,10 @@ class LlamaCppInstaller:
     
     def clean_build(self):
         self.log("清理编译产物...")
+        # 重置版本缓存
+        self._latest_version = None
+        self._last_check_time = 0
+        
         if self.build_dir.exists():
             shutil.rmtree(self.build_dir)
             self.log("清理完成")
@@ -431,6 +435,9 @@ class LlamaCppInstaller:
     
     def rebuild(self):
         self.log("开始重新编译...")
+        # 重置版本缓存
+        self._latest_version = None
+        self._last_check_time = 0
         self.clean_build()
         self.log("清理完成，开始编译...")
         return self.build_llama_cpp()
@@ -477,6 +484,7 @@ class LlamaCppInstaller:
         if not self.llama_dir.exists():
             # 重置版本缓存
             self._latest_version = None
+            self._last_check_time = 0
             status = {
                 'cloned': False,
                 'built': False,
