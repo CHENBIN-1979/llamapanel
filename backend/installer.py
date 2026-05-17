@@ -56,7 +56,6 @@ class LlamaCppInstaller:
         full_cmd = self.build_full_cmd(cmd)
         self.log(f"执行: {' '.join(full_cmd)}")
         try:
-            # 使用 Popen 实现实时输出
             process = subprocess.Popen(
                 full_cmd,
                 cwd=cwd,
@@ -66,19 +65,16 @@ class LlamaCppInstaller:
                 bufsize=1
             )
             
-            # 实时读取并输出每一行
             for line in process.stdout:
                 line = line.rstrip()
                 if line.strip():
                     self.log(f"  {line}")
             
-            # 等待进程结束
             returncode = process.wait()
             
             if check and returncode != 0:
                 raise Exception(f"命令执行失败，返回码: {returncode}")
             
-            # 返回一个模拟的 CompletedProcess 对象
             return type('obj', (object,), {'returncode': returncode, 'stdout': '', 'stderr': ''})()
             
         except FileNotFoundError as e:
@@ -457,6 +453,10 @@ class LlamaCppInstaller:
         """删除所有 llama.cpp 相关文件"""
         self.log("========== 删除所有 llama.cpp 文件 ==========")
         
+        # 重置版本缓存
+        self._latest_version = None
+        self._last_check_time = 0
+        
         if self.llama_dir.exists():
             self.log(f"删除目录: {self.llama_dir}")
             shutil.rmtree(self.llama_dir)
@@ -473,6 +473,23 @@ class LlamaCppInstaller:
         self.log("请点击「完整安装」重新安装")
     
     def get_status(self):
+        # 如果 llama.cpp 目录不存在，返回未克隆状态
+        if not self.llama_dir.exists():
+            # 重置版本缓存
+            self._latest_version = None
+            status = {
+                'cloned': False,
+                'built': False,
+                'building': False,
+                'building_progress': None,
+                'llama_dir': None,
+                'server_path': None,
+                'version': '❌ 未克隆',
+                'has_update': False,
+                'latest_version': None
+            }
+            return status
+        
         server_bin = self.build_dir / 'bin' / 'llama-server'
         if not server_bin.exists():
             alt_paths = [
