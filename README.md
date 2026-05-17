@@ -20,12 +20,12 @@
 
 ## 系统启动命令
 
-启动服务: sudo systemctl start llamapanel
-开机自启: sudo systemctl enable llamapanel
-查看状态: sudo systemctl status llamapanel
-查看日志: sudo journalctl -u llamapanel -f
+- 启动服务: sudo systemctl start llamapanel
+- 开机自启: sudo systemctl enable llamapanel
+- 查看状态: sudo systemctl status llamapanel
+- 查看日志: sudo journalctl -u llamapanel -f
 
-##访问地址: 
+## 访问地址: 
  http://主机IP:8000
 
 ## 一键安装
