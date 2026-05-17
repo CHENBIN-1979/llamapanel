@@ -469,7 +469,7 @@ class LlamaCppInstaller:
         current_version = self.get_current_version()
         
         # 调试日志
-        self.log(f"[DEBUG] 获取到的版本号: {current_version}")
+        #self.log(f"[DEBUG] 获取到的版本号: {current_version}")
         
         # 检查是否有新版本（每24小时检查一次，即86400秒）
         current_time = time.time()
