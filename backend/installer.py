@@ -76,6 +76,59 @@ class LlamaCppInstaller:
         except (subprocess.SubprocessError, FileNotFoundError):
             return False
     
+    def _get_llama_version(self):
+        """从源码获取真实的 llama.cpp 版本号"""
+        version = None
+        
+        # 方法1：从 CMakeLists.txt 读取
+        cmake_file = self.llama_dir / "CMakeLists.txt"
+        if cmake_file.exists():
+            try:
+                with open(cmake_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    # 查找 project(llama VERSION x.x.x)
+                    match = re.search(r'project\s*\(\s*llama\s+VERSION\s+([0-9.]+)', content, re.IGNORECASE)
+                    if not match:
+                        match = re.search(r'SET\s*\(\s*VERSION\s+([0-9.]+)', content, re.IGNORECASE)
+                    if not match:
+                        match = re.search(r'VERSION\s+([0-9.]+)', content)
+                    if match:
+                        version = match.group(1)
+            except:
+                pass
+        
+        # 方法2：从 version.h 读取
+        if not version:
+            version_h = self.llama_dir / "common" / "version.h"
+            if not version_h.exists():
+                version_h = self.llama_dir / "llama.h"
+            if version_h.exists():
+                try:
+                    with open(version_h, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        match = re.search(r'#define\s+LLAMA_VERSION_STRING\s+"([^"]+)"', content)
+                        if not match:
+                            match = re.search(r'#define\s+VERSION\s+"([^"]+)"', content)
+                        if match:
+                            version = match.group(1)
+                except:
+                    pass
+        
+        # 方法3：从 git tag 获取
+        if not version and self.llama_dir.exists():
+            try:
+                result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'], 
+                                       cwd=self.llama_dir, capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    version = result.stdout.strip()
+                    # 移除开头的 v
+                    if version.startswith('v'):
+                        version = version[1:]
+            except:
+                pass
+        
+        return version
+    
     def check_and_install_dependencies(self):
         self.log("========== 检查系统环境 ==========")
         
@@ -354,29 +407,25 @@ class LlamaCppInstaller:
         
         is_built = server_bin.exists() if server_bin else False
         
-        # 如果已编译完成，直接返回
+        # 获取真实的 llama.cpp 版本号（从源码）
+        real_version = self._get_llama_version()
+        
+        # 如果已编译完成
         if is_built:
-            # 获取 llama.cpp 版本号
-            version_text = "✅ 已编译"
-            try:
-                result = subprocess.run([str(server_bin), '--version'], capture_output=True, text=True, timeout=10)
-                output = result.stdout.strip() or result.stderr.strip()
-                # 尝试多种版本号格式
-                match = re.search(r'version:\s*([0-9.]+)', output, re.IGNORECASE)
-                if not match:
-                    match = re.search(r'llama-server\s+version\s+([0-9.]+)', output, re.IGNORECASE)
-                if not match:
-                    match = re.search(r'v([0-9.]+)', output)
-                if not match:
-                    match = re.search(r'([0-9]+\.[0-9]+\.[0-9]+)', output)
-                if match:
-                    version_text = f"llama.cpp v{match.group(1)}"
-                else:
-                    # 如果找不到版本号，显示前50个字符
-                    short_output = output[:50] if output else "已编译"
-                    version_text = f"✅ 已编译 ({short_output})"
-            except Exception as e:
-                version_text = "✅ 已编译"
+            if real_version:
+                version_text = f"llama.cpp v{real_version}"
+            else:
+                # 尝试从二进制获取 build 号
+                try:
+                    result = subprocess.run([str(server_bin), '--version'], capture_output=True, text=True, timeout=10)
+                    output = result.stdout.strip() or result.stderr.strip()
+                    match = re.search(r'b(\d+)', output)
+                    if match:
+                        version_text = f"llama.cpp build {match.group(1)}"
+                    else:
+                        version_text = "✅ 已编译"
+                except:
+                    version_text = "✅ 已编译"
             
             status = {
                 'cloned': self.llama_dir.exists(),
@@ -423,6 +472,12 @@ class LlamaCppInstaller:
                 is_building = True
                 building_progress = "CMake 配置完成，等待编译启动..."
         
+        # 显示版本信息（即使未编译也显示源码版本）
+        if real_version:
+            version_text = f"llama.cpp v{real_version} (未编译)"
+        else:
+            version_text = building_progress if is_building else "❌ 未编译"
+        
         status = {
             'cloned': self.llama_dir.exists(),
             'built': False,
@@ -430,7 +485,7 @@ class LlamaCppInstaller:
             'building_progress': building_progress,
             'llama_dir': str(self.llama_dir) if self.llama_dir.exists() else None,
             'server_path': None,
-            'version': building_progress if is_building else "❌ 未编译"
+            'version': version_text
         }
         
         return status
