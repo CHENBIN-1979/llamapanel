@@ -31,6 +31,8 @@ class LlamaCppInstaller:
             'nvidia-smi': '/usr/bin/nvidia-smi',
             'apt': '/usr/bin/apt',
             'apt-get': '/usr/bin/apt-get',
+            'ccache': '/usr/bin/ccache',
+            'openssl': '/usr/bin/openssl',
         }
         
     def log(self, message):
@@ -56,6 +58,11 @@ class LlamaCppInstaller:
         full_cmd = self.build_full_cmd(cmd)
         self.log(f"执行: {' '.join(full_cmd)}")
         try:
+            # 安全处理 cwd
+            if cwd is not None and not os.path.exists(cwd):
+                self.log(f"警告: 目录不存在 {cwd}，使用当前目录")
+                cwd = None
+            
             process = subprocess.Popen(
                 full_cmd,
                 cwd=cwd,
@@ -81,8 +88,28 @@ class LlamaCppInstaller:
             raise Exception(f"命令未找到: {full_cmd[0]} - {e}")
     
     def check_command(self, cmd_parts):
+        """检查命令是否存在，使用完整路径映射"""
         try:
-            full_cmd = self.build_full_cmd(cmd_parts)
+            cmd_name = cmd_parts[0]
+            # 命令路径映射表
+            cmd_map = {
+                'git': '/usr/bin/git',
+                'cmake': '/usr/bin/cmake',
+                'make': '/usr/bin/make',
+                'g++': '/usr/bin/g++',
+                'gcc': '/usr/bin/gcc',
+                'python3': '/usr/bin/python3',
+                'pip3': '/usr/bin/pip3',
+                'ccache': '/usr/bin/ccache',
+                'openssl': '/usr/bin/openssl',
+                'nvidia-smi': '/usr/bin/nvidia-smi',
+            }
+            
+            if cmd_name in cmd_map:
+                full_cmd = [cmd_map[cmd_name]] + cmd_parts[1:]
+            else:
+                full_cmd = self.build_full_cmd(cmd_parts)
+            
             subprocess.run(full_cmd, capture_output=True, check=True)
             return True
         except (subprocess.SubprocessError, FileNotFoundError):
