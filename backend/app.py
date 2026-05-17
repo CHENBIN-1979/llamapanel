@@ -44,6 +44,16 @@ HTML_PAGE = '''
         .status-ok { background: #d4edda; color: #155724; }
         .status-warning { background: #fff3cd; color: #856404; }
         .status-building { background: #cce5ff; color: #004085; }
+        .update-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            background: #f8d7da;
+            color: #721c24;
+            margin-left: 10px;
+        }
         button {
             background: #667eea;
             color: white;
@@ -207,6 +217,7 @@ HTML_PAGE = '''
                 
                 let buildStatusHtml = '';
                 let buildStatusClass = '';
+                let updateHtml = '';
                 
                 if (status.built) {
                     buildStatusHtml = '✅ 已编译';
@@ -219,6 +230,11 @@ HTML_PAGE = '''
                     buildStatusClass = 'status-warning';
                 }
                 
+                // 检查是否有新版本更新
+                if (status.has_update && status.latest_version) {
+                    updateHtml = `<div class="update-badge">⚠️ 新版本 ${status.latest_version} 可用！点击「更新代码」</div>`;
+                }
+                
                 info.innerHTML = `
                     <div class="info-grid">
                         <div class="info-item">
@@ -227,7 +243,7 @@ HTML_PAGE = '''
                         </div>
                         <div class="info-item">
                             <div class="info-label">编译状态</div>
-                            <div class="info-value"><span class="status-badge ${buildStatusClass}">${buildStatusHtml}</span></div>
+                            <div class="info-value"><span class="status-badge ${buildStatusClass}">${buildStatusHtml}</span>${updateHtml}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">llama.cpp 路径</div>
@@ -330,9 +346,14 @@ HTML_PAGE = '''
         
         async function updateLlama() {
             if (confirm('更新 llama.cpp 到最新版本？')) {
+                const btn = document.getElementById('updateBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading"></span> 更新中...';
                 const result = await fetchAPI('/api/update', 'POST');
                 alert(result.message);
                 refreshStatus();
+                btn.disabled = false;
+                btn.innerHTML = '🔄 更新代码';
             }
         }
         
