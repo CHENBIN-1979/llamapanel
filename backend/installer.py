@@ -339,98 +339,98 @@ class LlamaCppInstaller:
             self.log(f"❌ 安装失败: {e}")
             return False
     
-   def get_status(self):
-    # 检查最终的 server 文件是否存在（编译完成标志）
-    server_bin = self.build_dir / 'bin' / 'llama-server'
-    if not server_bin.exists():
-        alt_paths = [
-            self.build_dir / 'llama-server',
-            self.llama_dir / 'llama-server'
-        ]
-        for p in alt_paths:
-            if p.exists():
-                server_bin = p
-                break
-    
-    is_built = server_bin.exists() if server_bin else False
-    
-    # 如果已编译完成，直接返回
-    if is_built:
-        # 获取 llama.cpp 版本号
-        version_text = "✅ 已编译"
-        try:
-            result = subprocess.run([str(server_bin), '--version'], capture_output=True, text=True, timeout=10)
-            output = result.stdout.strip() or result.stderr.strip()
-            # 尝试多种版本号格式
-            match = re.search(r'version:\s*([0-9.]+)', output, re.IGNORECASE)
-            if not match:
-                match = re.search(r'llama-server\s+version\s+([0-9.]+)', output, re.IGNORECASE)
-            if not match:
-                match = re.search(r'v([0-9.]+)', output)
-            if not match:
-                match = re.search(r'([0-9]+\.[0-9]+\.[0-9]+)', output)
-            if match:
-                version_text = f"llama.cpp v{match.group(1)}"
-            else:
-                # 如果找不到版本号，显示前50个字符
-                short_output = output[:50] if output else "已编译"
-                version_text = f"✅ 已编译 ({short_output})"
-        except Exception as e:
+    def get_status(self):
+        # 检查最终的 server 文件是否存在（编译完成标志）
+        server_bin = self.build_dir / 'bin' / 'llama-server'
+        if not server_bin.exists():
+            alt_paths = [
+                self.build_dir / 'llama-server',
+                self.llama_dir / 'llama-server'
+            ]
+            for p in alt_paths:
+                if p.exists():
+                    server_bin = p
+                    break
+        
+        is_built = server_bin.exists() if server_bin else False
+        
+        # 如果已编译完成，直接返回
+        if is_built:
+            # 获取 llama.cpp 版本号
             version_text = "✅ 已编译"
+            try:
+                result = subprocess.run([str(server_bin), '--version'], capture_output=True, text=True, timeout=10)
+                output = result.stdout.strip() or result.stderr.strip()
+                # 尝试多种版本号格式
+                match = re.search(r'version:\s*([0-9.]+)', output, re.IGNORECASE)
+                if not match:
+                    match = re.search(r'llama-server\s+version\s+([0-9.]+)', output, re.IGNORECASE)
+                if not match:
+                    match = re.search(r'v([0-9.]+)', output)
+                if not match:
+                    match = re.search(r'([0-9]+\.[0-9]+\.[0-9]+)', output)
+                if match:
+                    version_text = f"llama.cpp v{match.group(1)}"
+                else:
+                    # 如果找不到版本号，显示前50个字符
+                    short_output = output[:50] if output else "已编译"
+                    version_text = f"✅ 已编译 ({short_output})"
+            except Exception as e:
+                version_text = "✅ 已编译"
+            
+            status = {
+                'cloned': self.llama_dir.exists(),
+                'built': True,
+                'building': False,
+                'building_progress': None,
+                'llama_dir': str(self.llama_dir) if self.llama_dir.exists() else None,
+                'server_path': str(server_bin) if server_bin else None,
+                'version': version_text
+            }
+            return status
+        
+        # 未编译完成，检测编译进程
+        is_building = False
+        building_progress = None
+        
+        # 使用 ps 命令检查进程（更可靠）
+        try:
+            result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
+            ps_output = result.stdout
+            if 'make' in ps_output and 'llama.cpp' in ps_output:
+                is_building = True
+                building_progress = "正在编译中 (make 进程运行中)..."
+            elif 'cc1plus' in ps_output or 'g++' in ps_output:
+                is_building = True
+                building_progress = "正在编译中 (编译器进程运行中)..."
+        except:
+            pass
+        
+        # 获取编译进度
+        if is_building:
+            try:
+                obj_dir = self.build_dir / 'src' / 'CMakeFiles' / 'llama.dir'
+                if obj_dir.exists():
+                    obj_count = len(list(obj_dir.glob('*.o')))
+                    if obj_count > 0:
+                        building_progress = f"正在编译中... (已编译 {obj_count} 个文件)"
+            except:
+                pass
+        else:
+            # 没有进程在运行，检查 CMake 配置状态
+            cmake_cache = self.build_dir / 'CMakeCache.txt'
+            if cmake_cache.exists():
+                is_building = True
+                building_progress = "CMake 配置完成，等待编译启动..."
         
         status = {
             'cloned': self.llama_dir.exists(),
-            'built': True,
-            'building': False,
-            'building_progress': None,
+            'built': False,
+            'building': is_building,
+            'building_progress': building_progress,
             'llama_dir': str(self.llama_dir) if self.llama_dir.exists() else None,
-            'server_path': str(server_bin) if server_bin else None,
-            'version': version_text
+            'server_path': None,
+            'version': building_progress if is_building else "❌ 未编译"
         }
+        
         return status
-    
-    # 未编译完成，检测编译进程
-    is_building = False
-    building_progress = None
-    
-    # 使用 ps 命令检查进程（更可靠）
-    try:
-        result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
-        ps_output = result.stdout
-        if 'make' in ps_output and 'llama.cpp' in ps_output:
-            is_building = True
-            building_progress = "正在编译中 (make 进程运行中)..."
-        elif 'cc1plus' in ps_output or 'g++' in ps_output:
-            is_building = True
-            building_progress = "正在编译中 (编译器进程运行中)..."
-    except:
-        pass
-    
-    # 获取编译进度
-    if is_building:
-        try:
-            obj_dir = self.build_dir / 'src' / 'CMakeFiles' / 'llama.dir'
-            if obj_dir.exists():
-                obj_count = len(list(obj_dir.glob('*.o')))
-                if obj_count > 0:
-                    building_progress = f"正在编译中... (已编译 {obj_count} 个文件)"
-        except:
-            pass
-    else:
-        # 没有进程在运行，检查 CMake 配置状态
-        cmake_cache = self.build_dir / 'CMakeCache.txt'
-        if cmake_cache.exists():
-            is_building = True
-            building_progress = "CMake 配置完成，等待编译启动..."
-    
-    status = {
-        'cloned': self.llama_dir.exists(),
-        'built': False,
-        'building': is_building,
-        'building_progress': building_progress,
-        'llama_dir': str(self.llama_dir) if self.llama_dir.exists() else None,
-        'server_path': None,
-        'version': building_progress if is_building else "❌ 未编译"
-    }
-    
-    return status 
