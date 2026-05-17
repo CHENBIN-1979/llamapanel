@@ -128,7 +128,6 @@ class LlamaCppInstaller:
         return None
     
     def get_latest_release_version(self):
-        """从 GitHub API 获取最新 Releases 版本号（别名）"""
         return self.get_latest_stable_tag()
     
     def check_for_updates(self):
@@ -355,9 +354,10 @@ class LlamaCppInstaller:
     
     def build_llama_cpp(self):
         self.log("开始编译 llama.cpp...")
-        if self.build_dir.exists():
-            shutil.rmtree(self.build_dir)
-        self.build_dir.mkdir(exist_ok=True)
+        
+        # 确保 build 目录存在
+        if not self.build_dir.exists():
+            self.build_dir.mkdir(parents=True, exist_ok=True)
         
         hw = self.detect_hardware()
         os.chdir(self.build_dir)
@@ -419,10 +419,14 @@ class LlamaCppInstaller:
             self.log("清理完成")
         else:
             self.log("build 目录不存在，无需清理")
+        # 确保重新创建 build 目录
+        self.build_dir.mkdir(parents=True, exist_ok=True)
+        self.log("build 目录已重新创建")
     
     def rebuild(self):
         self.log("开始重新编译...")
         self.clean_build()
+        self.log("清理完成，开始编译...")
         return self.build_llama_cpp()
     
     def full_install(self):
@@ -455,16 +459,14 @@ class LlamaCppInstaller:
         
         current_version = self.get_current_version()
         
-        # 获取最新版本（如果还没有）
         if self._latest_version is None:
             latest = self.get_latest_stable_tag()
             if latest:
                 self._latest_version = latest
         
-        # 检查是否有新版本（每24小时检查一次）
-        current_time = time.time()
-        if current_time - self._last_check_time > 86400:
-            self._last_check_time = current_time
+        current_time_val = time.time()
+        if current_time_val - self._last_check_time > 86400:
+            self._last_check_time = current_time_val
             update_info = self.check_for_updates()
             if update_info:
                 self._latest_version = update_info.get('latest')
