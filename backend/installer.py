@@ -108,14 +108,26 @@ class LlamaCppInstaller:
                 self.log(f"❌ {tool} 未安装")
                 missing_tools.append(package)
         
+        # 检查 ccache（用于加速编译）- 如果不存在，添加到安装列表
+        ccache_missing = False
+        if self.check_command(['ccache', '--version']):
+            self.log("✅ ccache 已安装（编译加速）")
+        else:
+            self.log("⚠️ ccache 未安装，将自动安装以加速后续编译")
+            ccache_missing = True
+        
         if self.check_command(['nvidia-smi']):
             self.log("✅ NVIDIA CUDA 可用")
         else:
             self.log("⚠️ NVIDIA CUDA 不可用（将使用 CPU 模式）")
         
-        if not missing_tools:
+        if not missing_tools and not ccache_missing:
             self.log("所有依赖已安装")
             return True
+        
+        # 将 ccache 加入安装列表
+        if ccache_missing:
+            missing_tools.append('ccache')
         
         self.log(f"需要安装: {', '.join(missing_tools)}")
         
@@ -161,6 +173,8 @@ class LlamaCppInstaller:
                         yum_tools.append('cmake')
                     elif tool == 'git':
                         yum_tools.append('git')
+                    elif tool == 'ccache':
+                        yum_tools.append('ccache')
                     else:
                         yum_tools.append(tool)
                 yum_tools.append('@development-tools')
@@ -170,16 +184,23 @@ class LlamaCppInstaller:
                 install_cmd = ['sudo', 'yum', 'install', '-y'] + missing_tools
             self.run_command(install_cmd)
         
+        # 验证安装结果
         still_missing = []
         for tool, package in tools.items():
             if not self.check_command([tool, '--version']):
                 still_missing.append(tool)
+        
+        # 验证 ccache 安装
+        if ccache_missing and not self.check_command(['ccache', '--version']):
+            still_missing.append('ccache')
         
         if still_missing:
             self.log(f"⚠️ 以下工具仍不可用: {still_missing}")
             return False
         
         self.log("✅ 所有依赖安装完成")
+        if ccache_missing:
+            self.log("✅ ccache 已安装，后续编译将自动加速")
         return True
     
     def detect_hardware(self):
@@ -264,6 +285,10 @@ class LlamaCppInstaller:
         total_cores = hw['cpu_cores']
         compile_jobs = max(1, total_cores // 2)
         self.log(f"检测到 {total_cores} 核 CPU，使用 {compile_jobs} 线程编译（一半核心数）")
+        
+        # 提示 ccache 状态
+        if self.check_command(['ccache', '--version']):
+            self.log("✅ 使用 ccache 加速编译")
         
         make_args = [make_cmd, '-j', str(compile_jobs)]
         self.log(f"编译命令: {' '.join(make_args)}")
