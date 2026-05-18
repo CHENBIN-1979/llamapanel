@@ -41,6 +41,7 @@ class ModelManager:
                 'downloading': downloading,
                 'updated_at': time.time()
             }
+            self.log(f"进度更新 [{filename}]: {percent}% - {status}")
     
     def get_progress(self, filename: str) -> Dict:
         """获取下载进度"""
@@ -174,11 +175,16 @@ class ModelManager:
                     size = 0
                     size_str = "获取中..."
                 
+                # 检查文件是否已下载
+                safe_filename = re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
+                is_downloaded = (self.models_dir / safe_filename).exists()
+                
                 gguf_files.append({
                     'filename': filename,
                     'size': size,
                     'size_str': size_str,
-                    'download_url': download_url
+                    'download_url': download_url,
+                    'is_downloaded': is_downloaded
                 })
             
             # 按文件大小排序（大的在前）
@@ -196,20 +202,25 @@ class ModelManager:
     
     def download_model(self, download_url: str, filename: str, callback=None) -> bool:
         """直接下载模型到 models 目录（无需临时目录），下载完成后自动创建软链接"""
+        safe_filename = re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
+        final_path = self.models_dir / safe_filename
+        
+        # 检查文件是否已存在
+        if final_path.exists():
+            self.log(f"模型已存在: {safe_filename}")
+            self.update_progress(safe_filename, 100, "文件已存在", False)
+            if callback:
+                callback(100, "文件已存在")
+            # 确保软链接存在
+            self.create_symlink_for_model(safe_filename)
+            return True
+        
         try:
-            safe_filename = re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
-            final_path = self.models_dir / safe_filename
-            
-            if final_path.exists():
-                self.log(f"模型已存在: {safe_filename}")
-                self.update_progress(safe_filename, 100, "文件已存在", False)
-                if callback:
-                    callback(100, "文件已存在")
-                return True
-            
             self.log(f"开始下载: {download_url}")
             self.log(f"保存路径: {final_path}")
             self.update_progress(safe_filename, 0, "开始下载...", True)
+            if callback:
+                callback(0, "开始下载...")
             
             req = urllib.request.Request(download_url, headers={'User-Agent': 'LlamaPanel/1.0'})
             
@@ -228,12 +239,13 @@ class ModelManager:
                         
                         if total_size > 0:
                             percent = int(downloaded * 100 / total_size)
-                            # 每 2% 更新一次进度，减少日志
-                            if percent != last_percent:
+                            # 每 1% 更新一次进度
+                            if percent > last_percent:
                                 last_percent = percent
                                 self.update_progress(safe_filename, percent, f"下载中... {percent}%", True)
                                 if callback:
                                     callback(percent, f"下载中... {percent}%")
+                                self.log(f"下载进度 [{safe_filename}]: {percent}% ({downloaded}/{total_size} bytes)")
             
             # 下载完成后自动创建软链接到独立目录
             self.create_symlink_for_model(safe_filename)
@@ -257,6 +269,9 @@ class ModelManager:
             self.update_progress(safe_filename, -1, f"下载失败: {e}", False)
             if callback:
                 callback(-1, f"下载失败: {e}")
+            # 删除可能不完整的文件
+            if final_path.exists():
+                final_path.unlink()
             return False
     
     def create_symlink_for_model(self, filename: str) -> bool:
@@ -326,3 +341,8 @@ class ModelManager:
     def get_links_dir(self) -> str:
         """获取软链接目录路径"""
         return str(self.links_dir)
+    
+    def is_model_downloaded(self, filename: str) -> bool:
+        """检查模型是否已下载"""
+        safe_filename = re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
+        return (self.models_dir / safe_filename).exists()

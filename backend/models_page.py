@@ -198,9 +198,15 @@ MODELS_PAGE = '''
             background: #38a169 !important;
             cursor: wait !important;
         }
-        .downloading-btn:hover {
-            background: #2f855a !important;
-            transform: none !important;
+        .downloaded-btn {
+            background: #38a169 !important;
+            cursor: default !important;
+        }
+        .btn-download {
+            background: #667eea;
+        }
+        .btn-download:hover {
+            background: #5a67d8;
         }
     </style>
 </head>
@@ -269,12 +275,10 @@ MODELS_PAGE = '''
     
     <script>
         let currentSearchResults = [];
-        let filesCache = {};  // 内存缓存已加载的文件列表
-        let progressIntervals = {};  // 存储每个文件的进度轮询间隔
+        let filesCache = {};
+        let progressIntervals = {};
+        let downloadingFiles = {};
         
-        // ========== 缓存持久化到 sessionStorage ==========
-        
-        // 保存文件列表缓存到 sessionStorage
         function saveFilesCacheToSession() {
             try {
                 sessionStorage.setItem('filesCache', JSON.stringify(filesCache));
@@ -283,7 +287,6 @@ MODELS_PAGE = '''
             }
         }
         
-        // 从 sessionStorage 恢复文件列表缓存
         function restoreFilesCacheFromSession() {
             try {
                 const savedCache = sessionStorage.getItem('filesCache');
@@ -296,7 +299,6 @@ MODELS_PAGE = '''
             }
         }
         
-        // 保存搜索状态到 sessionStorage
         function saveSearchState(query, resultsHtml) {
             if (query) {
                 sessionStorage.setItem('lastSearchQuery', query);
@@ -305,7 +307,6 @@ MODELS_PAGE = '''
             }
         }
         
-        // 恢复上次搜索状态
         function restoreSearchState() {
             const savedQuery = sessionStorage.getItem('lastSearchQuery');
             const savedResultsHtml = sessionStorage.getItem('lastSearchResultsHtml');
@@ -323,14 +324,12 @@ MODELS_PAGE = '''
             return false;
         }
         
-        // 保存模型文件的展开状态到 sessionStorage
         function saveModelFilesState(modelId, isExpanded) {
             const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
             states[modelId] = isExpanded;
             sessionStorage.setItem('modelFilesExpanded', JSON.stringify(states));
         }
         
-        // 恢复所有模型文件的展开状态
         function restoreModelFilesStates() {
             const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
             for (const [modelId, isExpanded] of Object.entries(states)) {
@@ -339,7 +338,6 @@ MODELS_PAGE = '''
                         const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
                         const container = document.getElementById(`files-${safeId}`);
                         if (container && container.style.display !== 'block') {
-                            // 优先使用 session 缓存
                             if (filesCache[modelId]) {
                                 container.innerHTML = filesCache[modelId];
                                 container.style.display = 'block';
@@ -352,7 +350,6 @@ MODELS_PAGE = '''
             }
         }
         
-        // 重新绑定折叠事件
         function rebindToggleEvents() {
             document.querySelectorAll('.model-name').forEach(el => {
                 const card = el.closest('.model-card');
@@ -418,7 +415,6 @@ MODELS_PAGE = '''
         
         async function searchModels() {
             const query = document.getElementById('searchInput').value.trim();
-            console.log('搜索关键词:', query);
             
             if (!query) {
                 alert('请输入搜索关键词');
@@ -432,7 +428,6 @@ MODELS_PAGE = '''
             try {
                 const response = await fetch(`/models/api/search?q=${encodeURIComponent(query)}&limit=30`);
                 const data = await response.json();
-                console.log('API返回数据:', data);
                 
                 const resultsDiv = document.getElementById('searchResults');
                 
@@ -474,7 +469,6 @@ MODELS_PAGE = '''
             document.getElementById('searchInput').value = '';
             document.getElementById('searchResults').innerHTML = '';
             currentSearchResults = [];
-            // 清空内存缓存和 session 缓存
             filesCache = {};
             sessionStorage.removeItem('filesCache');
             sessionStorage.removeItem('lastSearchQuery');
@@ -496,14 +490,12 @@ MODELS_PAGE = '''
             
             if (!btn || !container) return;
             
-            // 如果已经展开，则收拢
             if (container.style.display === 'block') {
                 container.style.display = 'none';
                 if (!silent) saveModelFilesState(modelId, false);
                 return;
             }
             
-            // 检查内存缓存
             if (filesCache[modelId]) {
                 container.innerHTML = filesCache[modelId];
                 container.style.display = 'block';
@@ -522,17 +514,23 @@ MODELS_PAGE = '''
                 if (data.success && data.files && data.files.length > 0) {
                     html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
                     for (const file of data.files) {
-                        // 检查是否正在下载中
-                        const isDownloading = progressIntervals[file.filename];
-                        const btnDisabled = isDownloading ? 'disabled' : '';
-                        const btnClass = isDownloading ? 'downloading-btn' : '';
+                        const isDownloaded = file.is_downloaded === true;
+                        const isDownloading = downloadingFiles[file.filename] === true;
+                        
+                        let buttonHtml = '';
+                        if (isDownloaded) {
+                            buttonHtml = '<button class="small downloaded-btn" disabled style="background: #38a169;">✅ 已下载</button>';
+                        } else if (isDownloading) {
+                            buttonHtml = '<button class="small downloading-btn" disabled>⏳ 下载中...</button>';
+                        } else {
+                            buttonHtml = `<button class="small btn-download" onclick="downloadModel('${file.download_url}', '${escapeHtml(file.filename)}')">⬇️ 下载</button>`;
+                        }
+                        
                         html += `
                             <div class="file-item" id="file-item-${escapeHtml(file.filename).replace(/[^a-zA-Z0-9]/g, '_')}">
                                 <span class="file-name">${escapeHtml(file.filename)}</span>
                                 <span class="file-size">${file.size_str}</span>
-                                <button class="small ${btnClass}" onclick="downloadModel('${file.download_url}', '${escapeHtml(file.filename)}')" ${btnDisabled} id="download-btn-${escapeHtml(file.filename).replace(/[^a-zA-Z0-9]/g, '_')}">
-                                    ${isDownloading ? '⏳ 下载中...' : '⬇️ 下载'}
-                                </button>
+                                ${buttonHtml}
                             </div>
                         `;
                     }
@@ -541,10 +539,8 @@ MODELS_PAGE = '''
                     html = '<div class="info-text">⚠️ 该模型没有 GGUF 文件</div>';
                 }
                 
-                // 存入内存缓存和 session 缓存
                 filesCache[modelId] = html;
                 saveFilesCacheToSession();
-                
                 container.innerHTML = html;
                 container.style.display = 'block';
                 if (!silent) saveModelFilesState(modelId, true);
@@ -561,7 +557,6 @@ MODELS_PAGE = '''
             }
         }
         
-        // 获取下载进度
         async function getDownloadProgress(filename) {
             try {
                 const response = await fetch(`/models/api/progress?filename=${encodeURIComponent(filename)}`);
@@ -573,92 +568,123 @@ MODELS_PAGE = '''
             }
         }
         
-        // 更新下载按钮状态
         function updateDownloadButton(filename, isDownloading) {
+            downloadingFiles[filename] = isDownloading;
             const safeFilename = filename.replace(/[^a-zA-Z0-9]/g, '_');
-            const btn = document.getElementById(`download-btn-${safeFilename}`);
+            const btn = document.querySelector(`#file-item-${safeFilename} button`);
             if (btn) {
                 if (isDownloading) {
                     btn.disabled = true;
                     btn.classList.add('downloading-btn');
+                    btn.classList.remove('btn-download');
                     btn.innerHTML = '⏳ 下载中...';
                 } else {
                     btn.disabled = false;
                     btn.classList.remove('downloading-btn');
+                    btn.classList.add('btn-download');
                     btn.innerHTML = '⬇️ 下载';
                 }
             }
         }
         
-        // 开始轮询下载进度
+        function updateFileItemToDownloaded(filename) {
+            const safeFilename = filename.replace(/[^a-zA-Z0-9]/g, '_');
+            const fileItem = document.getElementById(`file-item-${safeFilename}`);
+            if (fileItem) {
+                const btn = fileItem.querySelector('button');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.classList.remove('downloading-btn', 'btn-download');
+                    btn.classList.add('downloaded-btn');
+                    btn.innerHTML = '✅ 已下载';
+                }
+            }
+            downloadingFiles[filename] = false;
+        }
+        
         function startProgressPolling(filename, progressDiv, progressFill, progressText) {
             if (progressIntervals[filename]) {
                 clearInterval(progressIntervals[filename]);
             }
             
-            // 更新按钮状态为下载中
             updateDownloadButton(filename, true);
             
             progressIntervals[filename] = setInterval(async () => {
-                const progress = await getDownloadProgress(filename);
-                if (progress && progress.downloading === true) {
-                    // 正在下载，更新进度条
-                    const percent = progress.percent;
-                    progressFill.style.width = percent + '%';
-                    progressText.innerText = progress.status;
-                    if (percent === 100) {
-                        // 下载完成
+                try {
+                    const progress = await getDownloadProgress(filename);
+                    
+                    if (progress && progress.downloading === true) {
+                        const percent = progress.percent;
+                        progressFill.style.width = percent + '%';
+                        progressText.innerText = progress.status;
+                        if (percent >= 100) {
+                            clearInterval(progressIntervals[filename]);
+                            delete progressIntervals[filename];
+                            updateFileItemToDownloaded(filename);
+                            progressFill.style.width = '100%';
+                            progressText.innerText = '下载完成！';
+                            setTimeout(() => {
+                                progressDiv.style.display = 'none';
+                                refreshLocalModels();
+                                refreshCurrentFileList();
+                            }, 1500);
+                        }
+                    } else if (progress && progress.downloading === false && progress.percent === 100) {
                         clearInterval(progressIntervals[filename]);
                         delete progressIntervals[filename];
-                        updateDownloadButton(filename, false);
+                        updateFileItemToDownloaded(filename);
+                        progressFill.style.width = '100%';
+                        progressText.innerText = '下载完成！';
                         setTimeout(() => {
                             progressDiv.style.display = 'none';
                             refreshLocalModels();
-                            // 刷新当前页面的文件列表
-                            location.reload();
+                            refreshCurrentFileList();
                         }, 1500);
+                    } else if (progress && progress.percent === -1) {
+                        clearInterval(progressIntervals[filename]);
+                        delete progressIntervals[filename];
+                        updateDownloadButton(filename, false);
+                        progressText.innerText = progress.status;
+                        progressFill.style.width = '0%';
+                        setTimeout(() => {
+                            progressDiv.style.display = 'none';
+                        }, 3000);
                     }
-                } else if (progress && progress.downloading === false && progress.percent === 100) {
-                    // 已完成
-                    clearInterval(progressIntervals[filename]);
-                    delete progressIntervals[filename];
-                    updateDownloadButton(filename, false);
-                    progressFill.style.width = '100%';
-                    progressText.innerText = '下载完成！';
-                    setTimeout(() => {
-                        progressDiv.style.display = 'none';
-                        refreshLocalModels();
-                    }, 1500);
-                } else if (progress && progress.percent === -1) {
-                    // 下载失败
-                    clearInterval(progressIntervals[filename]);
-                    delete progressIntervals[filename];
-                    updateDownloadButton(filename, false);
-                    progressText.innerText = progress.status;
-                    progressFill.style.width = '0%';
-                    setTimeout(() => {
-                        progressDiv.style.display = 'none';
-                    }, 3000);
+                } catch(e) {
+                    console.error('轮询进度出错:', e);
                 }
-            }, 500);  // 每0.5秒轮询一次
+            }, 1000);
+        }
+        
+        function refreshCurrentFileList() {
+            document.querySelectorAll('.file-list').forEach((list) => {
+                const card = list.closest('.model-card');
+                if (card) {
+                    const btn = card.querySelector('button[id^="btn-"]');
+                    if (btn) {
+                        const modelId = btn.getAttribute('data-model-id');
+                        if (modelId) {
+                            delete filesCache[modelId];
+                            getModelFiles(modelId, true);
+                        }
+                    }
+                }
+            });
         }
         
         async function downloadModel(downloadUrl, filename) {
-            if (confirm(`下载 ${filename}？\\n文件可能较大，请耐心等待。`)) {
+            if (confirm(`下载 ${filename}？\n文件可能较大，请耐心等待。`)) {
                 const progressDiv = document.getElementById('downloadProgress');
                 const progressFill = document.getElementById('progressFill');
                 const progressText = document.getElementById('progressText');
                 
-                // 显示进度条并重置
                 progressDiv.style.display = 'block';
                 progressFill.style.width = '0%';
                 progressText.innerText = '正在启动下载...';
                 
-                // 立即更新按钮状态
                 updateDownloadButton(filename, true);
                 
                 try {
-                    // 启动下载任务
                     const response = await fetch('/models/api/download', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -667,9 +693,10 @@ MODELS_PAGE = '''
                     const result = await response.json();
                     
                     if (result.success) {
-                        alert(result.message);
-                        // 开始轮询进度
                         startProgressPolling(filename, progressDiv, progressFill, progressText);
+                        setTimeout(() => {
+                            refreshCurrentFileList();
+                        }, 500);
                     } else {
                         alert('启动下载失败: ' + result.message);
                         progressDiv.style.display = 'none';
@@ -705,7 +732,7 @@ MODELS_PAGE = '''
                             </tr>
                         `;
                     }
-                    html += '</tbody>\\nelose';
+                    html += '</tbody></table>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
@@ -725,6 +752,7 @@ MODELS_PAGE = '''
                     const data = await response.json();
                     alert(data.message);
                     refreshLocalModels();
+                    refreshCurrentFileList();
                 } catch(e) {
                     console.error('删除失败:', e);
                     alert('删除失败: ' + e.message);
@@ -737,20 +765,18 @@ MODELS_PAGE = '''
                 const response = await fetch('/models/api/symlinks', { method: 'POST' });
                 const data = await response.json();
                 alert(data.message);
-                refreshLocalModels();
             } catch(e) {
                 console.error('创建软链接失败:', e);
                 alert('创建失败: ' + e.message);
             }
         }
         
-        // 页面加载时恢复所有状态
         document.addEventListener('DOMContentLoaded', function() {
-            restoreFilesCacheFromSession();  // 先恢复缓存
-            restoreSearchState();            // 恢复搜索状态
-            refreshLocalModels();            // 刷新本地模型
+            restoreFilesCacheFromSession();
+            restoreSearchState();
+            refreshLocalModels();
             setTimeout(() => {
-                restoreModelFilesStates();    // 恢复展开状态
+                restoreModelFilesStates();
             }, 300);
         });
     </script>
