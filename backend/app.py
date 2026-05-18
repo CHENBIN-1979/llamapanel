@@ -256,8 +256,6 @@ HTML_PAGE = '''
                     <button onclick="rebuildLlama()" id="rebuildBtn">🔨 重新编译</button>
                     <button onclick="cleanBuild()" class="danger" id="cleanBtn">🧹 清理编译</button>
                     <button onclick="deleteAll()" class="danger" id="deleteBtn">🗑️ 删除所有</button>
-                </div>
-                <div class="button-group">
                     <button onclick="updateLlamaPanel()" class="success" id="updatePanelBtn">🔄 更新 LlamaPanel</button>
                 </div>
             </div>
