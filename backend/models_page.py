@@ -6,7 +6,7 @@ from model_manager import ModelManager
 router = APIRouter(prefix="/models", tags=["models"])
 model_manager = ModelManager()
 
-# 模型管理页面的 HTML
+# 模型管理页面的 HTML（不带导航栏）
 MODELS_PAGE = '''
 <!DOCTYPE html>
 <html>
@@ -34,27 +34,6 @@ MODELS_PAGE = '''
         h2 { color: #333; margin-bottom: 16px; font-size: 18px; }
         h3 { color: #555; margin-bottom: 12px; font-size: 16px; }
         .subtitle { color: #666; margin-bottom: 24px; }
-        .nav-bar {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        .nav-bar a {
-            color: white;
-            text-decoration: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.2);
-            transition: all 0.3s;
-        }
-        .nav-bar a:hover {
-            background: rgba(255,255,255,0.3);
-        }
-        .nav-bar a.active {
-            background: white;
-            color: #667eea;
-        }
         button {
             background: #667eea;
             color: white;
@@ -210,11 +189,6 @@ MODELS_PAGE = '''
 </head>
 <body>
     <div class="container">
-        <div class="nav-bar">
-            <a href="/">🏠 主页</a>
-            <a href="/models" class="active">📦 模型管理</a>
-        </div>
-        
         <div class="card">
             <h1>📦 模型管理</h1>
             <p class="subtitle">搜索、下载和管理 GGUF 模型</p>
@@ -273,7 +247,6 @@ MODELS_PAGE = '''
     
     <script>
         let currentSearchResults = [];
-        let activeFileContainer = null;
         
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
@@ -375,7 +348,6 @@ MODELS_PAGE = '''
             const btn = document.getElementById(`btn-${safeId}`);
             const container = document.getElementById(`files-${safeId}`);
             
-            // 如果已经展开，则收拢
             if (container.style.display === 'block') {
                 container.style.display = 'none';
                 return;
@@ -389,7 +361,7 @@ MODELS_PAGE = '''
                 const data = await response.json();
                 
                 if (data.success && data.files && data.files.length > 0) {
-                    let html = '<div class="file-list"><strong>📁 GGUF 文件列表 (点击模型名称可折叠):</strong>';
+                    let html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
                     for (const file of data.files) {
                         html += `
                             <div class="file-item">
@@ -540,7 +512,6 @@ MODELS_PAGE = '''
             }
         }
         
-        // 初始化
         refreshLocalModels();
     </script>
 </body>
