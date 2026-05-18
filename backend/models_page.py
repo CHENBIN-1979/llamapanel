@@ -185,6 +185,14 @@ MODELS_PAGE = '''
             font-weight: bold;
             color: #667eea;
         }
+        code {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -225,12 +233,17 @@ MODELS_PAGE = '''
             
             <!-- 设置标签页 -->
             <div id="tab-settings" class="tab-content">
-                <h3>模型存储路径</h3>
+                <h3>📁 模型存储路径</h3>
                 <div class="info-text">
                     <strong>模型目录:</strong> /opt/llamapanel/models/<br>
-                    <strong>软链接目录:</strong> /opt/llamapanel/llama.cpp/models/<br>
-                    <strong>临时下载目录:</strong> /opt/llamapanel/downloads/<br><br>
-                    模型文件独立存储，删除 llama.cpp 目录不会影响已下载的模型。
+                    <strong>软链接目录:</strong> /opt/llamapanel/model_links/ (独立目录，不受 llama.cpp 更新影响)<br><br>
+                    <strong>✨ 特性说明:</strong><br>
+                    • 模型文件直接下载到模型目录，无需临时目录<br>
+                    • 下载完成后自动创建软链接到独立目录<br>
+                    • <span style="color: #e53e3e;">删除或更新 llama.cpp 目录不会影响已下载的模型和软链接</span><br><br>
+                    <strong>💡 使用提示:</strong><br>
+                    如需在 llama.cpp 中使用模型，请使用软链接目录中的文件路径：<br>
+                    <code>/opt/llamapanel/model_links/模型文件名.gguf</code>
                 </div>
             </div>
         </div>
@@ -580,7 +593,7 @@ MODELS_PAGE = '''
                             </tr>
                         `;
                     }
-                    html += '</tbody>\\</table>';
+                    html += '</tbody></table>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';

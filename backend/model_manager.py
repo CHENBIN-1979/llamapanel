@@ -13,14 +13,12 @@ from typing import Optional, List, Dict
 class ModelManager:
     def __init__(self):
         self.base_dir = Path("/opt/llamapanel")
-        self.models_dir = self.base_dir / "models"
-        self.llama_models_dir = self.base_dir / "llama.cpp" / "models"
-        self.downloads_dir = self.base_dir / "downloads"
+        self.models_dir = self.base_dir / "models"           # 模型实际存储目录
+        self.links_dir = self.base_dir / "model_links"       # 独立的软链接目录（不依赖llama.cpp）
         self.log_file = self.base_dir / "logs" / "models.log"
         
         self.models_dir.mkdir(parents=True, exist_ok=True)
-        self.downloads_dir.mkdir(parents=True, exist_ok=True)
-        self.llama_models_dir.mkdir(parents=True, exist_ok=True)
+        self.links_dir.mkdir(parents=True, exist_ok=True)
         
     def log(self, message):
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -147,7 +145,6 @@ class ModelManager:
                 else:
                     size = 0
                     size_str = "获取中..."
-                    # 异步获取大小（标记为稍后更新）
                 
                 gguf_files.append({
                     'filename': filename,
@@ -170,10 +167,9 @@ class ModelManager:
             return []
     
     def download_model(self, download_url: str, filename: str, callback=None) -> bool:
-        """下载模型文件，支持进度回调"""
+        """直接下载模型到 models 目录（无需临时目录），下载完成后自动创建软链接"""
         try:
             safe_filename = re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
-            download_path = self.downloads_dir / safe_filename
             final_path = self.models_dir / safe_filename
             
             if final_path.exists():
@@ -183,6 +179,7 @@ class ModelManager:
                 return True
             
             self.log(f"开始下载: {download_url}")
+            self.log(f"保存路径: {final_path}")
             
             req = urllib.request.Request(download_url, headers={'User-Agent': 'LlamaPanel/1.0'})
             
@@ -190,7 +187,7 @@ class ModelManager:
                 total_size = int(response.headers.get('Content-Length', 0))
                 downloaded = 0
                 
-                with open(download_path, 'wb') as f:
+                with open(final_path, 'wb') as f:
                     while True:
                         chunk = response.read(8192)
                         if not chunk:
@@ -202,13 +199,8 @@ class ModelManager:
                             percent = int(downloaded * 100 / total_size)
                             callback(percent, f"下载中... {percent}%")
             
-            shutil.move(str(download_path), str(final_path))
-            
-            # 创建软链接
-            link_path = self.llama_models_dir / safe_filename
-            if link_path.exists() and link_path.is_symlink():
-                link_path.unlink()
-            link_path.symlink_to(final_path)
+            # 下载完成后自动创建软链接到独立目录
+            self.create_symlink_for_model(safe_filename)
             
             self.log(f"下载完成: {safe_filename}")
             if callback:
@@ -220,6 +212,25 @@ class ModelManager:
             self.log(f"下载失败: {e}")
             if callback:
                 callback(-1, f"下载失败: {e}")
+            return False
+    
+    def create_symlink_for_model(self, filename: str) -> bool:
+        """为单个模型创建软链接到独立目录"""
+        try:
+            model_path = self.models_dir / filename
+            if not model_path.exists():
+                self.log(f"模型文件不存在: {filename}")
+                return False
+            
+            link_path = self.links_dir / filename
+            if link_path.exists() or link_path.is_symlink():
+                link_path.unlink()
+            
+            link_path.symlink_to(model_path)
+            self.log(f"创建软链接: {link_path} -> {model_path}")
+            return True
+        except Exception as e:
+            self.log(f"创建软链接失败: {e}")
             return False
     
     def get_local_models(self) -> List[Dict]:
@@ -240,7 +251,7 @@ class ModelManager:
         return sorted(models, key=lambda x: x['name'])
     
     def delete_model(self, filename: str) -> bool:
-        """删除模型文件"""
+        """删除模型文件及其软链接"""
         try:
             model_path = self.models_dir / filename
             if model_path.exists():
@@ -248,9 +259,10 @@ class ModelManager:
                 self.log(f"删除模型: {filename}")
             
             # 删除软链接
-            link_path = self.llama_models_dir / filename
-            if link_path.exists() and link_path.is_symlink():
+            link_path = self.links_dir / filename
+            if link_path.exists() or link_path.is_symlink():
                 link_path.unlink()
+                self.log(f"删除软链接: {link_path}")
             
             return True
         except Exception as e:
@@ -258,13 +270,14 @@ class ModelManager:
             return False
     
     def create_symlinks(self) -> int:
-        """为所有模型创建软链接"""
+        """为所有模型创建软链接到独立目录"""
         count = 0
         for model in self.get_local_models():
-            model_path = Path(model['path'])
-            link_path = self.llama_models_dir / model_path.name
-            if not link_path.exists():
-                link_path.symlink_to(model_path)
+            if self.create_symlink_for_model(model['name']):
                 count += 1
-                self.log(f"创建软链接: {link_path} -> {model_path}")
+        self.log(f"共创建 {count} 个软链接到 {self.links_dir}")
         return count
+    
+    def get_links_dir(self) -> str:
+        """获取软链接目录路径"""
+        return str(self.links_dir)
