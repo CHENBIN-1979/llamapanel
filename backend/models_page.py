@@ -49,6 +49,20 @@ MODELS_PAGE = '''
         button.danger:hover { background: #c53030; }
         button.small { padding: 4px 12px; font-size: 12px; }
         button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .download-btn {
+            background: #667eea;
+            min-width: 100px;
+        }
+        .download-btn.downloading {
+            background: #38a169;
+        }
+        .download-btn.downloaded {
+            background: #38a169;
+            cursor: default;
+        }
+        .download-btn.downloaded:hover {
+            transform: none;
+        }
         input, select {
             padding: 8px 12px;
             border-radius: 8px;
@@ -132,18 +146,6 @@ MODELS_PAGE = '''
             background: #f7fafc;
             font-weight: 600;
         }
-        .progress-bar {
-            background: #e2e8f0;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 10px 0;
-        }
-        .progress-fill {
-            width: 0%;
-            height: 20px;
-            background: #667eea;
-            transition: width 0.3s;
-        }
         .loading {
             display: inline-block;
             width: 16px;
@@ -193,20 +195,6 @@ MODELS_PAGE = '''
             border-radius: 4px;
             font-family: monospace;
             font-size: 12px;
-        }
-        .downloading-btn {
-            background: #38a169 !important;
-            cursor: wait !important;
-        }
-        .downloaded-btn {
-            background: #38a169 !important;
-            cursor: default !important;
-        }
-        .btn-download {
-            background: #667eea;
-        }
-        .btn-download:hover {
-            background: #5a67d8;
         }
     </style>
 </head>
@@ -262,22 +250,13 @@ MODELS_PAGE = '''
                 </div>
             </div>
         </div>
-        
-        <!-- 下载进度 -->
-        <div id="downloadProgress" class="card" style="display: none;">
-            <h2>📥 下载进度</h2>
-            <div class="progress-bar">
-                <div id="progressFill" class="progress-fill"></div>
-            </div>
-            <div id="progressText" style="font-size: 14px;">准备下载...</div>
-        </div>
     </div>
     
     <script>
         let currentSearchResults = [];
         let filesCache = {};
         let progressIntervals = {};
-        let downloadingFiles = {};
+        let activeDownloads = {};  // 记录正在下载的文件及其按钮ID
         
         function saveFilesCacheToSession() {
             try {
@@ -483,6 +462,11 @@ MODELS_PAGE = '''
             return div.innerHTML;
         }
         
+        // 获取按钮的唯一ID
+        function getButtonId(filename) {
+            return 'download-btn-' + filename.replace(/[^a-zA-Z0-9]/g, '_');
+        }
+        
         async function getModelFiles(modelId, silent = false) {
             const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
             const btn = document.getElementById(`btn-${safeId}`);
@@ -515,19 +499,19 @@ MODELS_PAGE = '''
                     html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
                     for (const file of data.files) {
                         const isDownloaded = file.is_downloaded === true;
-                        const isDownloading = downloadingFiles[file.filename] === true;
-                        
+                        const buttonId = getButtonId(file.filename);
                         let buttonHtml = '';
+                        
                         if (isDownloaded) {
-                            buttonHtml = '<button class="small downloaded-btn" disabled style="background: #38a169;">✅ 已下载</button>';
-                        } else if (isDownloading) {
-                            buttonHtml = '<button class="small downloading-btn" disabled>⏳ 下载中...</button>';
+                            buttonHtml = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
+                        } else if (activeDownloads[file.filename]) {
+                            buttonHtml = `<button id="${buttonId}" class="small download-btn downloading" disabled style="background:#38a169;">⏳ 0%</button>`;
                         } else {
-                            buttonHtml = `<button class="small btn-download" onclick="downloadModel('${file.download_url}', '${escapeHtml(file.filename)}')">⬇️ 下载</button>`;
+                            buttonHtml = `<button id="${buttonId}" class="small download-btn" onclick="downloadModel('${file.download_url}', '${escapeHtml(file.filename)}')">⬇️ 下载</button>`;
                         }
                         
                         html += `
-                            <div class="file-item" id="file-item-${escapeHtml(file.filename).replace(/[^a-zA-Z0-9]/g, '_')}">
+                            <div class="file-item">
                                 <span class="file-name">${escapeHtml(file.filename)}</span>
                                 <span class="file-size">${file.size_str}</span>
                                 ${buttonHtml}
@@ -568,46 +552,34 @@ MODELS_PAGE = '''
             }
         }
         
-        function updateDownloadButton(filename, isDownloading) {
-            downloadingFiles[filename] = isDownloading;
-            const safeFilename = filename.replace(/[^a-zA-Z0-9]/g, '_');
-            const btn = document.querySelector(`#file-item-${safeFilename} button`);
+        function updateDownloadButton(filename, percent, status) {
+            const buttonId = getButtonId(filename);
+            const btn = document.getElementById(buttonId);
             if (btn) {
-                if (isDownloading) {
+                if (status === 'completed') {
                     btn.disabled = true;
-                    btn.classList.add('downloading-btn');
-                    btn.classList.remove('btn-download');
-                    btn.innerHTML = '⏳ 下载中...';
-                } else {
-                    btn.disabled = false;
-                    btn.classList.remove('downloading-btn');
-                    btn.classList.add('btn-download');
-                    btn.innerHTML = '⬇️ 下载';
-                }
-            }
-        }
-        
-        function updateFileItemToDownloaded(filename) {
-            const safeFilename = filename.replace(/[^a-zA-Z0-9]/g, '_');
-            const fileItem = document.getElementById(`file-item-${safeFilename}`);
-            if (fileItem) {
-                const btn = fileItem.querySelector('button');
-                if (btn) {
-                    btn.disabled = true;
-                    btn.classList.remove('downloading-btn', 'btn-download');
-                    btn.classList.add('downloaded-btn');
+                    btn.classList.remove('downloading');
+                    btn.classList.add('downloaded');
                     btn.innerHTML = '✅ 已下载';
+                    delete activeDownloads[filename];
+                } else if (status === 'downloading') {
+                    btn.disabled = true;
+                    btn.classList.add('downloading');
+                    btn.innerHTML = `⏳ ${percent}%`;
+                    activeDownloads[filename] = true;
+                } else if (status === 'failed') {
+                    btn.disabled = false;
+                    btn.classList.remove('downloading');
+                    btn.innerHTML = '⬇️ 重试';
+                    delete activeDownloads[filename];
                 }
             }
-            downloadingFiles[filename] = false;
         }
         
-        function startProgressPolling(filename, progressDiv, progressFill, progressText) {
+        function startProgressPolling(filename) {
             if (progressIntervals[filename]) {
                 clearInterval(progressIntervals[filename]);
             }
-            
-            updateDownloadButton(filename, true);
             
             progressIntervals[filename] = setInterval(async () => {
                 try {
@@ -615,40 +587,25 @@ MODELS_PAGE = '''
                     
                     if (progress && progress.downloading === true) {
                         const percent = progress.percent;
-                        progressFill.style.width = percent + '%';
-                        progressText.innerText = progress.status;
+                        updateDownloadButton(filename, percent, 'downloading');
+                        
                         if (percent >= 100) {
                             clearInterval(progressIntervals[filename]);
                             delete progressIntervals[filename];
-                            updateFileItemToDownloaded(filename);
-                            progressFill.style.width = '100%';
-                            progressText.innerText = '下载完成！';
-                            setTimeout(() => {
-                                progressDiv.style.display = 'none';
-                                refreshLocalModels();
-                                refreshCurrentFileList();
-                            }, 1500);
+                            updateDownloadButton(filename, 100, 'completed');
+                            refreshLocalModels();
+                            refreshCurrentFileList();
                         }
                     } else if (progress && progress.downloading === false && progress.percent === 100) {
                         clearInterval(progressIntervals[filename]);
                         delete progressIntervals[filename];
-                        updateFileItemToDownloaded(filename);
-                        progressFill.style.width = '100%';
-                        progressText.innerText = '下载完成！';
-                        setTimeout(() => {
-                            progressDiv.style.display = 'none';
-                            refreshLocalModels();
-                            refreshCurrentFileList();
-                        }, 1500);
+                        updateDownloadButton(filename, 100, 'completed');
+                        refreshLocalModels();
+                        refreshCurrentFileList();
                     } else if (progress && progress.percent === -1) {
                         clearInterval(progressIntervals[filename]);
                         delete progressIntervals[filename];
-                        updateDownloadButton(filename, false);
-                        progressText.innerText = progress.status;
-                        progressFill.style.width = '0%';
-                        setTimeout(() => {
-                            progressDiv.style.display = 'none';
-                        }, 3000);
+                        updateDownloadButton(filename, 0, 'failed');
                     }
                 } catch(e) {
                     console.error('轮询进度出错:', e);
@@ -674,15 +631,8 @@ MODELS_PAGE = '''
         
         async function downloadModel(downloadUrl, filename) {
             if (confirm(`下载 ${filename}？\n文件可能较大，请耐心等待。`)) {
-                const progressDiv = document.getElementById('downloadProgress');
-                const progressFill = document.getElementById('progressFill');
-                const progressText = document.getElementById('progressText');
-                
-                progressDiv.style.display = 'block';
-                progressFill.style.width = '0%';
-                progressText.innerText = '正在启动下载...';
-                
-                updateDownloadButton(filename, true);
+                // 立即更新按钮状态
+                updateDownloadButton(filename, 0, 'downloading');
                 
                 try {
                     const response = await fetch('/models/api/download', {
@@ -693,20 +643,15 @@ MODELS_PAGE = '''
                     const result = await response.json();
                     
                     if (result.success) {
-                        startProgressPolling(filename, progressDiv, progressFill, progressText);
-                        setTimeout(() => {
-                            refreshCurrentFileList();
-                        }, 500);
+                        startProgressPolling(filename);
                     } else {
                         alert('启动下载失败: ' + result.message);
-                        progressDiv.style.display = 'none';
-                        updateDownloadButton(filename, false);
+                        updateDownloadButton(filename, 0, 'failed');
                     }
                 } catch(e) {
                     console.error('下载失败:', e);
                     alert('下载失败: ' + e.message);
-                    progressDiv.style.display = 'none';
-                    updateDownloadButton(filename, false);
+                    updateDownloadButton(filename, 0, 'failed');
                 }
             }
         }
@@ -732,7 +677,7 @@ MODELS_PAGE = '''
                             </tr>
                         `;
                     }
-                    html += '</tbody></table>';
+                    html += '</tbody><table>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
