@@ -3,6 +3,7 @@ from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 import sys
+import subprocess
 sys.path.append('/opt/llamapanel/backend')
 from installer import LlamaCppInstaller
 from models_page import router as models_router
@@ -12,6 +13,56 @@ installer = LlamaCppInstaller()
 
 # 注册模型管理路由
 app.include_router(models_router)
+
+# 更新 LlamaPanel 的函数
+def update_llamapanel():
+    """更新 LlamaPanel 自身"""
+    import time
+    log_file = Path("/opt/llamapanel/logs/update.log")
+    log_file.parent.mkdir(exist_ok=True)
+    
+    def log_msg(msg):
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        log_msg = f"[{timestamp}] {msg}"
+        print(log_msg)
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(log_msg + '\n')
+    
+    try:
+        log_msg("========== 开始更新 LlamaPanel ==========")
+        
+        # 进入项目目录
+        os.chdir("/opt/llamapanel")
+        log_msg("进入目录: /opt/llamapanel")
+        
+        # 拉取最新代码
+        log_msg("执行: git pull")
+        result = subprocess.run(['git', 'pull'], capture_output=True, text=True, timeout=60)
+        if result.stdout:
+            log_msg(f"输出: {result.stdout}")
+        if result.stderr:
+            log_msg(f"错误: {result.stderr}")
+        
+        if result.returncode != 0:
+            log_msg("git pull 失败")
+            return False
+        
+        log_msg("代码更新完成")
+        
+        # 检查是否有依赖更新
+        log_msg("检查 Python 依赖...")
+        subprocess.run(['/opt/llamapanel/venv/bin/pip', 'install', '-r', 'requirements.txt'], 
+                       capture_output=True, text=True, timeout=120)
+        
+        # 重启服务
+        log_msg("重启 LlamaPanel 服务...")
+        subprocess.run(['sudo', 'systemctl', 'restart', 'llamapanel'], capture_output=True, timeout=30)
+        
+        log_msg("========== 更新完成 ==========")
+        return True
+    except Exception as e:
+        log_msg(f"更新失败: {e}")
+        return False
 
 HTML_PAGE = '''
 <!DOCTYPE html>
@@ -85,6 +136,8 @@ HTML_PAGE = '''
         button:hover { background: #5a67d8; transform: translateY(-1px); }
         button.danger { background: #e53e3e; }
         button.danger:hover { background: #c53030; }
+        button.success { background: #38a169; }
+        button.success:hover { background: #2f855a; }
         button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         .log-viewer {
             background: #1e1e1e;
@@ -176,6 +229,12 @@ HTML_PAGE = '''
         .hidden {
             display: none;
         }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -191,12 +250,15 @@ HTML_PAGE = '''
                 <h1>🦙 LlamaPanel</h1>
                 <p class="subtitle">llama.cpp 图形化管理面板 - 无需命令行</p>
                 
-                <div style="margin-top: 20px;">
+                <div class="button-group">
                     <button onclick="installLlama()" id="installBtn">🚀 完整安装 llama.cpp</button>
-                    <button onclick="updateLlama()" id="updateBtn">🔄 更新版本</button>
+                    <button onclick="updateLlama()" id="updateBtn">🔄 更新llama.cpp</button>
                     <button onclick="rebuildLlama()" id="rebuildBtn">🔨 重新编译</button>
                     <button onclick="cleanBuild()" class="danger" id="cleanBtn">🧹 清理编译</button>
                     <button onclick="deleteAll()" class="danger" id="deleteBtn">🗑️ 删除所有</button>
+                </div>
+                <div class="button-group">
+                    <button onclick="updateLlamaPanel()" class="success" id="updatePanelBtn">🔄 更新 LlamaPanel</button>
                 </div>
             </div>
             
@@ -243,7 +305,6 @@ HTML_PAGE = '''
                 modelsPage.classList.add('hidden');
                 navHome.classList.add('active');
                 navModels.classList.remove('active');
-                // 刷新主页状态
                 refreshStatus();
                 refreshLog();
             } else {
@@ -251,7 +312,6 @@ HTML_PAGE = '''
                 modelsPage.classList.remove('hidden');
                 navHome.classList.remove('active');
                 navModels.classList.add('active');
-                // 刷新 iframe
                 const iframe = document.querySelector('#modelsPage iframe');
                 if (iframe) {
                     iframe.contentWindow.location.reload();
@@ -267,13 +327,6 @@ HTML_PAGE = '''
                     refreshLog();
                 }
             }, 2000);
-        }
-        
-        function stopAutoRefresh() {
-            if (autoRefreshInterval) {
-                clearInterval(autoRefreshInterval);
-                autoRefreshInterval = null;
-            }
         }
         
         function bindAutoRefreshCheckbox() {
@@ -298,8 +351,13 @@ HTML_PAGE = '''
             }
         }
         
-        async function fetchAPI(endpoint, method='GET') {
-            const response = await fetch(endpoint, { method: method });
+        async function fetchAPI(endpoint, method='GET', data=null) {
+            const options = { method: method };
+            if (data && method === 'POST') {
+                options.headers = { 'Content-Type': 'application/json' };
+                options.body = JSON.stringify(data);
+            }
+            const response = await fetch(endpoint, options);
             return await response.json();
         }
         
@@ -458,7 +516,7 @@ HTML_PAGE = '''
                 alert(result.message);
                 refreshStatus();
                 btn.disabled = false;
-                btn.innerHTML = '🔄 更新版本';
+                btn.innerHTML = '🔄 更新llama.cpp';
             }
         }
         
@@ -494,6 +552,28 @@ HTML_PAGE = '''
                 refreshLog();
                 btn.disabled = false;
                 btn.innerHTML = '🗑️ 删除所有';
+            }
+        }
+        
+        async function updateLlamaPanel() {
+            if (confirm('更新 LlamaPanel 面板本身？\\n这将从 GitHub 拉取最新代码并重启服务。\\n服务重启后页面将重新加载。')) {
+                const btn = document.getElementById('updatePanelBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading"></span> 更新中...';
+                try {
+                    const result = await fetchAPI('/api/update_panel', 'POST');
+                    alert(result.message);
+                    if (result.success) {
+                        setTimeout(() => {
+                            location.reload();
+                        }, 3000);
+                    }
+                } catch(e) {
+                    alert('更新失败: ' + e.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = '🔄 更新 LlamaPanel';
+                }
             }
         }
         
@@ -607,6 +687,23 @@ async def delete_all(background_tasks: BackgroundTasks):
             installer._install_running = False
     background_tasks.add_task(run_delete)
     return {"success": True, "message": "删除任务已启动，请查看日志面板"}
+
+@app.post("/api/update_panel")
+async def update_panel(background_tasks: BackgroundTasks):
+    """更新 LlamaPanel 自身"""
+    if hasattr(update_panel, '_running') and update_panel._running:
+        return {"success": False, "message": "更新任务已在运行中"}
+    
+    def run_update():
+        update_panel._running = True
+        try:
+            update_llamapanel()
+        finally:
+            update_panel._running = False
+    
+    update_panel._running = False
+    background_tasks.add_task(run_update)
+    return {"success": True, "message": "LlamaPanel 更新任务已启动，服务将重启"}
 
 if __name__ == "__main__":
     import uvicorn
