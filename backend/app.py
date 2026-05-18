@@ -42,6 +42,7 @@ HTML_PAGE = '''
             border-radius: 8px;
             background: rgba(255,255,255,0.2);
             transition: all 0.3s;
+            cursor: pointer;
         }
         .nav-bar a:hover {
             background: rgba(255,255,255,0.3);
@@ -169,52 +170,94 @@ HTML_PAGE = '''
         .log-viewer::-webkit-scrollbar-thumb:hover {
             background: #777;
         }
+        .page-content {
+            transition: opacity 0.3s ease;
+        }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="nav-bar">
-            <a href="/" class="active">🏠 主页</a>
-            <a href="/models">📦 模型管理</a>
+            <a onclick="showPage('home')" id="navHome" class="active">🏠 主页</a>
+            <a onclick="showPage('models')" id="navModels">📦 模型管理</a>
         </div>
         
-        <div class="card">
-            <h1>🦙 LlamaPanel</h1>
-            <p class="subtitle">llama.cpp 图形化管理面板 - 无需命令行</p>
+        <!-- 主页内容 -->
+        <div id="homePage" class="page-content">
+            <div class="card">
+                <h1>🦙 LlamaPanel</h1>
+                <p class="subtitle">llama.cpp 图形化管理面板 - 无需命令行</p>
+                
+                <div style="margin-top: 20px;">
+                    <button onclick="installLlama()" id="installBtn">🚀 完整安装 llama.cpp</button>
+                    <button onclick="updateLlama()" id="updateBtn">🔄 更新版本</button>
+                    <button onclick="rebuildLlama()" id="rebuildBtn">🔨 重新编译</button>
+                    <button onclick="cleanBuild()" class="danger" id="cleanBtn">🧹 清理编译</button>
+                    <button onclick="deleteAll()" class="danger" id="deleteBtn">🗑️ 删除所有</button>
+                </div>
+            </div>
             
-            <div style="margin-top: 20px;">
-                <button onclick="installLlama()" id="installBtn">🚀 完整安装 llama.cpp</button>
-                <button onclick="updateLlama()" id="updateBtn">🔄 更新版本</button>
-                <button onclick="rebuildLlama()" id="rebuildBtn">🔨 重新编译</button>
-                <button onclick="cleanBuild()" class="danger" id="cleanBtn">🧹 清理编译</button>
-                <button onclick="deleteAll()" class="danger" id="deleteBtn">🗑️ 删除所有</button>
+            <div class="card">
+                <h2>📊 安装状态</h2>
+                <div id="statusInfo">
+                    <div class="loading"></div> 加载中...
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>📋 安装日志</h2>
+                <div class="log-controls">
+                    <button onclick="refreshLog()" style="margin-bottom: 0;">🔄 刷新</button>
+                    <label class="auto-refresh">
+                        <input type="checkbox" id="autoRefresh"> 自动刷新 (2秒)
+                    </label>
+                </div>
+                <div id="logContent" class="log-viewer">
+                    加载日志中...
+                </div>
             </div>
         </div>
         
-        <div class="card">
-            <h2>📊 安装状态</h2>
-            <div id="statusInfo">
-                <div class="loading"></div> 加载中...
-            </div>
-        </div>
-        
-        <div class="card">
-            <h2>📋 安装日志</h2>
-            <div class="log-controls">
-                <button onclick="refreshLog()" style="margin-bottom: 0;">🔄 刷新</button>
-                <label class="auto-refresh">
-                    <input type="checkbox" id="autoRefresh"> 自动刷新 (2秒)
-                </label>
-            </div>
-            <div id="logContent" class="log-viewer">
-                加载日志中...
-            </div>
+        <!-- 模型管理页面容器（iframe 方式） -->
+        <div id="modelsPage" class="page-content hidden">
+            <iframe src="/models" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
     </div>
     
     <script>
         let autoRefreshInterval = null;
         let statusInterval = null;
+        
+        // 页面切换函数
+        function showPage(page) {
+            const homePage = document.getElementById('homePage');
+            const modelsPage = document.getElementById('modelsPage');
+            const navHome = document.getElementById('navHome');
+            const navModels = document.getElementById('navModels');
+            
+            if (page === 'home') {
+                homePage.classList.remove('hidden');
+                modelsPage.classList.add('hidden');
+                navHome.classList.add('active');
+                navModels.classList.remove('active');
+                // 刷新主页状态
+                refreshStatus();
+                refreshLog();
+            } else {
+                homePage.classList.add('hidden');
+                modelsPage.classList.remove('hidden');
+                navHome.classList.remove('active');
+                navModels.classList.add('active');
+                // 刷新 iframe
+                const iframe = document.querySelector('#modelsPage iframe');
+                if (iframe) {
+                    iframe.contentWindow.location.reload();
+                }
+            }
+        }
         
         function startAutoRefresh() {
             if (autoRefreshInterval) clearInterval(autoRefreshInterval);
@@ -233,13 +276,11 @@ HTML_PAGE = '''
             }
         }
         
-        // 监听复选框变化
         function bindAutoRefreshCheckbox() {
             const chk = document.getElementById('autoRefresh');
             if (chk) {
                 chk.addEventListener('change', function() {
                     if (this.checked) {
-                        // 重新启动自动刷新
                         if (autoRefreshInterval) clearInterval(autoRefreshInterval);
                         autoRefreshInterval = setInterval(() => {
                             const c = document.getElementById('autoRefresh');
@@ -248,7 +289,6 @@ HTML_PAGE = '''
                             }
                         }, 2000);
                     } else {
-                        // 停止自动刷新
                         if (autoRefreshInterval) {
                             clearInterval(autoRefreshInterval);
                             autoRefreshInterval = null;
@@ -458,7 +498,6 @@ HTML_PAGE = '''
         }
         
         function startMonitoring() {
-            // 每3秒刷新状态，但不刷新日志（日志由自动刷新控制）
             if (statusInterval) clearInterval(statusInterval);
             statusInterval = setInterval(() => {
                 refreshStatus();
@@ -473,7 +512,6 @@ HTML_PAGE = '''
         refreshLog();
         startAutoRefresh();
         bindAutoRefreshCheckbox();
-        // 每5秒刷新状态（不刷新日志）
         setInterval(refreshStatus, 5000);
     </script>
 </body>
