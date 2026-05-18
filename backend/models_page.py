@@ -265,7 +265,6 @@ MODELS_PAGE = '''
             const savedResultsHtml = sessionStorage.getItem('lastSearchResultsHtml');
             const savedTime = sessionStorage.getItem('lastSearchTime');
             
-            // 10分钟内有效（同一次会话）
             if (savedQuery && savedResultsHtml && savedTime && (Date.now() - parseInt(savedTime)) < 600000) {
                 document.getElementById('searchInput').value = savedQuery;
                 const resultsDiv = document.getElementById('searchResults');
@@ -285,38 +284,89 @@ MODELS_PAGE = '''
             sessionStorage.setItem('modelFilesExpanded', JSON.stringify(states));
         }
         
-        // 获取模型文件的展开状态
-        function getModelFilesState(modelId) {
-            const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
-            return states[modelId] === true;
-        }
-        
         // 恢复所有模型文件的展开状态
         function restoreModelFilesStates() {
             const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
             for (const [modelId, isExpanded] of Object.entries(states)) {
                 if (isExpanded) {
-                    // 延迟加载，确保 DOM 已渲染
                     setTimeout(() => {
-                        getModelFiles(modelId);
-                    }, 100);
+                        // 触发展开，但不重复保存状态
+                        const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
+                        const container = document.getElementById(`files-${safeId}`);
+                        if (container && container.style.display !== 'block') {
+                            // 直接调用 getModelFiles 但传入 silent=true
+                            getModelFilesSilent(modelId);
+                        }
+                    }, 150);
                 }
             }
         }
         
-        // 重新绑定折叠事件（因为 HTML 是动态生成的）
+        // 静默加载模型文件（不保存状态，用于恢复）
+        async function getModelFilesSilent(modelId) {
+            const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
+            const btn = document.getElementById(`btn-${safeId}`);
+            const container = document.getElementById(`files-${safeId}`);
+            
+            if (!btn || !container) return;
+            if (container.style.display === 'block') return;
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> 加载中...';
+            
+            try {
+                const response = await fetch(`/models/api/files?model_id=${encodeURIComponent(modelId)}`);
+                const data = await response.json();
+                
+                if (data.success && data.files && data.files.length > 0) {
+                    let html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
+                    for (const file of data.files) {
+                        html += `
+                            <div class="file-item">
+                                <span class="file-name">${file.filename}</span>
+                                <span class="file-size">${file.size_str}</span>
+                                <button class="small" onclick="downloadModel('${file.download_url}', '${file.filename}')">⬇️ 下载</button>
+                            </div>
+                        `;
+                    }
+                    html += '</div>';
+                    container.innerHTML = html;
+                    container.style.display = 'block';
+                } else {
+                    container.innerHTML = '<div class="info-text">⚠️ 该模型没有 GGUF 文件</div>';
+                    container.style.display = 'block';
+                }
+            } catch(e) {
+                console.error('获取文件失败:', e);
+                container.innerHTML = '<div class="info-text">❌ 获取文件列表失败: ' + e.message + '</div>';
+                container.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '📂 查看 GGUF 文件';
+            }
+        }
+        
+        // 重新绑定折叠事件
         function rebindToggleEvents() {
             document.querySelectorAll('.model-name').forEach(el => {
                 const card = el.closest('.model-card');
                 if (card) {
                     const filesDiv = card.querySelector('[id^="files-"]');
-                    if (filesDiv) {
-                        // 保存原始的 onclick
+                    const btn = card.querySelector('button[id^="btn-"]');
+                    if (filesDiv && btn) {
+                        const modelId = btn.getAttribute('data-model-id') || 
+                                      btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
                         el.onclick = function() {
                             if (filesDiv.style.display === 'none' || filesDiv.style.display === '') {
-                                filesDiv.style.display = 'block';
+                                if (filesDiv.innerHTML.trim() === '' || filesDiv.innerHTML.includes('该模型没有') || filesDiv.innerHTML.includes('获取文件列表失败')) {
+                                    if (modelId) getModelFiles(modelId);
+                                } else {
+                                    filesDiv.style.display = 'block';
+                                    if (modelId) saveModelFilesState(modelId, true);
+                                }
                             } else {
                                 filesDiv.style.display = 'none';
+                                if (modelId) saveModelFilesState(modelId, false);
                             }
                         };
                     }
@@ -395,7 +445,7 @@ MODELS_PAGE = '''
                                 <div class="model-meta">
                                     作者: ${model.author} | ❤️ ${model.likes} | 📥 <span class="downloads-count">${downloadsFormatted}</span>
                                 </div>
-                                <button onclick="getModelFiles('${model.id.replace(/'/g, "\\'")}')" id="btn-${safeId}">📂 查看 GGUF 文件</button>
+                                <button onclick="getModelFiles('${model.id.replace(/'/g, "\\'")}')" id="btn-${safeId}" data-model-id="${model.id}">📂 查看 GGUF 文件</button>
                                 <div id="files-${safeId}" style="margin-top: 12px; display: none;"></div>
                             </div>
                         `;
@@ -430,7 +480,6 @@ MODELS_PAGE = '''
             const btn = document.getElementById(`btn-${safeId}`);
             const container = document.getElementById(`files-${safeId}`);
             
-            // 如果已经展开，则收拢并保存状态
             if (container.style.display === 'block') {
                 container.style.display = 'none';
                 saveModelFilesState(modelId, false);
@@ -522,7 +571,7 @@ MODELS_PAGE = '''
                             </tr>
                         `;
                     }
-                    html += '</tbody></table>';
+                    html += '</tbody>\\</table>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
@@ -602,10 +651,9 @@ MODELS_PAGE = '''
         document.addEventListener('DOMContentLoaded', function() {
             restoreSearchState();
             refreshLocalModels();
-            // 延迟恢复展开状态
             setTimeout(() => {
                 restoreModelFilesStates();
-            }, 200);
+            }, 300);
         });
     </script>
 </body>
