@@ -47,11 +47,10 @@ MODELS_PAGE = '''
         button:hover { background: #5a67d8; transform: translateY(-1px); }
         button.danger { background: #e53e3e; }
         button.danger:hover { background: #c53030; }
-        button.small { padding: 4px 12px; font-size: 12px; }
-        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        button.small { padding: 4px 12px; font-size: 12px; min-width: 85px; }
+        button:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
         .download-btn {
             background: #667eea;
-            min-width: 100px;
         }
         .download-btn.downloading {
             background: #38a169;
@@ -62,6 +61,7 @@ MODELS_PAGE = '''
         }
         .download-btn.downloaded:hover {
             transform: none;
+            background: #38a169;
         }
         input, select {
             padding: 8px 12px;
@@ -256,7 +256,7 @@ MODELS_PAGE = '''
         let currentSearchResults = [];
         let filesCache = {};
         let progressIntervals = {};
-        let activeDownloads = {};  // 记录正在下载的文件及其按钮ID
+        let downloadingFiles = {};
         
         function saveFilesCacheToSession() {
             try {
@@ -297,6 +297,7 @@ MODELS_PAGE = '''
                 if (resultsDiv && savedResultsHtml && savedResultsHtml !== '') {
                     resultsDiv.innerHTML = savedResultsHtml;
                     rebindToggleEvents();
+                    restoreDownloadingStates();
                     return true;
                 }
             }
@@ -320,11 +321,26 @@ MODELS_PAGE = '''
                             if (filesCache[modelId]) {
                                 container.innerHTML = filesCache[modelId];
                                 container.style.display = 'block';
+                                restoreDownloadingStates();
                             } else {
                                 getModelFiles(modelId, true);
                             }
                         }
                     }, 150);
+                }
+            }
+        }
+        
+        function restoreDownloadingStates() {
+            for (const [filename, isDownloading] of Object.entries(downloadingFiles)) {
+                if (isDownloading) {
+                    const btn = document.getElementById(getButtonId(filename));
+                    if (btn && btn.innerHTML === '⬇️ 下载') {
+                        btn.innerHTML = '⏳ 0%';
+                        btn.classList.add('downloading');
+                        btn.disabled = true;
+                        startProgressPolling(filename);
+                    }
                 }
             }
         }
@@ -344,6 +360,7 @@ MODELS_PAGE = '''
                                 } else {
                                     filesDiv.style.display = 'block';
                                     if (modelId) saveModelFilesState(modelId, true);
+                                    restoreDownloadingStates();
                                 }
                             } else {
                                 filesDiv.style.display = 'none';
@@ -462,9 +479,8 @@ MODELS_PAGE = '''
             return div.innerHTML;
         }
         
-        // 获取按钮的唯一ID
         function getButtonId(filename) {
-            return 'download-btn-' + filename.replace(/[^a-zA-Z0-9]/g, '_');
+            return 'btn-download-' + filename.replace(/[^a-zA-Z0-9]/g, '_');
         }
         
         async function getModelFiles(modelId, silent = false) {
@@ -484,6 +500,7 @@ MODELS_PAGE = '''
                 container.innerHTML = filesCache[modelId];
                 container.style.display = 'block';
                 if (!silent) saveModelFilesState(modelId, true);
+                restoreDownloadingStates();
                 return;
             }
             
@@ -504,7 +521,7 @@ MODELS_PAGE = '''
                         
                         if (isDownloaded) {
                             buttonHtml = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
-                        } else if (activeDownloads[file.filename]) {
+                        } else if (downloadingFiles[file.filename]) {
                             buttonHtml = `<button id="${buttonId}" class="small download-btn downloading" disabled style="background:#38a169;">⏳ 0%</button>`;
                         } else {
                             buttonHtml = `<button id="${buttonId}" class="small download-btn" onclick="downloadModel('${file.download_url}', '${escapeHtml(file.filename)}')">⬇️ 下载</button>`;
@@ -528,6 +545,7 @@ MODELS_PAGE = '''
                 container.innerHTML = html;
                 container.style.display = 'block';
                 if (!silent) saveModelFilesState(modelId, true);
+                restoreDownloadingStates();
             } catch(e) {
                 console.error('获取文件失败:', e);
                 const errorHtml = '<div class="info-text">❌ 获取文件列表失败: ' + e.message + '</div>';
@@ -561,17 +579,25 @@ MODELS_PAGE = '''
                     btn.classList.remove('downloading');
                     btn.classList.add('downloaded');
                     btn.innerHTML = '✅ 已下载';
-                    delete activeDownloads[filename];
+                    btn.style.background = '#38a169';
+                    delete downloadingFiles[filename];
+                    if (progressIntervals[filename]) {
+                        clearInterval(progressIntervals[filename]);
+                        delete progressIntervals[filename];
+                    }
                 } else if (status === 'downloading') {
                     btn.disabled = true;
                     btn.classList.add('downloading');
                     btn.innerHTML = `⏳ ${percent}%`;
-                    activeDownloads[filename] = true;
+                    btn.style.background = '#38a169';
+                    downloadingFiles[filename] = true;
                 } else if (status === 'failed') {
                     btn.disabled = false;
                     btn.classList.remove('downloading');
+                    btn.classList.remove('downloaded');
                     btn.innerHTML = '⬇️ 重试';
-                    delete activeDownloads[filename];
+                    btn.style.background = '#667eea';
+                    delete downloadingFiles[filename];
                 }
             }
         }
@@ -586,31 +612,50 @@ MODELS_PAGE = '''
                     const progress = await getDownloadProgress(filename);
                     
                     if (progress && progress.downloading === true) {
-                        const percent = progress.percent;
+                        let percent = progress.percent;
+                        if (percent < 0) percent = 0;
+                        if (percent > 100) percent = 100;
                         updateDownloadButton(filename, percent, 'downloading');
                         
                         if (percent >= 100) {
-                            clearInterval(progressIntervals[filename]);
-                            delete progressIntervals[filename];
                             updateDownloadButton(filename, 100, 'completed');
                             refreshLocalModels();
-                            refreshCurrentFileList();
+                            // 不刷新整个文件列表，只更新缓存
+                            setTimeout(() => {
+                                refreshCurrentFileListSilent();
+                            }, 500);
                         }
                     } else if (progress && progress.downloading === false && progress.percent === 100) {
-                        clearInterval(progressIntervals[filename]);
-                        delete progressIntervals[filename];
                         updateDownloadButton(filename, 100, 'completed');
                         refreshLocalModels();
-                        refreshCurrentFileList();
+                        setTimeout(() => {
+                            refreshCurrentFileListSilent();
+                        }, 500);
                     } else if (progress && progress.percent === -1) {
-                        clearInterval(progressIntervals[filename]);
-                        delete progressIntervals[filename];
                         updateDownloadButton(filename, 0, 'failed');
                     }
                 } catch(e) {
                     console.error('轮询进度出错:', e);
                 }
             }, 1000);
+        }
+        
+        // 静默刷新文件列表（不改变展开状态）
+        function refreshCurrentFileListSilent() {
+            document.querySelectorAll('.file-list').forEach((list) => {
+                const card = list.closest('.model-card');
+                if (card) {
+                    const btn = card.querySelector('button[id^="btn-"]');
+                    if (btn) {
+                        const modelId = btn.getAttribute('data-model-id');
+                        if (modelId && filesCache[modelId]) {
+                            // 只更新缓存，重新获取文件列表
+                            delete filesCache[modelId];
+                            getModelFiles(modelId, true);
+                        }
+                    }
+                }
+            });
         }
         
         function refreshCurrentFileList() {
@@ -630,8 +675,7 @@ MODELS_PAGE = '''
         }
         
         async function downloadModel(downloadUrl, filename) {
-            if (confirm(`下载 ${filename}？\n文件可能较大，请耐心等待。`)) {
-                // 立即更新按钮状态
+            if (confirm(`下载 ${filename}？\\n文件可能较大，请耐心等待。`)) {
                 updateDownloadButton(filename, 0, 'downloading');
                 
                 try {
@@ -677,7 +721,7 @@ MODELS_PAGE = '''
                             </tr>
                         `;
                     }
-                    html += '</tbody><table>';
+                    html += '</tbody></table>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
@@ -720,6 +764,7 @@ MODELS_PAGE = '''
             restoreFilesCacheFromSession();
             restoreSearchState();
             refreshLocalModels();
+            restoreDownloadingStates();
             setTimeout(() => {
                 restoreModelFilesStates();
             }, 300);
