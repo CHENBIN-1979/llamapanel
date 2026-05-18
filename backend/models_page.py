@@ -248,6 +248,54 @@ MODELS_PAGE = '''
     <script>
         let currentSearchResults = [];
         
+        // 保存搜索状态到 localStorage
+        function saveSearchState(query, resultsHtml) {
+            if (query) {
+                localStorage.setItem('lastSearchQuery', query);
+                localStorage.setItem('lastSearchResultsHtml', resultsHtml);
+                localStorage.setItem('lastSearchTime', Date.now());
+            }
+        }
+        
+        // 恢复上次搜索状态
+        function restoreSearchState() {
+            const savedQuery = localStorage.getItem('lastSearchQuery');
+            const savedResultsHtml = localStorage.getItem('lastSearchResultsHtml');
+            const savedTime = localStorage.getItem('lastSearchTime');
+            
+            // 10分钟内有效
+            if (savedQuery && savedResultsHtml && savedTime && (Date.now() - parseInt(savedTime)) < 600000) {
+                document.getElementById('searchInput').value = savedQuery;
+                const resultsDiv = document.getElementById('searchResults');
+                if (resultsDiv && savedResultsHtml && savedResultsHtml !== '') {
+                    resultsDiv.innerHTML = savedResultsHtml;
+                    // 重新绑定折叠事件
+                    rebindToggleEvents();
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // 重新绑定折叠事件（因为 HTML 是动态生成的）
+        function rebindToggleEvents() {
+            document.querySelectorAll('.model-name').forEach(el => {
+                const card = el.closest('.model-card');
+                if (card) {
+                    const filesDiv = card.querySelector('[id^="files-"]');
+                    if (filesDiv) {
+                        el.onclick = function() {
+                            if (filesDiv.style.display === 'none' || filesDiv.style.display === '') {
+                                filesDiv.style.display = 'block';
+                            } else {
+                                filesDiv.style.display = 'none';
+                            }
+                        };
+                    }
+                }
+            });
+        }
+        
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -325,8 +373,11 @@ MODELS_PAGE = '''
                         `;
                     }
                     resultsDiv.innerHTML = html;
+                    // 保存搜索结果
+                    saveSearchState(query, html);
                 } else {
                     resultsDiv.innerHTML = '<div class="info-text">❌ 未找到相关 GGUF 模型</div>';
+                    saveSearchState(query, '');
                 }
             } catch(e) {
                 console.error('搜索失败:', e);
@@ -341,6 +392,9 @@ MODELS_PAGE = '''
             document.getElementById('searchInput').value = '';
             document.getElementById('searchResults').innerHTML = '';
             currentSearchResults = [];
+            localStorage.removeItem('lastSearchQuery');
+            localStorage.removeItem('lastSearchResultsHtml');
+            localStorage.removeItem('lastSearchTime');
         }
         
         async function getModelFiles(modelId) {
@@ -512,7 +566,11 @@ MODELS_PAGE = '''
             }
         }
         
-        refreshLocalModels();
+        // 页面加载时恢复搜索状态
+        document.addEventListener('DOMContentLoaded', function() {
+            restoreSearchState();
+            refreshLocalModels();
+        });
     </script>
 </body>
 </html>
