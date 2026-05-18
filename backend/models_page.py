@@ -257,10 +257,12 @@ MODELS_PAGE = '''
         let filesCache = {};
         let progressIntervals = {};
         let downloadingFiles = {};
+        let expandedModels = {};  // 记录哪些模型的文件列表是展开的
         
         function saveFilesCacheToSession() {
             try {
                 sessionStorage.setItem('filesCache', JSON.stringify(filesCache));
+                sessionStorage.setItem('expandedModels', JSON.stringify(expandedModels));
             } catch(e) {
                 console.error('保存缓存失败:', e);
             }
@@ -272,6 +274,10 @@ MODELS_PAGE = '''
                 if (savedCache) {
                     filesCache = JSON.parse(savedCache);
                     console.log('恢复了', Object.keys(filesCache).length, '个文件列表缓存');
+                }
+                const savedExpanded = sessionStorage.getItem('expandedModels');
+                if (savedExpanded) {
+                    expandedModels = JSON.parse(savedExpanded);
                 }
             } catch(e) {
                 console.error('恢复缓存失败:', e);
@@ -297,6 +303,7 @@ MODELS_PAGE = '''
                 if (resultsDiv && savedResultsHtml && savedResultsHtml !== '') {
                     resultsDiv.innerHTML = savedResultsHtml;
                     rebindToggleEvents();
+                    restoreExpandedStates();
                     restoreDownloadingStates();
                     return true;
                 }
@@ -304,29 +311,20 @@ MODELS_PAGE = '''
             return false;
         }
         
-        function saveModelFilesState(modelId, isExpanded) {
-            const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
-            states[modelId] = isExpanded;
-            sessionStorage.setItem('modelFilesExpanded', JSON.stringify(states));
-        }
-        
-        function restoreModelFilesStates() {
-            const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
-            for (const [modelId, isExpanded] of Object.entries(states)) {
+        function restoreExpandedStates() {
+            for (const [modelId, isExpanded] of Object.entries(expandedModels)) {
                 if (isExpanded) {
-                    setTimeout(() => {
-                        const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
-                        const container = document.getElementById(`files-${safeId}`);
-                        if (container && container.style.display !== 'block') {
-                            if (filesCache[modelId]) {
-                                container.innerHTML = filesCache[modelId];
-                                container.style.display = 'block';
-                                restoreDownloadingStates();
-                            } else {
-                                getModelFiles(modelId, true);
-                            }
+                    const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
+                    const container = document.getElementById(`files-${safeId}`);
+                    if (container && container.style.display !== 'block') {
+                        if (filesCache[modelId]) {
+                            container.innerHTML = filesCache[modelId];
+                            container.style.display = 'block';
+                            restoreDownloadingStates();
+                        } else {
+                            getModelFiles(modelId, true);
                         }
-                    }, 150);
+                    }
                 }
             }
         }
@@ -359,12 +357,14 @@ MODELS_PAGE = '''
                                     if (modelId) getModelFiles(modelId);
                                 } else {
                                     filesDiv.style.display = 'block';
-                                    if (modelId) saveModelFilesState(modelId, true);
+                                    expandedModels[modelId] = true;
+                                    saveFilesCacheToSession();
                                     restoreDownloadingStates();
                                 }
                             } else {
                                 filesDiv.style.display = 'none';
-                                if (modelId) saveModelFilesState(modelId, false);
+                                expandedModels[modelId] = false;
+                                saveFilesCacheToSession();
                             }
                         };
                     }
@@ -379,6 +379,10 @@ MODELS_PAGE = '''
             if (tabName === 'download') {
                 document.querySelector('.tab:first-child').classList.add('active');
                 document.getElementById('tab-download').classList.add('active');
+                // 恢复展开状态
+                setTimeout(() => {
+                    restoreExpandedStates();
+                }, 100);
             } else if (tabName === 'local') {
                 document.querySelectorAll('.tab')[1].classList.add('active');
                 document.getElementById('tab-local').classList.add('active');
@@ -448,6 +452,7 @@ MODELS_PAGE = '''
                     }
                     resultsDiv.innerHTML = html;
                     saveSearchState(query, html);
+                    restoreExpandedStates();
                 } else {
                     resultsDiv.innerHTML = '<div class="info-text">❌ 未找到相关 GGUF 模型</div>';
                     saveSearchState(query, '');
@@ -466,11 +471,12 @@ MODELS_PAGE = '''
             document.getElementById('searchResults').innerHTML = '';
             currentSearchResults = [];
             filesCache = {};
+            expandedModels = {};
             sessionStorage.removeItem('filesCache');
+            sessionStorage.removeItem('expandedModels');
             sessionStorage.removeItem('lastSearchQuery');
             sessionStorage.removeItem('lastSearchResultsHtml');
             sessionStorage.removeItem('lastSearchTime');
-            sessionStorage.removeItem('modelFilesExpanded');
         }
         
         function escapeHtml(text) {
@@ -492,14 +498,16 @@ MODELS_PAGE = '''
             
             if (container.style.display === 'block') {
                 container.style.display = 'none';
-                if (!silent) saveModelFilesState(modelId, false);
+                expandedModels[modelId] = false;
+                saveFilesCacheToSession();
                 return;
             }
             
             if (filesCache[modelId]) {
                 container.innerHTML = filesCache[modelId];
                 container.style.display = 'block';
-                if (!silent) saveModelFilesState(modelId, true);
+                expandedModels[modelId] = true;
+                saveFilesCacheToSession();
                 restoreDownloadingStates();
                 return;
             }
@@ -541,16 +549,15 @@ MODELS_PAGE = '''
                 }
                 
                 filesCache[modelId] = html;
-                saveFilesCacheToSession();
                 container.innerHTML = html;
                 container.style.display = 'block';
-                if (!silent) saveModelFilesState(modelId, true);
+                expandedModels[modelId] = true;
+                saveFilesCacheToSession();
                 restoreDownloadingStates();
             } catch(e) {
                 console.error('获取文件失败:', e);
                 const errorHtml = '<div class="info-text">❌ 获取文件列表失败: ' + e.message + '</div>';
                 filesCache[modelId] = errorHtml;
-                saveFilesCacheToSession();
                 container.innerHTML = errorHtml;
                 container.style.display = 'block';
             } finally {
@@ -585,6 +592,8 @@ MODELS_PAGE = '''
                         clearInterval(progressIntervals[filename]);
                         delete progressIntervals[filename];
                     }
+                    // 更新缓存中的状态
+                    updateCacheFileStatus(filename, true);
                 } else if (status === 'downloading') {
                     btn.disabled = true;
                     btn.classList.add('downloading');
@@ -598,6 +607,18 @@ MODELS_PAGE = '''
                     btn.innerHTML = '⬇️ 重试';
                     btn.style.background = '#667eea';
                     delete downloadingFiles[filename];
+                }
+            }
+        }
+        
+        // 更新缓存中某个文件的状态
+        function updateCacheFileStatus(filename, isDownloaded) {
+            for (const [modelId, cacheHtml] of Object.entries(filesCache)) {
+                if (cacheHtml.includes(escapeHtml(filename))) {
+                    // 重新获取该模型的文件列表以更新缓存
+                    delete filesCache[modelId];
+                    getModelFiles(modelId, true);
+                    break;
                 }
             }
         }
@@ -620,17 +641,10 @@ MODELS_PAGE = '''
                         if (percent >= 100) {
                             updateDownloadButton(filename, 100, 'completed');
                             refreshLocalModels();
-                            // 不刷新整个文件列表，只更新缓存
-                            setTimeout(() => {
-                                refreshCurrentFileListSilent();
-                            }, 500);
                         }
                     } else if (progress && progress.downloading === false && progress.percent === 100) {
                         updateDownloadButton(filename, 100, 'completed');
                         refreshLocalModels();
-                        setTimeout(() => {
-                            refreshCurrentFileListSilent();
-                        }, 500);
                     } else if (progress && progress.percent === -1) {
                         updateDownloadButton(filename, 0, 'failed');
                     }
@@ -638,40 +652,6 @@ MODELS_PAGE = '''
                     console.error('轮询进度出错:', e);
                 }
             }, 1000);
-        }
-        
-        // 静默刷新文件列表（不改变展开状态）
-        function refreshCurrentFileListSilent() {
-            document.querySelectorAll('.file-list').forEach((list) => {
-                const card = list.closest('.model-card');
-                if (card) {
-                    const btn = card.querySelector('button[id^="btn-"]');
-                    if (btn) {
-                        const modelId = btn.getAttribute('data-model-id');
-                        if (modelId && filesCache[modelId]) {
-                            // 只更新缓存，重新获取文件列表
-                            delete filesCache[modelId];
-                            getModelFiles(modelId, true);
-                        }
-                    }
-                }
-            });
-        }
-        
-        function refreshCurrentFileList() {
-            document.querySelectorAll('.file-list').forEach((list) => {
-                const card = list.closest('.model-card');
-                if (card) {
-                    const btn = card.querySelector('button[id^="btn-"]');
-                    if (btn) {
-                        const modelId = btn.getAttribute('data-model-id');
-                        if (modelId) {
-                            delete filesCache[modelId];
-                            getModelFiles(modelId, true);
-                        }
-                    }
-                }
-            });
         }
         
         async function downloadModel(downloadUrl, filename) {
@@ -741,7 +721,17 @@ MODELS_PAGE = '''
                     const data = await response.json();
                     alert(data.message);
                     refreshLocalModels();
-                    refreshCurrentFileList();
+                    // 更新所有缓存中该文件的状态
+                    for (const [modelId, cacheHtml] of Object.entries(filesCache)) {
+                        if (cacheHtml.includes(escapeHtml(filename))) {
+                            delete filesCache[modelId];
+                            // 如果该模型当前是展开的，重新加载
+                            if (expandedModels[modelId]) {
+                                getModelFiles(modelId, true);
+                            }
+                        }
+                    }
+                    saveFilesCacheToSession();
                 } catch(e) {
                     console.error('删除失败:', e);
                     alert('删除失败: ' + e.message);
@@ -765,9 +755,6 @@ MODELS_PAGE = '''
             restoreSearchState();
             refreshLocalModels();
             restoreDownloadingStates();
-            setTimeout(() => {
-                restoreModelFilesStates();
-            }, 300);
         });
     </script>
 </body>
