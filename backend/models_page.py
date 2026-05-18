@@ -248,33 +248,60 @@ MODELS_PAGE = '''
     <script>
         let currentSearchResults = [];
         
-        // 保存搜索状态到 localStorage
+        // ========== sessionStorage 存储（关闭浏览器后清除） ==========
+        
+        // 保存搜索状态到 sessionStorage
         function saveSearchState(query, resultsHtml) {
             if (query) {
-                localStorage.setItem('lastSearchQuery', query);
-                localStorage.setItem('lastSearchResultsHtml', resultsHtml);
-                localStorage.setItem('lastSearchTime', Date.now());
+                sessionStorage.setItem('lastSearchQuery', query);
+                sessionStorage.setItem('lastSearchResultsHtml', resultsHtml);
+                sessionStorage.setItem('lastSearchTime', Date.now());
             }
         }
         
         // 恢复上次搜索状态
         function restoreSearchState() {
-            const savedQuery = localStorage.getItem('lastSearchQuery');
-            const savedResultsHtml = localStorage.getItem('lastSearchResultsHtml');
-            const savedTime = localStorage.getItem('lastSearchTime');
+            const savedQuery = sessionStorage.getItem('lastSearchQuery');
+            const savedResultsHtml = sessionStorage.getItem('lastSearchResultsHtml');
+            const savedTime = sessionStorage.getItem('lastSearchTime');
             
-            // 10分钟内有效
+            // 10分钟内有效（同一次会话）
             if (savedQuery && savedResultsHtml && savedTime && (Date.now() - parseInt(savedTime)) < 600000) {
                 document.getElementById('searchInput').value = savedQuery;
                 const resultsDiv = document.getElementById('searchResults');
                 if (resultsDiv && savedResultsHtml && savedResultsHtml !== '') {
                     resultsDiv.innerHTML = savedResultsHtml;
-                    // 重新绑定折叠事件
                     rebindToggleEvents();
                     return true;
                 }
             }
             return false;
+        }
+        
+        // 保存模型文件的展开状态到 sessionStorage
+        function saveModelFilesState(modelId, isExpanded) {
+            const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
+            states[modelId] = isExpanded;
+            sessionStorage.setItem('modelFilesExpanded', JSON.stringify(states));
+        }
+        
+        // 获取模型文件的展开状态
+        function getModelFilesState(modelId) {
+            const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
+            return states[modelId] === true;
+        }
+        
+        // 恢复所有模型文件的展开状态
+        function restoreModelFilesStates() {
+            const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
+            for (const [modelId, isExpanded] of Object.entries(states)) {
+                if (isExpanded) {
+                    // 延迟加载，确保 DOM 已渲染
+                    setTimeout(() => {
+                        getModelFiles(modelId);
+                    }, 100);
+                }
+            }
         }
         
         // 重新绑定折叠事件（因为 HTML 是动态生成的）
@@ -284,6 +311,7 @@ MODELS_PAGE = '''
                 if (card) {
                     const filesDiv = card.querySelector('[id^="files-"]');
                     if (filesDiv) {
+                        // 保存原始的 onclick
                         el.onclick = function() {
                             if (filesDiv.style.display === 'none' || filesDiv.style.display === '') {
                                 filesDiv.style.display = 'block';
@@ -373,7 +401,6 @@ MODELS_PAGE = '''
                         `;
                     }
                     resultsDiv.innerHTML = html;
-                    // 保存搜索结果
                     saveSearchState(query, html);
                 } else {
                     resultsDiv.innerHTML = '<div class="info-text">❌ 未找到相关 GGUF 模型</div>';
@@ -392,9 +419,10 @@ MODELS_PAGE = '''
             document.getElementById('searchInput').value = '';
             document.getElementById('searchResults').innerHTML = '';
             currentSearchResults = [];
-            localStorage.removeItem('lastSearchQuery');
-            localStorage.removeItem('lastSearchResultsHtml');
-            localStorage.removeItem('lastSearchTime');
+            sessionStorage.removeItem('lastSearchQuery');
+            sessionStorage.removeItem('lastSearchResultsHtml');
+            sessionStorage.removeItem('lastSearchTime');
+            sessionStorage.removeItem('modelFilesExpanded');
         }
         
         async function getModelFiles(modelId) {
@@ -402,8 +430,10 @@ MODELS_PAGE = '''
             const btn = document.getElementById(`btn-${safeId}`);
             const container = document.getElementById(`files-${safeId}`);
             
+            // 如果已经展开，则收拢并保存状态
             if (container.style.display === 'block') {
                 container.style.display = 'none';
+                saveModelFilesState(modelId, false);
                 return;
             }
             
@@ -428,9 +458,11 @@ MODELS_PAGE = '''
                     html += '</div>';
                     container.innerHTML = html;
                     container.style.display = 'block';
+                    saveModelFilesState(modelId, true);
                 } else {
                     container.innerHTML = '<div class="info-text">⚠️ 该模型没有 GGUF 文件</div>';
                     container.style.display = 'block';
+                    saveModelFilesState(modelId, true);
                 }
             } catch(e) {
                 console.error('获取文件失败:', e);
@@ -570,6 +602,10 @@ MODELS_PAGE = '''
         document.addEventListener('DOMContentLoaded', function() {
             restoreSearchState();
             refreshLocalModels();
+            // 延迟恢复展开状态
+            setTimeout(() => {
+                restoreModelFilesStates();
+            }, 200);
         });
     </script>
 </body>
