@@ -48,6 +48,7 @@ MODELS_PAGE = '''
         button.danger { background: #e53e3e; }
         button.danger:hover { background: #c53030; }
         button.small { padding: 4px 12px; font-size: 12px; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         input, select {
             padding: 8px 12px;
             border-radius: 8px;
@@ -193,6 +194,14 @@ MODELS_PAGE = '''
             font-family: monospace;
             font-size: 12px;
         }
+        .downloading-btn {
+            background: #38a169 !important;
+            cursor: wait !important;
+        }
+        .downloading-btn:hover {
+            background: #2f855a !important;
+            transform: none !important;
+        }
     </style>
 </head>
 <body>
@@ -261,6 +270,7 @@ MODELS_PAGE = '''
     <script>
         let currentSearchResults = [];
         let filesCache = {};  // 内存缓存已加载的文件列表
+        let progressIntervals = {};  // 存储每个文件的进度轮询间隔
         
         // ========== 缓存持久化到 sessionStorage ==========
         
@@ -512,11 +522,17 @@ MODELS_PAGE = '''
                 if (data.success && data.files && data.files.length > 0) {
                     html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
                     for (const file of data.files) {
+                        // 检查是否正在下载中
+                        const isDownloading = progressIntervals[file.filename];
+                        const btnDisabled = isDownloading ? 'disabled' : '';
+                        const btnClass = isDownloading ? 'downloading-btn' : '';
                         html += `
-                            <div class="file-item">
+                            <div class="file-item" id="file-item-${escapeHtml(file.filename).replace(/[^a-zA-Z0-9]/g, '_')}">
                                 <span class="file-name">${escapeHtml(file.filename)}</span>
                                 <span class="file-size">${file.size_str}</span>
-                                <button class="small" onclick="downloadModel('${file.download_url}', '${file.filename}')">⬇️ 下载</button>
+                                <button class="small ${btnClass}" onclick="downloadModel('${file.download_url}', '${escapeHtml(file.filename)}')" ${btnDisabled} id="download-btn-${escapeHtml(file.filename).replace(/[^a-zA-Z0-9]/g, '_')}">
+                                    ${isDownloading ? '⏳ 下载中...' : '⬇️ 下载'}
+                                </button>
                             </div>
                         `;
                     }
@@ -545,29 +561,125 @@ MODELS_PAGE = '''
             }
         }
         
+        // 获取下载进度
+        async function getDownloadProgress(filename) {
+            try {
+                const response = await fetch(`/models/api/progress?filename=${encodeURIComponent(filename)}`);
+                const data = await response.json();
+                return data;
+            } catch(e) {
+                console.error('获取进度失败:', e);
+                return null;
+            }
+        }
+        
+        // 更新下载按钮状态
+        function updateDownloadButton(filename, isDownloading) {
+            const safeFilename = filename.replace(/[^a-zA-Z0-9]/g, '_');
+            const btn = document.getElementById(`download-btn-${safeFilename}`);
+            if (btn) {
+                if (isDownloading) {
+                    btn.disabled = true;
+                    btn.classList.add('downloading-btn');
+                    btn.innerHTML = '⏳ 下载中...';
+                } else {
+                    btn.disabled = false;
+                    btn.classList.remove('downloading-btn');
+                    btn.innerHTML = '⬇️ 下载';
+                }
+            }
+        }
+        
+        // 开始轮询下载进度
+        function startProgressPolling(filename, progressDiv, progressFill, progressText) {
+            if (progressIntervals[filename]) {
+                clearInterval(progressIntervals[filename]);
+            }
+            
+            // 更新按钮状态为下载中
+            updateDownloadButton(filename, true);
+            
+            progressIntervals[filename] = setInterval(async () => {
+                const progress = await getDownloadProgress(filename);
+                if (progress && progress.downloading === true) {
+                    // 正在下载，更新进度条
+                    const percent = progress.percent;
+                    progressFill.style.width = percent + '%';
+                    progressText.innerText = progress.status;
+                    if (percent === 100) {
+                        // 下载完成
+                        clearInterval(progressIntervals[filename]);
+                        delete progressIntervals[filename];
+                        updateDownloadButton(filename, false);
+                        setTimeout(() => {
+                            progressDiv.style.display = 'none';
+                            refreshLocalModels();
+                            // 刷新当前页面的文件列表
+                            location.reload();
+                        }, 1500);
+                    }
+                } else if (progress && progress.downloading === false && progress.percent === 100) {
+                    // 已完成
+                    clearInterval(progressIntervals[filename]);
+                    delete progressIntervals[filename];
+                    updateDownloadButton(filename, false);
+                    progressFill.style.width = '100%';
+                    progressText.innerText = '下载完成！';
+                    setTimeout(() => {
+                        progressDiv.style.display = 'none';
+                        refreshLocalModels();
+                    }, 1500);
+                } else if (progress && progress.percent === -1) {
+                    // 下载失败
+                    clearInterval(progressIntervals[filename]);
+                    delete progressIntervals[filename];
+                    updateDownloadButton(filename, false);
+                    progressText.innerText = progress.status;
+                    progressFill.style.width = '0%';
+                    setTimeout(() => {
+                        progressDiv.style.display = 'none';
+                    }, 3000);
+                }
+            }, 500);  // 每0.5秒轮询一次
+        }
+        
         async function downloadModel(downloadUrl, filename) {
             if (confirm(`下载 ${filename}？\\n文件可能较大，请耐心等待。`)) {
                 const progressDiv = document.getElementById('downloadProgress');
                 const progressFill = document.getElementById('progressFill');
                 const progressText = document.getElementById('progressText');
                 
+                // 显示进度条并重置
                 progressDiv.style.display = 'block';
                 progressFill.style.width = '0%';
-                progressText.innerText = '开始下载...';
+                progressText.innerText = '正在启动下载...';
+                
+                // 立即更新按钮状态
+                updateDownloadButton(filename, true);
                 
                 try {
+                    // 启动下载任务
                     const response = await fetch('/models/api/download', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ download_url: downloadUrl, filename: filename })
                     });
                     const result = await response.json();
-                    alert(result.message);
-                    startPollingProgress(filename);
+                    
+                    if (result.success) {
+                        alert(result.message);
+                        // 开始轮询进度
+                        startProgressPolling(filename, progressDiv, progressFill, progressText);
+                    } else {
+                        alert('启动下载失败: ' + result.message);
+                        progressDiv.style.display = 'none';
+                        updateDownloadButton(filename, false);
+                    }
                 } catch(e) {
                     console.error('下载失败:', e);
                     alert('下载失败: ' + e.message);
                     progressDiv.style.display = 'none';
+                    updateDownloadButton(filename, false);
                 }
             }
         }
@@ -593,7 +705,7 @@ MODELS_PAGE = '''
                             </tr>
                         `;
                     }
-                    html += '</tbody></table>';
+                    html += '</tbody>\\nelose';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
@@ -629,43 +741,6 @@ MODELS_PAGE = '''
             } catch(e) {
                 console.error('创建软链接失败:', e);
                 alert('创建失败: ' + e.message);
-            }
-        }
-        
-        let progressInterval = null;
-        
-        function startPollingProgress(filename) {
-            if (progressInterval) clearInterval(progressInterval);
-            progressInterval = setInterval(() => {
-                checkDownloadStatus(filename);
-            }, 2000);
-            setTimeout(() => {
-                if (progressInterval) {
-                    clearInterval(progressInterval);
-                    progressInterval = null;
-                    document.getElementById('downloadProgress').style.display = 'none';
-                }
-            }, 60000);
-        }
-        
-        async function checkDownloadStatus(filename) {
-            try {
-                const response = await fetch('/models/api/local');
-                const data = await response.json();
-                if (data.success && data.models) {
-                    const found = data.models.find(m => m.name === filename);
-                    if (found) {
-                        document.getElementById('progressFill').style.width = '100%';
-                        document.getElementById('progressText').innerText = '下载完成！';
-                        setTimeout(() => {
-                            document.getElementById('downloadProgress').style.display = 'none';
-                            if (progressInterval) clearInterval(progressInterval);
-                            refreshLocalModels();
-                        }, 2000);
-                    }
-                }
-            } catch(e) {
-                console.error('检查状态失败:', e);
             }
         }
         
@@ -736,3 +811,9 @@ async def create_symlinks():
     """创建所有模型的软链接"""
     count = model_manager.create_symlinks()
     return {"success": True, "message": f"已创建 {count} 个软链接"}
+
+@router.get("/api/progress")
+async def get_download_progress(filename: str):
+    """获取下载进度"""
+    progress = model_manager.get_progress(filename)
+    return progress

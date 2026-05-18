@@ -7,6 +7,7 @@ import re
 import json
 import urllib.request
 import urllib.parse
+import threading
 from pathlib import Path
 from typing import Optional, List, Dict
 
@@ -17,6 +18,10 @@ class ModelManager:
         self.links_dir = self.base_dir / "model_links"       # 独立的软链接目录（不依赖llama.cpp）
         self.log_file = self.base_dir / "logs" / "models.log"
         
+        # 下载进度存储 {filename: {'percent': int, 'status': str, 'downloading': bool}}
+        self.download_progress = {}
+        self.progress_lock = threading.Lock()
+        
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.links_dir.mkdir(parents=True, exist_ok=True)
         
@@ -26,6 +31,29 @@ class ModelManager:
         print(log_msg)
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(log_msg + '\n')
+    
+    def update_progress(self, filename: str, percent: int, status: str, downloading: bool = True):
+        """更新下载进度"""
+        with self.progress_lock:
+            self.download_progress[filename] = {
+                'percent': percent,
+                'status': status,
+                'downloading': downloading,
+                'updated_at': time.time()
+            }
+    
+    def get_progress(self, filename: str) -> Dict:
+        """获取下载进度"""
+        with self.progress_lock:
+            if filename in self.download_progress:
+                return self.download_progress[filename]
+            return {'percent': 0, 'status': '未开始', 'downloading': False}
+    
+    def clear_progress(self, filename: str):
+        """清除下载进度记录"""
+        with self.progress_lock:
+            if filename in self.download_progress:
+                del self.download_progress[filename]
     
     def search_huggingface_models(self, query: str, limit: int = 30) -> List[Dict]:
         """搜索 HuggingFace 上的 GGUF 模型（自动添加 GGUF 关键词）"""
@@ -174,18 +202,21 @@ class ModelManager:
             
             if final_path.exists():
                 self.log(f"模型已存在: {safe_filename}")
+                self.update_progress(safe_filename, 100, "文件已存在", False)
                 if callback:
                     callback(100, "文件已存在")
                 return True
             
             self.log(f"开始下载: {download_url}")
             self.log(f"保存路径: {final_path}")
+            self.update_progress(safe_filename, 0, "开始下载...", True)
             
             req = urllib.request.Request(download_url, headers={'User-Agent': 'LlamaPanel/1.0'})
             
             with urllib.request.urlopen(req, timeout=3600) as response:
                 total_size = int(response.headers.get('Content-Length', 0))
                 downloaded = 0
+                last_percent = 0
                 
                 with open(final_path, 'wb') as f:
                     while True:
@@ -195,21 +226,35 @@ class ModelManager:
                         f.write(chunk)
                         downloaded += len(chunk)
                         
-                        if total_size > 0 and callback:
+                        if total_size > 0:
                             percent = int(downloaded * 100 / total_size)
-                            callback(percent, f"下载中... {percent}%")
+                            # 每 2% 更新一次进度，减少日志
+                            if percent != last_percent:
+                                last_percent = percent
+                                self.update_progress(safe_filename, percent, f"下载中... {percent}%", True)
+                                if callback:
+                                    callback(percent, f"下载中... {percent}%")
             
             # 下载完成后自动创建软链接到独立目录
             self.create_symlink_for_model(safe_filename)
             
             self.log(f"下载完成: {safe_filename}")
+            self.update_progress(safe_filename, 100, "下载完成", False)
             if callback:
                 callback(100, "下载完成")
+            
+            # 5秒后清除进度记录
+            def clear_after_delay():
+                time.sleep(5)
+                self.clear_progress(safe_filename)
+            
+            threading.Thread(target=clear_after_delay, daemon=True).start()
             
             return True
             
         except Exception as e:
             self.log(f"下载失败: {e}")
+            self.update_progress(safe_filename, -1, f"下载失败: {e}", False)
             if callback:
                 callback(-1, f"下载失败: {e}")
             return False
