@@ -247,6 +247,7 @@ MODELS_PAGE = '''
     
     <script>
         let currentSearchResults = [];
+        let filesCache = {};  // 缓存已加载的文件列表
         
         // ========== sessionStorage 存储（关闭浏览器后清除） ==========
         
@@ -277,7 +278,7 @@ MODELS_PAGE = '''
             return false;
         }
         
-        // 保存模型文件的展开状态到 sessionStorage
+        // 保存模型文件的展开状态到 sessionStorage（只保存展开状态，不保存内容）
         function saveModelFilesState(modelId, isExpanded) {
             const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
             states[modelId] = isExpanded;
@@ -290,59 +291,19 @@ MODELS_PAGE = '''
             for (const [modelId, isExpanded] of Object.entries(states)) {
                 if (isExpanded) {
                     setTimeout(() => {
-                        // 触发展开，但不重复保存状态
                         const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
                         const container = document.getElementById(`files-${safeId}`);
                         if (container && container.style.display !== 'block') {
-                            // 直接调用 getModelFiles 但传入 silent=true
-                            getModelFilesSilent(modelId);
+                            // 使用缓存或加载
+                            if (filesCache[modelId]) {
+                                container.innerHTML = filesCache[modelId];
+                                container.style.display = 'block';
+                            } else {
+                                getModelFiles(modelId, true);
+                            }
                         }
                     }, 150);
                 }
-            }
-        }
-        
-        // 静默加载模型文件（不保存状态，用于恢复）
-        async function getModelFilesSilent(modelId) {
-            const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
-            const btn = document.getElementById(`btn-${safeId}`);
-            const container = document.getElementById(`files-${safeId}`);
-            
-            if (!btn || !container) return;
-            if (container.style.display === 'block') return;
-            
-            btn.disabled = true;
-            btn.innerHTML = '<span class="loading"></span> 加载中...';
-            
-            try {
-                const response = await fetch(`/models/api/files?model_id=${encodeURIComponent(modelId)}`);
-                const data = await response.json();
-                
-                if (data.success && data.files && data.files.length > 0) {
-                    let html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
-                    for (const file of data.files) {
-                        html += `
-                            <div class="file-item">
-                                <span class="file-name">${file.filename}</span>
-                                <span class="file-size">${file.size_str}</span>
-                                <button class="small" onclick="downloadModel('${file.download_url}', '${file.filename}')">⬇️ 下载</button>
-                            </div>
-                        `;
-                    }
-                    html += '</div>';
-                    container.innerHTML = html;
-                    container.style.display = 'block';
-                } else {
-                    container.innerHTML = '<div class="info-text">⚠️ 该模型没有 GGUF 文件</div>';
-                    container.style.display = 'block';
-                }
-            } catch(e) {
-                console.error('获取文件失败:', e);
-                container.innerHTML = '<div class="info-text">❌ 获取文件列表失败: ' + e.message + '</div>';
-                container.style.display = 'block';
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '📂 查看 GGUF 文件';
             }
         }
         
@@ -354,8 +315,7 @@ MODELS_PAGE = '''
                     const filesDiv = card.querySelector('[id^="files-"]');
                     const btn = card.querySelector('button[id^="btn-"]');
                     if (filesDiv && btn) {
-                        const modelId = btn.getAttribute('data-model-id') || 
-                                      btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+                        const modelId = btn.getAttribute('data-model-id');
                         el.onclick = function() {
                             if (filesDiv.style.display === 'none' || filesDiv.style.display === '') {
                                 if (filesDiv.innerHTML.trim() === '' || filesDiv.innerHTML.includes('该模型没有') || filesDiv.innerHTML.includes('获取文件列表失败')) {
@@ -469,20 +429,39 @@ MODELS_PAGE = '''
             document.getElementById('searchInput').value = '';
             document.getElementById('searchResults').innerHTML = '';
             currentSearchResults = [];
+            // 清空缓存
+            filesCache = {};
             sessionStorage.removeItem('lastSearchQuery');
             sessionStorage.removeItem('lastSearchResultsHtml');
             sessionStorage.removeItem('lastSearchTime');
             sessionStorage.removeItem('modelFilesExpanded');
         }
         
-        async function getModelFiles(modelId) {
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function getModelFiles(modelId, silent = false) {
             const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
             const btn = document.getElementById(`btn-${safeId}`);
             const container = document.getElementById(`files-${safeId}`);
             
+            if (!btn || !container) return;
+            
+            // 如果已经展开，则收拢
             if (container.style.display === 'block') {
                 container.style.display = 'none';
-                saveModelFilesState(modelId, false);
+                if (!silent) saveModelFilesState(modelId, false);
+                return;
+            }
+            
+            // 检查缓存
+            if (filesCache[modelId]) {
+                container.innerHTML = filesCache[modelId];
+                container.style.display = 'block';
+                if (!silent) saveModelFilesState(modelId, true);
                 return;
             }
             
@@ -493,29 +472,33 @@ MODELS_PAGE = '''
                 const response = await fetch(`/models/api/files?model_id=${encodeURIComponent(modelId)}`);
                 const data = await response.json();
                 
+                let html = '';
                 if (data.success && data.files && data.files.length > 0) {
-                    let html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
+                    html = '<div class="file-list"><strong>📁 GGUF 文件列表:</strong>';
                     for (const file of data.files) {
                         html += `
                             <div class="file-item">
-                                <span class="file-name">${file.filename}</span>
+                                <span class="file-name">${escapeHtml(file.filename)}</span>
                                 <span class="file-size">${file.size_str}</span>
                                 <button class="small" onclick="downloadModel('${file.download_url}', '${file.filename}')">⬇️ 下载</button>
                             </div>
                         `;
                     }
                     html += '</div>';
-                    container.innerHTML = html;
-                    container.style.display = 'block';
-                    saveModelFilesState(modelId, true);
                 } else {
-                    container.innerHTML = '<div class="info-text">⚠️ 该模型没有 GGUF 文件</div>';
-                    container.style.display = 'block';
-                    saveModelFilesState(modelId, true);
+                    html = '<div class="info-text">⚠️ 该模型没有 GGUF 文件</div>';
                 }
+                
+                // 存入缓存
+                filesCache[modelId] = html;
+                container.innerHTML = html;
+                container.style.display = 'block';
+                if (!silent) saveModelFilesState(modelId, true);
             } catch(e) {
                 console.error('获取文件失败:', e);
-                container.innerHTML = '<div class="info-text">❌ 获取文件列表失败: ' + e.message + '</div>';
+                const errorHtml = '<div class="info-text">❌ 获取文件列表失败: ' + e.message + '</div>';
+                filesCache[modelId] = errorHtml;
+                container.innerHTML = errorHtml;
                 container.style.display = 'block';
             } finally {
                 btn.disabled = false;
@@ -564,10 +547,10 @@ MODELS_PAGE = '''
                     for (const model of data.models) {
                         html += `
                             <tr>
-                                <td>${model.name}</td>
+                                <td>${escapeHtml(model.name)}</td>
                                 <td>${model.size_str}</td>
                                 <td>${model.modified}</td>
-                                <td><button class="small" onclick="deleteModel('${model.name}')">🗑️ 删除</button></td>
+                                <td><button class="small" onclick="deleteModel('${escapeHtml(model.name)}')">🗑️ 删除</button></td>
                             </tr>
                         `;
                     }
