@@ -247,9 +247,31 @@ MODELS_PAGE = '''
     
     <script>
         let currentSearchResults = [];
-        let filesCache = {};  // 缓存已加载的文件列表
+        let filesCache = {};  // 内存缓存已加载的文件列表
         
-        // ========== sessionStorage 存储（关闭浏览器后清除） ==========
+        // ========== 缓存持久化到 sessionStorage ==========
+        
+        // 保存文件列表缓存到 sessionStorage
+        function saveFilesCacheToSession() {
+            try {
+                sessionStorage.setItem('filesCache', JSON.stringify(filesCache));
+            } catch(e) {
+                console.error('保存缓存失败:', e);
+            }
+        }
+        
+        // 从 sessionStorage 恢复文件列表缓存
+        function restoreFilesCacheFromSession() {
+            try {
+                const savedCache = sessionStorage.getItem('filesCache');
+                if (savedCache) {
+                    filesCache = JSON.parse(savedCache);
+                    console.log('恢复了', Object.keys(filesCache).length, '个文件列表缓存');
+                }
+            } catch(e) {
+                console.error('恢复缓存失败:', e);
+            }
+        }
         
         // 保存搜索状态到 sessionStorage
         function saveSearchState(query, resultsHtml) {
@@ -278,7 +300,7 @@ MODELS_PAGE = '''
             return false;
         }
         
-        // 保存模型文件的展开状态到 sessionStorage（只保存展开状态，不保存内容）
+        // 保存模型文件的展开状态到 sessionStorage
         function saveModelFilesState(modelId, isExpanded) {
             const states = JSON.parse(sessionStorage.getItem('modelFilesExpanded') || '{}');
             states[modelId] = isExpanded;
@@ -294,7 +316,7 @@ MODELS_PAGE = '''
                         const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
                         const container = document.getElementById(`files-${safeId}`);
                         if (container && container.style.display !== 'block') {
-                            // 使用缓存或加载
+                            // 优先使用 session 缓存
                             if (filesCache[modelId]) {
                                 container.innerHTML = filesCache[modelId];
                                 container.style.display = 'block';
@@ -429,8 +451,9 @@ MODELS_PAGE = '''
             document.getElementById('searchInput').value = '';
             document.getElementById('searchResults').innerHTML = '';
             currentSearchResults = [];
-            // 清空缓存
+            // 清空内存缓存和 session 缓存
             filesCache = {};
+            sessionStorage.removeItem('filesCache');
             sessionStorage.removeItem('lastSearchQuery');
             sessionStorage.removeItem('lastSearchResultsHtml');
             sessionStorage.removeItem('lastSearchTime');
@@ -457,7 +480,7 @@ MODELS_PAGE = '''
                 return;
             }
             
-            // 检查缓存
+            // 检查内存缓存
             if (filesCache[modelId]) {
                 container.innerHTML = filesCache[modelId];
                 container.style.display = 'block';
@@ -489,8 +512,10 @@ MODELS_PAGE = '''
                     html = '<div class="info-text">⚠️ 该模型没有 GGUF 文件</div>';
                 }
                 
-                // 存入缓存
+                // 存入内存缓存和 session 缓存
                 filesCache[modelId] = html;
+                saveFilesCacheToSession();
+                
                 container.innerHTML = html;
                 container.style.display = 'block';
                 if (!silent) saveModelFilesState(modelId, true);
@@ -498,6 +523,7 @@ MODELS_PAGE = '''
                 console.error('获取文件失败:', e);
                 const errorHtml = '<div class="info-text">❌ 获取文件列表失败: ' + e.message + '</div>';
                 filesCache[modelId] = errorHtml;
+                saveFilesCacheToSession();
                 container.innerHTML = errorHtml;
                 container.style.display = 'block';
             } finally {
@@ -630,12 +656,13 @@ MODELS_PAGE = '''
             }
         }
         
-        // 页面加载时恢复搜索状态
+        // 页面加载时恢复所有状态
         document.addEventListener('DOMContentLoaded', function() {
-            restoreSearchState();
-            refreshLocalModels();
+            restoreFilesCacheFromSession();  // 先恢复缓存
+            restoreSearchState();            // 恢复搜索状态
+            refreshLocalModels();            // 刷新本地模型
             setTimeout(() => {
-                restoreModelFilesStates();
+                restoreModelFilesStates();    // 恢复展开状态
             }, 300);
         });
     </script>
