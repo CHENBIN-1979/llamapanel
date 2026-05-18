@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse
 from pathlib import Path
 import sys
 import subprocess
+import os
 sys.path.append('/opt/llamapanel/backend')
 from installer import LlamaCppInstaller
 from models_page import router as models_router
@@ -31,37 +32,76 @@ def update_llamapanel():
     try:
         log_msg("========== 开始更新 LlamaPanel ==========")
         
-        # 进入项目目录
-        os.chdir("/opt/llamapanel")
-        log_msg("进入目录: /opt/llamapanel")
+        repo_path = "/opt/llamapanel"
+        
+        # 记录当前目录
+        log_msg(f"当前工作目录: {os.getcwd()}")
+        
+        # 检查 git 是否可用
+        git_check = subprocess.run(['which', 'git'], capture_output=True, text=True)
+        log_msg(f"git 路径: {git_check.stdout.strip()}")
         
         # 拉取最新代码
         log_msg("执行: git pull")
-        result = subprocess.run(['git', 'pull'], capture_output=True, text=True, timeout=60)
+        result = subprocess.run(
+            ['git', 'pull'],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        log_msg(f"git pull 返回码: {result.returncode}")
         if result.stdout:
             log_msg(f"输出: {result.stdout}")
         if result.stderr:
             log_msg(f"错误: {result.stderr}")
         
         if result.returncode != 0:
-            log_msg("git pull 失败")
-            return False
+            log_msg("git pull 失败，尝试 git fetch")
+            fetch_result = subprocess.run(
+                ['git', 'fetch', 'origin'],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            log_msg(f"git fetch 返回码: {fetch_result.returncode}")
+            if fetch_result.stdout:
+                log_msg(f"fetch 输出: {fetch_result.stdout}")
         
         log_msg("代码更新完成")
         
         # 检查是否有依赖更新
-        log_msg("检查 Python 依赖...")
-        subprocess.run(['/opt/llamapanel/venv/bin/pip', 'install', '-r', 'requirements.txt'], 
-                       capture_output=True, text=True, timeout=120)
+        requirements_file = Path(repo_path) / "requirements.txt"
+        if requirements_file.exists():
+            log_msg("检查 Python 依赖...")
+            pip_result = subprocess.run(
+                ['/opt/llamapanel/venv/bin/pip', 'install', '-r', 'requirements.txt'],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            log_msg(f"pip 安装返回码: {pip_result.returncode}")
         
         # 重启服务
         log_msg("重启 LlamaPanel 服务...")
-        subprocess.run(['sudo', 'systemctl', 'restart', 'llamapanel'], capture_output=True, timeout=30)
+        restart_result = subprocess.run(
+            ['sudo', 'systemctl', 'restart', 'llamapanel'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        log_msg(f"重启服务返回码: {restart_result.returncode}")
+        if restart_result.stderr:
+            log_msg(f"重启错误: {restart_result.stderr}")
         
         log_msg("========== 更新完成 ==========")
         return True
     except Exception as e:
         log_msg(f"更新失败: {e}")
+        import traceback
+        log_msg(traceback.format_exc())
         return False
 
 HTML_PAGE = '''
@@ -689,6 +729,8 @@ async def delete_all(background_tasks: BackgroundTasks):
 @app.post("/api/update_panel")
 async def update_panel(background_tasks: BackgroundTasks):
     """更新 LlamaPanel 自身"""
+    import threading
+    
     if hasattr(update_panel, '_running') and update_panel._running:
         return {"success": False, "message": "更新任务已在运行中"}
     
@@ -696,12 +738,14 @@ async def update_panel(background_tasks: BackgroundTasks):
         update_panel._running = True
         try:
             update_llamapanel()
+        except Exception as e:
+            print(f"更新异常: {e}")
         finally:
             update_panel._running = False
     
     update_panel._running = False
     background_tasks.add_task(run_update)
-    return {"success": True, "message": "LlamaPanel 更新任务已启动，服务将重启"}
+    return {"success": True, "message": "LlamaPanel 更新任务已启动，请查看 /opt/llamapanel/logs/update.log"}
 
 if __name__ == "__main__":
     import uvicorn
