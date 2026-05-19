@@ -537,7 +537,6 @@ MODELS_PAGE = '''
             return 'ctrl-group-' + filename.replace(/[^a-zA-Z0-9]/g, '_');
         }
         
-        // 刷新指定模型的文件列表（不改变展开状态）
         async function refreshModelFiles(modelId) {
             const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
             const container = document.getElementById(`files-${safeId}`);
@@ -606,10 +605,16 @@ MODELS_PAGE = '''
                                 </div>
                             `;
                         } else if (hasPartial) {
-                            // 有部分下载的文件，显示百分比进度
+                            // 尝试获取进度
                             let partialPercent = 0;
-                            if (downloadingFiles[file.filename] !== undefined && downloadingFiles[file.filename] > 0) {
-                                partialPercent = downloadingFiles[file.filename];
+                            try {
+                                const progResponse = await fetch(`/models/api/progress?filename=${encodeURIComponent(file.filename)}`);
+                                const progData = await progResponse.json();
+                                if (progData && progData.percent > 0 && progData.percent < 100) {
+                                    partialPercent = progData.percent;
+                                }
+                            } catch(e) {
+                                console.log('获取进度失败:', e);
                             }
                             let displayText = partialPercent > 0 ? `${partialPercent}%` : '▶ 继续';
                             buttonHtml = `
@@ -901,21 +906,23 @@ MODELS_PAGE = '''
                 
                 if (data.success && data.models && data.models.length > 0) {
                     let html = '<table class="models-table">';
-                    html += '<thead><tr><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></table></thead><tbody>';
-                    for (const model of data.models) {
+                    html += '<thead><tr><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
+                    // 按名称排序
+                    const sortedModels = [...data.models].sort((a, b) => a.name.localeCompare(b.name));
+                    for (const model of sortedModels) {
                         let displayName = model.name;
                         let isPartial = displayName.endsWith('.partial') || displayName.includes('.partial');
                         let sizeClass = isPartial ? 'style="color: #e67e22;"' : '';
                         html += `
                             <tr>
-                                <td>${sizeClass}${escapeHtml(displayName)}${isPartial ? ' (下载中)' : ''}${sizeClass ? '</span>' : ''}</td>
-                                <td>${model.size_str}</td>
-                                <td>${model.modified}</td>
-                                <td><button class="small danger" onclick="deleteLocalModel('${escapeHtml(model.name)}')">🗑️ 删除</button></td>
+                                <td>${sizeClass}${escapeHtml(displayName)}${isPartial ? ' (下载中)' : ''}${sizeClass ? '</span>' : ''}</span></td>
+                                <td>${model.size_str}</span></td>
+                                <td>${model.modified}</span></td>
+                                <td><button class="small danger" onclick="deleteLocalModel('${escapeHtml(model.name)}')">🗑️ 删除</button></span></td>
                             </tr>
                         `;
                     }
-                    html += '</tbody></tr>';
+                    html += '</tbody></table>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
@@ -1086,6 +1093,7 @@ async def get_local_models():
             })
     
     models.extend(partial_files)
+    # 按名称排序
     return {"success": True, "models": sorted(models, key=lambda x: x['name'])}
 
 @router.delete("/api/delete")
