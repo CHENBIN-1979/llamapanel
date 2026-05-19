@@ -259,10 +259,14 @@ MODELS_PAGE = '''
         let downloadingFiles = {};
         let expandedModels = {};
         
+        // 存储每个文件的下载URL（用于删除后恢复下载按钮）
+        let fileDownloadUrls = {};
+        
         function saveFilesCacheToSession() {
             try {
                 sessionStorage.setItem('filesCache', JSON.stringify(filesCache));
                 sessionStorage.setItem('expandedModels', JSON.stringify(expandedModels));
+                sessionStorage.setItem('fileDownloadUrls', JSON.stringify(fileDownloadUrls));
             } catch(e) {
                 console.error('保存缓存失败:', e);
             }
@@ -277,6 +281,10 @@ MODELS_PAGE = '''
                 const savedExpanded = sessionStorage.getItem('expandedModels');
                 if (savedExpanded) {
                     expandedModels = JSON.parse(savedExpanded);
+                }
+                const savedUrls = sessionStorage.getItem('fileDownloadUrls');
+                if (savedUrls) {
+                    fileDownloadUrls = JSON.parse(savedUrls);
                 }
             } catch(e) {
                 console.error('恢复缓存失败:', e);
@@ -321,6 +329,7 @@ MODELS_PAGE = '''
                             container.style.display = 'block';
                             restoreDownloadingStates();
                         } else {
+                            // 缓存不存在，需要加载
                             loadModelFiles(modelId, true);
                         }
                     }
@@ -470,8 +479,10 @@ MODELS_PAGE = '''
             currentSearchResults = [];
             filesCache = {};
             expandedModels = {};
+            fileDownloadUrls = {};
             sessionStorage.removeItem('filesCache');
             sessionStorage.removeItem('expandedModels');
+            sessionStorage.removeItem('fileDownloadUrls');
             sessionStorage.removeItem('lastSearchQuery');
             sessionStorage.removeItem('lastSearchResultsHtml');
             sessionStorage.removeItem('lastSearchTime');
@@ -485,39 +496,6 @@ MODELS_PAGE = '''
         
         function getButtonId(filename) {
             return 'btn-download-' + filename.replace(/[^a-zA-Z0-9]/g, '_');
-        }
-        
-        // 更新缓存中某个文件的按钮状态
-        function updateCacheButtonState(modelId, filename, isDownloaded) {
-            if (filesCache[modelId]) {
-                // 在缓存HTML中查找并替换按钮
-                const cacheHtml = filesCache[modelId];
-                const oldButtonPattern = new RegExp(
-                    `<button id="${getButtonId(filename)}"[^>]*>.*?</button>`,
-                    'g'
-                );
-                let newButton;
-                if (isDownloaded) {
-                    newButton = `<button id="${getButtonId(filename)}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
-                } else {
-                    // 需要获取download_url，这里简单处理：删除缓存让下次重新加载
-                    delete filesCache[modelId];
-                    saveFilesCacheToSession();
-                    return;
-                }
-                const newHtml = cacheHtml.replace(oldButtonPattern, newButton);
-                filesCache[modelId] = newHtml;
-                saveFilesCacheToSession();
-                
-                // 如果当前是展开状态，更新DOM
-                if (expandedModels[modelId]) {
-                    const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
-                    const container = document.getElementById(`files-${safeId}`);
-                    if (container && container.innerHTML !== newHtml) {
-                        container.innerHTML = newHtml;
-                    }
-                }
-            }
         }
         
         async function loadModelFiles(modelId, silent = false) {
@@ -557,6 +535,9 @@ MODELS_PAGE = '''
                         const isDownloaded = file.is_downloaded === true;
                         const buttonId = getButtonId(file.filename);
                         let buttonHtml = '';
+                        
+                        // 存储下载URL
+                        fileDownloadUrls[file.filename] = file.download_url;
                         
                         if (isDownloaded) {
                             buttonHtml = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
@@ -623,10 +604,18 @@ MODELS_PAGE = '''
                         clearInterval(progressIntervals[filename]);
                         delete progressIntervals[filename];
                     }
-                    // 更新所有缓存中该文件的状态
+                    // 更新缓存中该文件的状态
                     for (const modelId in filesCache) {
                         if (filesCache[modelId].includes(escapeHtml(filename))) {
-                            updateCacheButtonState(modelId, filename, true);
+                            // 直接更新缓存中的按钮HTML
+                            const cacheHtml = filesCache[modelId];
+                            const oldButtonPattern = new RegExp(
+                                `<button id="${buttonId}"[^>]*>.*?</button>`,
+                                'g'
+                            );
+                            const newButton = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
+                            filesCache[modelId] = cacheHtml.replace(oldButtonPattern, newButton);
+                            saveFilesCacheToSession();
                         }
                     }
                 } else if (status === 'downloading') {
@@ -745,21 +734,44 @@ MODELS_PAGE = '''
                     alert(data.message);
                     refreshLocalModels();
                     
-                    // 更新所有缓存中该文件的状态为未下载
+                    // 更新所有缓存中该文件的状态为未下载（只修改按钮，不重新加载整个列表）
+                    const buttonId = getButtonId(filename);
+                    const downloadUrl = fileDownloadUrls[filename] || '';
+                    
                     for (const modelId in filesCache) {
                         if (filesCache[modelId].includes(escapeHtml(filename))) {
-                            // 删除缓存，让下次重新加载时获取最新状态
-                            delete filesCache[modelId];
+                            const cacheHtml = filesCache[modelId];
+                            const oldButtonPattern = new RegExp(
+                                `<button id="${buttonId}"[^>]*>.*?</button>`,
+                                'g'
+                            );
+                            const newButton = `<button id="${buttonId}" class="small download-btn" onclick="downloadModel('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">⬇️ 下载</button>`;
+                            const newHtml = cacheHtml.replace(oldButtonPattern, newButton);
+                            filesCache[modelId] = newHtml;
+                            
+                            // 如果当前是展开状态，更新DOM中的按钮
+                            if (expandedModels[modelId]) {
+                                const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
+                                const container = document.getElementById(`files-${safeId}`);
+                                if (container) {
+                                    const btn = container.querySelector(`#${buttonId}`);
+                                    if (btn) {
+                                        // 替换按钮
+                                        const newBtnElement = document.createElement('button');
+                                        newBtnElement.id = buttonId;
+                                        newBtnElement.className = 'small download-btn';
+                                        newBtnElement.innerHTML = '⬇️ 下载';
+                                        newBtnElement.onclick = function() {
+                                            downloadModel(downloadUrl, filename, modelId);
+                                        };
+                                        btn.parentNode.replaceChild(newBtnElement, btn);
+                                    }
+                                }
+                            }
                         }
                     }
                     saveFilesCacheToSession();
                     
-                    // 如果当前有展开的模型包含这个文件，重新加载该模型
-                    for (const modelId in expandedModels) {
-                        if (expandedModels[modelId] && filesCache[modelId] === undefined) {
-                            loadModelFiles(modelId, true);
-                        }
-                    }
                 } catch(e) {
                     console.error('删除失败:', e);
                     alert('删除失败: ' + e.message);
