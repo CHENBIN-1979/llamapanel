@@ -48,7 +48,7 @@ MODELS_PAGE = '''
         button.danger { background: #e53e3e; }
         button.danger:hover { background: #c53030; }
         button.small { padding: 4px 12px; font-size: 12px; min-width: 75px; }
-        button.tiny { padding: 4px 8px; font-size: 11px; min-width: 40px; }
+        button.tiny { padding: 4px 8px; font-size: 11px; min-width: 36px; }
         button:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
         .download-btn {
             background: #667eea;
@@ -69,6 +69,7 @@ MODELS_PAGE = '''
         }
         .control-btn:hover {
             background: #2d3748;
+            transform: none;
         }
         .control-btn.stop {
             background: #e53e3e;
@@ -364,14 +365,20 @@ MODELS_PAGE = '''
         }
         
         function restoreDownloadingStates() {
-            for (const [filename, isDownloading] of Object.entries(downloadingFiles)) {
-                if (isDownloading) {
-                    const btn = document.getElementById(getButtonId(filename));
-                    if (btn && !btn.innerHTML.includes('%')) {
-                        btn.innerHTML = '0%';
-                        btn.classList.add('downloading');
-                        btn.disabled = true;
-                        startProgressPolling(filename);
+            for (const [filename, progress] of Object.entries(downloadingFiles)) {
+                if (progress !== undefined && progress < 100) {
+                    const ctrlGroup = document.getElementById(getControlGroupId(filename));
+                    if (ctrlGroup && ctrlGroup.innerHTML.indexOf('下载') !== -1) {
+                        // 需要恢复控制按钮
+                        const downloadUrl = fileDownloadUrls[filename] || '';
+                        const modelId = fileModelIdMap[filename] || '';
+                        if (downloadUrl) {
+                            ctrlGroup.innerHTML = `
+                                <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
+                                <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
+                                <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(filename)}', '${modelId}')">⏹</button>
+                            `;
+                        }
                     }
                 }
             }
@@ -576,15 +583,16 @@ MODELS_PAGE = '''
                         let buttonHtml = '';
                         if (isDownloaded) {
                             buttonHtml = `
-                                <div class="button-group">
+                                <div class="button-group" id="${ctrlGroupId}">
                                     <button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>
                                 </div>
                             `;
-                        } else if (downloadingFiles[file.filename]) {
+                        } else if (downloadingFiles[file.filename] !== undefined && downloadingFiles[file.filename] < 100) {
                             // 下载中，显示暂停和停止按钮
+                            const progress = downloadingFiles[file.filename];
                             buttonHtml = `
                                 <div class="button-group" id="${ctrlGroupId}">
-                                    <button id="${buttonId}" class="small download-btn downloading" style="background:#38a169;" disabled>${downloadingFiles[file.filename]}%</button>
+                                    <button id="${buttonId}" class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
                                     <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(file.filename)}')">⏸</button>
                                     <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(file.filename)}', '${modelId}')">⏹</button>
                                 </div>
@@ -599,7 +607,7 @@ MODELS_PAGE = '''
                             `;
                         } else {
                             buttonHtml = `
-                                <div class="button-group">
+                                <div class="button-group" id="${ctrlGroupId}">
                                     <button id="${buttonId}" class="small download-btn" onclick="downloadModel('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">⬇️ 下载</button>
                                 </div>
                             `;
@@ -647,9 +655,8 @@ MODELS_PAGE = '''
             }
         }
         
-        function updateDownloadButton(filename, percent, status, canResume = false) {
+        function updateDownloadButton(filename, percent, status) {
             const buttonId = getButtonId(filename);
-            const btn = document.getElementById(buttonId);
             const ctrlGroupId = getControlGroupId(filename);
             const ctrlGroup = document.getElementById(ctrlGroupId);
             
@@ -665,20 +672,34 @@ MODELS_PAGE = '''
                 // 更新缓存
                 for (const modelId in filesCache) {
                     if (filesCache[modelId].includes(escapeHtml(filename))) {
-                        const cacheHtml = filesCache[modelId];
                         const oldPattern = new RegExp(
                             `<div class="button-group" id="${ctrlGroupId}"[^>]*>.*?</div>`,
                             'g'
                         );
-                        const newButton = `<div class="button-group"><button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button></div>`;
-                        filesCache[modelId] = cacheHtml.replace(oldPattern, newButton);
+                        const newButton = `<div class="button-group" id="${ctrlGroupId}"><button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button></div>`;
+                        filesCache[modelId] = filesCache[modelId].replace(oldPattern, newButton);
                         saveFilesCacheToSession();
                         break;
                     }
                 }
+                refreshLocalModels();
             } else if (status === 'downloading') {
-                if (btn) {
-                    btn.innerHTML = percent + '%';
+                if (ctrlGroup) {
+                    // 检查是否已经有控制按钮
+                    if (ctrlGroup.innerHTML.indexOf('⏸') === -1) {
+                        const downloadUrl = fileDownloadUrls[filename] || '';
+                        const modelId = fileModelIdMap[filename] || '';
+                        ctrlGroup.innerHTML = `
+                            <button id="${buttonId}" class="small download-btn downloading" style="background:#38a169;" disabled>${percent}%</button>
+                            <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
+                            <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(filename)}', '${modelId}')">⏹</button>
+                        `;
+                    } else {
+                        const percentBtn = ctrlGroup.querySelector(`#${buttonId}`);
+                        if (percentBtn) {
+                            percentBtn.innerHTML = percent + '%';
+                        }
+                    }
                 }
                 downloadingFiles[filename] = percent;
             } else if (status === 'paused') {
@@ -726,18 +747,9 @@ MODELS_PAGE = '''
                         
                         if (percent >= 100) {
                             updateDownloadButton(filename, 100, 'completed');
-                            refreshLocalModels();
-                            // 刷新文件列表
-                            for (const modelId in expandedModels) {
-                                if (expandedModels[modelId]) {
-                                    delete filesCache[modelId];
-                                    loadModelFiles(modelId, true);
-                                }
-                            }
                         }
                     } else if (progress && progress.downloading === false && progress.percent === 100) {
                         updateDownloadButton(filename, 100, 'completed');
-                        refreshLocalModels();
                     } else if (progress && progress.percent === -1) {
                         updateDownloadButton(filename, 0, 'failed');
                     }
@@ -749,7 +761,17 @@ MODELS_PAGE = '''
         
         async function downloadModel(downloadUrl, filename, modelId) {
             if (confirm(`下载 ${filename}？\\n文件可能较大，请耐心等待。`)) {
-                updateDownloadButton(filename, 0, 'downloading');
+                // 立即更新按钮为下载中状态
+                const ctrlGroupId = getControlGroupId(filename);
+                const ctrlGroup = document.getElementById(ctrlGroupId);
+                if (ctrlGroup) {
+                    ctrlGroup.innerHTML = `
+                        <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
+                        <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
+                        <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(filename)}', '${modelId}')">⏹</button>
+                    `;
+                }
+                downloadingFiles[filename] = 0;
                 
                 try {
                     const response = await fetch('/models/api/download', {
@@ -761,29 +783,14 @@ MODELS_PAGE = '''
                     
                     if (result.success) {
                         startProgressPolling(filename);
-                        // 刷新按钮显示
-                        setTimeout(() => {
-                            const ctrlGroupId = getControlGroupId(filename);
-                            const ctrlGroup = document.getElementById(ctrlGroupId);
-                            if (ctrlGroup) {
-                                const btn = document.getElementById(getButtonId(filename));
-                                if (btn) {
-                                    ctrlGroup.innerHTML = `
-                                        <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
-                                        <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                                        <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(filename)}', '${modelId}')">⏹</button>
-                                    `;
-                                }
-                            }
-                        }, 100);
                     } else {
                         alert('启动下载失败: ' + result.message);
-                        updateDownloadButton(filename, 0, 'failed');
+                        updateDownloadButton(filename, 0, 'stopped');
                     }
                 } catch(e) {
                     console.error('下载失败:', e);
                     alert('下载失败: ' + e.message);
-                    updateDownloadButton(filename, 0, 'failed');
+                    updateDownloadButton(filename, 0, 'stopped');
                 }
             }
         }
@@ -817,10 +824,11 @@ MODELS_PAGE = '''
                     if (result.success) {
                         updateDownloadButton(filename, 0, 'stopped');
                         // 刷新文件列表
-                        for (const modelId in expandedModels) {
-                            if (expandedModels[modelId]) {
-                                delete filesCache[modelId];
-                                loadModelFiles(modelId, true);
+                        for (const cacheModelId in expandedModels) {
+                            if (expandedModels[cacheModelId]) {
+                                delete filesCache[cacheModelId];
+                                loadModelFiles(cacheModelId, true);
+                                break;
                             }
                         }
                     }
@@ -832,7 +840,18 @@ MODELS_PAGE = '''
         }
         
         async function resumeDownload(downloadUrl, filename, modelId) {
-            updateDownloadButton(filename, 0, 'downloading');
+            // 立即更新按钮为下载中状态
+            const ctrlGroupId = getControlGroupId(filename);
+            const ctrlGroup = document.getElementById(ctrlGroupId);
+            if (ctrlGroup) {
+                ctrlGroup.innerHTML = `
+                    <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
+                    <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
+                    <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(filename)}', '${modelId}')">⏹</button>
+                `;
+            }
+            downloadingFiles[filename] = 0;
+            
             try {
                 const response = await fetch('/models/api/resume', {
                     method: 'POST',
@@ -842,24 +861,14 @@ MODELS_PAGE = '''
                 const result = await response.json();
                 if (result.success) {
                     startProgressPolling(filename);
-                    // 刷新按钮显示
-                    setTimeout(() => {
-                        const ctrlGroupId = getControlGroupId(filename);
-                        const ctrlGroup = document.getElementById(ctrlGroupId);
-                        if (ctrlGroup) {
-                            ctrlGroup.innerHTML = `
-                                <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
-                                <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                                <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(filename)}', '${modelId}')">⏹</button>
-                            `;
-                        }
-                    }, 100);
                 } else {
                     alert('恢复失败: ' + result.message);
+                    updateDownloadButton(filename, 0, 'stopped');
                 }
             } catch(e) {
                 console.error('恢复失败:', e);
                 alert('恢复失败: ' + e.message);
+                updateDownloadButton(filename, 0, 'stopped');
             }
         }
         
@@ -873,11 +882,13 @@ MODELS_PAGE = '''
                     });
                     const result = await response.json();
                     if (result.success) {
+                        updateDownloadButton(filename, 0, 'stopped');
                         // 刷新当前文件列表
                         for (const cacheModelId in expandedModels) {
                             if (expandedModels[cacheModelId]) {
                                 delete filesCache[cacheModelId];
                                 loadModelFiles(cacheModelId, true);
+                                break;
                             }
                         }
                     }
