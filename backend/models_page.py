@@ -666,20 +666,15 @@ MODELS_PAGE = '''
                     clearInterval(progressIntervals[filename]);
                     delete progressIntervals[filename];
                 }
-                // 更新缓存
-                for (const modelId in filesCache) {
-                    if (filesCache[modelId].includes(escapeHtml(filename))) {
-                        const oldPattern = new RegExp(
-                            `<div class="button-group" id="${ctrlGroupId}"[^>]*>.*?</div>`,
-                            'g'
-                        );
-                        const newButton = `<div class="button-group" id="${ctrlGroupId}"><button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button></div>`;
-                        filesCache[modelId] = filesCache[modelId].replace(oldPattern, newButton);
-                        saveFilesCacheToSession();
+                refreshLocalModels();
+                // 刷新文件列表
+                for (const modelId in expandedModels) {
+                    if (expandedModels[modelId]) {
+                        delete filesCache[modelId];
+                        loadModelFiles(modelId, true);
                         break;
                     }
                 }
-                refreshLocalModels();
             } else if (status === 'downloading') {
                 if (ctrlGroup) {
                     if (ctrlGroup.innerHTML.indexOf('⏸') === -1) {
@@ -821,14 +816,6 @@ MODELS_PAGE = '''
                     const result = await response.json();
                     if (result.success) {
                         updateDownloadButton(filename, 0, 'stopped');
-                        // 刷新文件列表
-                        for (const cacheModelId in expandedModels) {
-                            if (expandedModels[cacheModelId]) {
-                                delete filesCache[cacheModelId];
-                                loadModelFiles(cacheModelId, true);
-                                break;
-                            }
-                        }
                     } else {
                         alert('停止失败: ' + result.message);
                     }
@@ -883,14 +870,6 @@ MODELS_PAGE = '''
                     const result = await response.json();
                     if (result.success) {
                         updateDownloadButton(filename, 0, 'stopped');
-                        // 刷新当前文件列表
-                        for (const cacheModelId in expandedModels) {
-                            if (expandedModels[cacheModelId]) {
-                                delete filesCache[cacheModelId];
-                                loadModelFiles(cacheModelId, true);
-                                break;
-                            }
-                        }
                     } else {
                         alert('取消失败: ' + result.message);
                     }

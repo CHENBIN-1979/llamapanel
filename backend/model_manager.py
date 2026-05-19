@@ -21,7 +21,7 @@ class ModelManager:
         self.download_progress = {}
         self.download_threads = {}
         self.download_stop_flags = {}
-        self.download_paused = {}  # 暂停标志
+        self.download_paused = {}
         self.progress_lock = threading.Lock()
         
         self.models_dir.mkdir(parents=True, exist_ok=True)
@@ -60,14 +60,12 @@ class ModelManager:
                 del self.download_paused[filename]
     
     def stop_download(self, filename: str) -> bool:
-        """停止下载"""
         with self.progress_lock:
             self.download_stop_flags[filename] = True
             self.log(f"停止下载信号已发送: {filename}")
             return True
     
     def pause_download(self, filename: str) -> bool:
-        """暂停下载"""
         with self.progress_lock:
             self.download_paused[filename] = True
             self.log(f"暂停下载信号已发送: {filename}")
@@ -198,7 +196,6 @@ class ModelManager:
                 file_path = self.get_file_path(model_id, filename)
                 is_downloaded = file_path.exists() and file_path.stat().st_size > 0
                 
-                # 检查是否有部分下载的文件
                 partial_path = file_path.parent / (file_path.name + '.partial')
                 has_partial = partial_path.exists() and partial_path.stat().st_size > 0
                 
@@ -224,15 +221,12 @@ class ModelManager:
             return []
     
     def download_model(self, download_url: str, filename: str, model_id: str, callback=None) -> bool:
-        """下载模型文件，支持断点续传和暂停"""
         file_path = self.get_file_path(model_id, filename)
         partial_path = file_path.parent / (file_path.name + '.partial')
         
-        # 重置停止和暂停标志
         self.download_stop_flags[filename] = False
         self.download_paused[filename] = False
         
-        # 检查文件是否已存在且完整
         if file_path.exists() and file_path.stat().st_size > 0:
             self.log(f"模型已存在: {file_path}")
             self.update_progress(filename, 100, "文件已存在", False)
@@ -242,7 +236,6 @@ class ModelManager:
             self.clear_progress(filename)
             return True
         
-        # 检查是否有部分下载的文件
         resume_byte = 0
         download_path = file_path
         if partial_path.exists():
@@ -253,19 +246,17 @@ class ModelManager:
         try:
             self.log(f"开始下载: {download_url}")
             self.log(f"保存路径: {download_path}")
-            self.update_progress(filename, resume_byte, "开始下载...", True)
+            self.update_progress(filename, 0, "开始下载...", True)
             if callback:
                 callback(0, "开始下载...")
             
             download_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # 创建请求
             req = urllib.request.Request(download_url, headers={'User-Agent': 'LlamaPanel/1.0'})
             if resume_byte > 0:
                 req.add_header('Range', f'bytes={resume_byte}-')
             
             with urllib.request.urlopen(req, timeout=3600) as response:
-                # 获取总大小
                 content_range = response.headers.get('Content-Range', '')
                 if content_range:
                     total_size = int(content_range.split('/')[-1])
@@ -275,26 +266,28 @@ class ModelManager:
                 downloaded = resume_byte
                 last_percent = int(downloaded * 100 / total_size) if total_size > 0 else 0
                 
+                if resume_byte > 0 and total_size > 0:
+                    initial_percent = int(resume_byte * 100 / total_size)
+                    self.update_progress(filename, initial_percent, f"续传中... {initial_percent}%", True)
+                    if callback:
+                        callback(initial_percent, f"续传中... {initial_percent}%")
+                
                 with open(download_path, 'ab') as f:
                     while True:
-                        # 检查是否收到停止信号
                         if self.download_stop_flags.get(filename, False):
                             self.log(f"下载已停止: {filename}")
                             self.update_progress(filename, last_percent, "已停止", False)
                             if callback:
                                 callback(last_percent, "已停止")
-                            # 删除部分下载的文件
                             if download_path.exists():
                                 download_path.unlink()
                             return False
                         
-                        # 检查是否收到暂停信号
                         if self.download_paused.get(filename, False):
                             self.log(f"下载已暂停: {filename}")
                             self.update_progress(filename, last_percent, "已暂停", False)
                             if callback:
                                 callback(last_percent, "已暂停")
-                            # 保留部分下载的文件
                             return False
                         
                         chunk = response.read(8192)
@@ -311,17 +304,14 @@ class ModelManager:
                                     callback(percent, f"下载中... {percent}%")
                                 self.log(f"下载进度 [{filename}]: {percent}% ({downloaded}/{total_size} bytes)")
             
-            # 下载完成，重命名文件
             if download_path != file_path:
                 shutil.move(str(download_path), str(file_path))
             
-            # 验证下载的文件大小
             if total_size > 0 and file_path.stat().st_size != total_size:
                 self.log(f"文件大小不匹配: 本地={file_path.stat().st_size}, 远程={total_size}")
                 file_path.unlink()
                 raise Exception("文件大小不匹配")
             
-            # 创建软链接
             self.create_symlink_for_file(model_id, filename, file_path)
             
             self.log(f"下载完成: {file_path}")
@@ -329,7 +319,6 @@ class ModelManager:
             if callback:
                 callback(100, "下载完成")
             
-            # 清理
             self.clear_progress(filename)
             return True
             
@@ -373,25 +362,21 @@ class ModelManager:
         try:
             deleted = False
             
-            # 停止正在进行的下载
             self.stop_download(filename)
             time.sleep(0.5)
             
-            # 删除部分下载文件
             for item in self.models_dir.rglob('*.partial'):
                 if filename in str(item):
                     item.unlink()
                     self.log(f"删除部分下载文件: {item}")
                     deleted = True
             
-            # 尝试直接删除
             direct_path = self.models_dir / filename
             if direct_path.exists():
                 direct_path.unlink()
                 self.log(f"删除模型: {direct_path}")
                 deleted = True
             
-            # 尝试在子目录中查找并删除
             for item in self.models_dir.iterdir():
                 if item.is_dir():
                     file_path = item / filename
@@ -400,9 +385,7 @@ class ModelManager:
                         self.log(f"删除模型: {file_path}")
                         deleted = True
             
-            # 清理进度记录
             self.clear_progress(filename)
-            
             return deleted
         except Exception as e:
             self.log(f"删除失败: {e}")
