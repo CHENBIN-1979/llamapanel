@@ -537,6 +537,17 @@ MODELS_PAGE = '''
             return 'ctrl-group-' + filename.replace(/[^a-zA-Z0-9]/g, '_');
         }
         
+        // 刷新指定模型的文件列表（不改变展开状态）
+        async function refreshModelFiles(modelId) {
+            const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
+            const container = document.getElementById(`files-${safeId}`);
+            if (container && container.style.display === 'block') {
+                // 清除缓存并重新加载
+                delete filesCache[modelId];
+                await loadModelFiles(modelId, true);
+            }
+        }
+        
         async function loadModelFiles(modelId, silent = false) {
             const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
             const btn = document.getElementById(`btn-${safeId}`);
@@ -596,6 +607,11 @@ MODELS_PAGE = '''
                                 </div>
                             `;
                         } else if (hasPartial) {
+                            // 获取部分文件的进度
+                            let partialProgress = 0;
+                            if (file.size > 0 && file.has_partial) {
+                                // 这里可以通过额外API获取，暂时显示"继续"
+                            }
                             buttonHtml = `
                                 <div class="button-group" id="${ctrlGroupId}">
                                     <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">▶ 继续</button>
@@ -667,6 +683,12 @@ MODELS_PAGE = '''
                     delete progressIntervals[filename];
                 }
                 refreshLocalModels();
+                // 刷新当前展开的模型文件列表
+                for (const modelId in expandedModels) {
+                    if (expandedModels[modelId]) {
+                        refreshModelFiles(modelId);
+                    }
+                }
             } else if (status === 'downloading') {
                 if (ctrlGroup) {
                     if (ctrlGroup.innerHTML.indexOf('⏸') === -1) {
@@ -811,10 +833,11 @@ MODELS_PAGE = '''
                         for (const cacheModelId in expandedModels) {
                             if (expandedModels[cacheModelId]) {
                                 delete filesCache[cacheModelId];
-                                loadModelFiles(cacheModelId, true);
+                                await loadModelFiles(cacheModelId, true);
                                 break;
                             }
                         }
+                        refreshLocalModels();
                     } else {
                         alert('删除失败: ' + result.message);
                     }
@@ -882,9 +905,12 @@ MODELS_PAGE = '''
                     html += '<thead><tr><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
                     for (const model of data.models) {
                         let displayName = model.name;
+                        // 标记部分下载的文件
+                        let isPartial = displayName.endsWith('.partial') || displayName.includes('.partial');
+                        let sizeClass = isPartial ? 'style="color: #e67e22;"' : '';
                         html += `
                             <tr>
-                                <td>${escapeHtml(displayName)}</td>
+                                <td>${sizeClass}${escapeHtml(displayName)}${isPartial ? ' (下载中)' : ''}${sizeClass ? '</span>' : ''}</td>
                                 <td>${model.size_str}</td>
                                 <td>${model.modified}</td>
                                 <td><button class="small danger" onclick="deleteLocalModel('${escapeHtml(model.name)}')">🗑️ 删除</button></td>
@@ -912,13 +938,13 @@ MODELS_PAGE = '''
                     alert(data.message);
                     refreshLocalModels();
                     
-                    const baseFilename = filename.split('/').pop();
+                    const baseFilename = filename.split('/').pop().replace('.partial', '');
                     
                     for (const cacheModelId in filesCache) {
                         if (filesCache[cacheModelId].includes(escapeHtml(baseFilename))) {
                             delete filesCache[cacheModelId];
                             if (expandedModels[cacheModelId]) {
-                                loadModelFiles(cacheModelId, true);
+                                await loadModelFiles(cacheModelId, true);
                             }
                         }
                     }
@@ -1017,7 +1043,6 @@ async def delete_partial(request: Request):
         
         # 也删除不完整的文件
         if file_path.exists() and file_path.stat().st_size > 0:
-            # 检查是否是完整文件（如果文件很小，可能是不完整的）
             file_size = file_path.stat().st_size
             if file_size < 1024 * 1024:  # 小于1MB认为是不完整的
                 file_path.unlink()
@@ -1046,9 +1071,27 @@ async def resume_download(request: Request, background_tasks: BackgroundTasks):
 
 @router.get("/api/local")
 async def get_local_models():
-    """获取本地已下载的模型列表"""
+    """获取本地已下载的模型列表（包括部分下载的文件）"""
     models = model_manager.get_local_models()
-    return {"success": True, "models": models}
+    
+    # 添加部分下载的文件（.partial）
+    partial_files = []
+    for item in model_manager.models_dir.rglob('*.partial'):
+        if item.is_file():
+            size = item.stat().st_size
+            size_gb = size / (1024 * 1024 * 1024)
+            rel_path = item.relative_to(model_manager.models_dir)
+            partial_files.append({
+                'name': str(rel_path),
+                'path': str(item),
+                'size': size,
+                'size_str': f"{size_gb:.2f} GB",
+                'modified': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(item.stat().st_mtime)),
+                'is_partial': True
+            })
+    
+    models.extend(partial_files)
+    return {"success": True, "models": sorted(models, key=lambda x: x['name'])}
 
 @router.delete("/api/delete")
 async def delete_model(filename: str):
