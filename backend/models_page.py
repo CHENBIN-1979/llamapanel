@@ -243,10 +243,12 @@ MODELS_PAGE = '''
                     <strong>✨ 特性说明:</strong><br>
                     • 模型文件直接下载到模型目录，无需临时目录<br>
                     • 下载完成后自动创建软链接到独立目录<br>
+                    • mmproj 文件自动存储到模型专属子目录，避免冲突<br>
                     • <span style="color: #e53e3e;">删除或更新 llama.cpp 目录不会影响已下载的模型和软链接</span><br><br>
                     <strong>💡 使用提示:</strong><br>
                     如需在 llama.cpp 中使用模型，请使用软链接目录中的文件路径：<br>
-                    <code>/opt/llamapanel/model_links/模型文件名.gguf</code>
+                    <code>/opt/llamapanel/model_links/模型文件名.gguf</code><br>
+                    <code>/opt/llamapanel/model_links/模型文件夹/mmproj文件.gguf</code>
                 </div>
             </div>
         </div>
@@ -329,7 +331,6 @@ MODELS_PAGE = '''
                             container.style.display = 'block';
                             restoreDownloadingStates();
                         } else {
-                            // 缓存不存在，需要加载
                             loadModelFiles(modelId, true);
                         }
                     }
@@ -607,7 +608,6 @@ MODELS_PAGE = '''
                     // 更新缓存中该文件的状态
                     for (const modelId in filesCache) {
                         if (filesCache[modelId].includes(escapeHtml(filename))) {
-                            // 直接更新缓存中的按钮HTML
                             const cacheHtml = filesCache[modelId];
                             const oldButtonPattern = new RegExp(
                                 `<button id="${buttonId}"[^>]*>.*?</button>`,
@@ -616,6 +616,18 @@ MODELS_PAGE = '''
                             const newButton = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
                             filesCache[modelId] = cacheHtml.replace(oldButtonPattern, newButton);
                             saveFilesCacheToSession();
+                            
+                            // 如果当前是展开状态，更新DOM中的按钮
+                            if (expandedModels[modelId]) {
+                                const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
+                                const container = document.getElementById(`files-${safeId}`);
+                                if (container) {
+                                    const currentBtn = container.querySelector(`#${buttonId}`);
+                                    if (currentBtn) {
+                                        currentBtn.outerHTML = newButton;
+                                    }
+                                }
+                            }
                         }
                     }
                 } else if (status === 'downloading') {
@@ -674,7 +686,7 @@ MODELS_PAGE = '''
                     const response = await fetch('/models/api/download', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ download_url: downloadUrl, filename: filename })
+                        body: JSON.stringify({ download_url: downloadUrl, filename: filename, model_id: modelId })
                     });
                     const result = await response.json();
                     
@@ -713,7 +725,7 @@ MODELS_PAGE = '''
                             </tr>
                         `;
                     }
-                    html += '</tbody></table>';
+                    html += '</tbody><table>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
@@ -734,18 +746,20 @@ MODELS_PAGE = '''
                     alert(data.message);
                     refreshLocalModels();
                     
-                    // 更新所有缓存中该文件的状态为未下载（只修改按钮，不重新加载整个列表）
-                    const buttonId = getButtonId(filename);
-                    const downloadUrl = fileDownloadUrls[filename] || '';
+                    // 提取纯文件名（去掉路径）
+                    const baseFilename = filename.split('/').pop();
+                    const buttonId = getButtonId(baseFilename);
+                    const downloadUrl = fileDownloadUrls[baseFilename] || '';
                     
+                    // 更新所有缓存中该文件的状态为未下载
                     for (const modelId in filesCache) {
-                        if (filesCache[modelId].includes(escapeHtml(filename))) {
+                        if (filesCache[modelId].includes(escapeHtml(baseFilename))) {
                             const cacheHtml = filesCache[modelId];
                             const oldButtonPattern = new RegExp(
                                 `<button id="${buttonId}"[^>]*>.*?</button>`,
                                 'g'
                             );
-                            const newButton = `<button id="${buttonId}" class="small download-btn" onclick="downloadModel('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">⬇️ 下载</button>`;
+                            const newButton = `<button id="${buttonId}" class="small download-btn" onclick="downloadModel('${downloadUrl}', '${escapeHtml(baseFilename)}', '${modelId}')">⬇️ 下载</button>`;
                             const newHtml = cacheHtml.replace(oldButtonPattern, newButton);
                             filesCache[modelId] = newHtml;
                             
@@ -762,7 +776,7 @@ MODELS_PAGE = '''
                                         newBtnElement.className = 'small download-btn';
                                         newBtnElement.innerHTML = '⬇️ 下载';
                                         newBtnElement.onclick = function() {
-                                            downloadModel(downloadUrl, filename, modelId);
+                                            downloadModel(downloadUrl, baseFilename, modelId);
                                         };
                                         btn.parentNode.replaceChild(newBtnElement, btn);
                                     }
@@ -824,12 +838,13 @@ async def download_model(request: Request, background_tasks: BackgroundTasks):
     data = await request.json()
     download_url = data.get('download_url')
     filename = data.get('filename')
+    model_id = data.get('model_id', '')
     
     if not download_url or not filename:
         return {"success": False, "message": "缺少必要参数"}
     
     def run_download():
-        model_manager.download_model(download_url, filename)
+        model_manager.download_model(download_url, filename, model_id)
     
     background_tasks.add_task(run_download)
     return {"success": True, "message": f"开始下载 {filename}"}
