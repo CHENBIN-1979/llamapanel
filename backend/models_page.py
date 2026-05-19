@@ -196,21 +196,6 @@ MODELS_PAGE = '''
             font-family: monospace;
             font-size: 12px;
         }
-        .progress-bar-small {
-            width: 60px;
-            height: 6px;
-            background: #e2e8f0;
-            border-radius: 3px;
-            overflow: hidden;
-            display: inline-block;
-            margin-left: 8px;
-        }
-        .progress-fill-small {
-            width: 0%;
-            height: 100%;
-            background: #38a169;
-            transition: width 0.3s;
-        }
     </style>
 </head>
 <body>
@@ -409,7 +394,6 @@ MODELS_PAGE = '''
             if (tabName === 'download') {
                 document.querySelector('.tab:first-child').classList.add('active');
                 document.getElementById('tab-download').classList.add('active');
-                // 恢复展开状态
                 setTimeout(() => {
                     restoreExpandedStates();
                 }, 100);
@@ -741,11 +725,8 @@ MODELS_PAGE = '''
                     let html = '<table class="models-table">';
                     html += '<thead><tr><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
                     for (const model of data.models) {
-                        // 提取显示名称（只显示文件名，不显示路径）
+                        // 提取显示名称（如果包含路径，显示完整路径以便区分）
                         let displayName = model.name;
-                        if (displayName.includes('/')) {
-                            displayName = displayName.split('/').pop();
-                        }
                         html += `
                             <tr>
                                 <td>${escapeHtml(displayName)}</td>

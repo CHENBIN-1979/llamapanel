@@ -65,7 +65,7 @@ class ModelManager:
         # 提取文件名（可能包含路径）
         base_filename = filename.split('/')[-1]
         
-        # 判断是否是 mmproj 文件
+        # 判断是否是 mmproj 文件（多模态投影文件）
         is_mmproj = 'mmproj' in base_filename.lower()
         
         if is_mmproj:
@@ -94,6 +94,7 @@ class ModelManager:
             return self.links_dir / safe_filename
     
     def search_huggingface_models(self, query: str, limit: int = 30) -> List[Dict]:
+        """搜索 HuggingFace 上的 GGUF 模型（自动添加 GGUF 关键词）"""
         results = []
         search_query = f"{query} GGUF"
         self.log(f"原始搜索词: '{query}', 实际搜索词: '{search_query}'")
@@ -124,6 +125,7 @@ class ModelManager:
             return []
     
     def get_file_size_from_url(self, url: str) -> tuple:
+        """通过 HEAD 请求获取文件大小"""
         try:
             req = urllib.request.Request(url, method='HEAD')
             req.add_header('User-Agent', 'LlamaPanel/1.0')
@@ -135,20 +137,26 @@ class ModelManager:
             return 0, False
     
     def format_size(self, size: int) -> str:
+        """格式化文件大小"""
         if size <= 0:
             return "未知大小"
+        
         size_gb = size / (1024 * 1024 * 1024)
         if size_gb >= 1:
             return f"{size_gb:.2f} GB"
+        
         size_mb = size / (1024 * 1024)
         if size_mb >= 1:
             return f"{size_mb:.0f} MB"
+        
         size_kb = size / 1024
         if size_kb >= 1:
             return f"{size_kb:.0f} KB"
+        
         return f"{size} B"
     
     def get_model_files(self, model_id: str) -> List[Dict]:
+        """获取模型的所有 GGUF 文件（通过 HEAD 请求获取准确大小）"""
         try:
             api_url = f"https://huggingface.co/api/models/{model_id}"
             req = urllib.request.Request(api_url, headers={'User-Agent': 'LlamaPanel/1.0'})
@@ -187,7 +195,15 @@ class ModelManager:
                 
                 # 检查文件是否已下载
                 file_path = self.get_file_path(model_id, filename)
-                is_downloaded = file_path.exists()
+                is_downloaded = file_path.exists() and file_path.stat().st_size > 0
+                
+                # 检查文件大小是否匹配
+                if is_downloaded and size > 0:
+                    local_size = file_path.stat().st_size
+                    # 如果大小差异超过10%，认为文件不完整
+                    if abs(local_size - size) > size * 0.1:
+                        is_downloaded = False
+                        self.log(f"文件不完整: {filename} 本地={local_size}, 远程={size}")
                 
                 gguf_files.append({
                     'filename': filename.split('/')[-1],  # 只显示文件名
@@ -205,20 +221,25 @@ class ModelManager:
             return []
     
     def download_model(self, download_url: str, filename: str, model_id: str, callback=None) -> bool:
-        """下载模型文件到对应目录"""
+        """直接下载模型到 models 目录（无需临时目录），下载完成后自动创建软链接"""
         # 获取存储路径
         file_path = self.get_file_path(model_id, filename)
         
-        if file_path.exists():
+        # 检查文件是否已存在且完整
+        if file_path.exists() and file_path.stat().st_size > 0:
             self.log(f"模型已存在: {file_path}")
             self.update_progress(filename, 100, "文件已存在", False)
             self.create_symlink_for_file(model_id, filename, file_path)
+            if callback:
+                callback(100, "文件已存在")
             return True
         
         try:
             self.log(f"开始下载: {download_url}")
             self.log(f"保存路径: {file_path}")
             self.update_progress(filename, 0, "开始下载...", True)
+            if callback:
+                callback(0, "开始下载...")
             
             # 确保目录存在
             file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -241,21 +262,38 @@ class ModelManager:
                             if percent > last_percent:
                                 last_percent = percent
                                 self.update_progress(filename, percent, f"下载中... {percent}%", True)
+                                if callback:
+                                    callback(percent, f"下载中... {percent}%")
+                                self.log(f"下载进度 [{filename}]: {percent}% ({downloaded}/{total_size} bytes)")
+            
+            # 验证下载的文件大小
+            if total_size > 0 and file_path.stat().st_size != total_size:
+                self.log(f"文件大小不匹配: 本地={file_path.stat().st_size}, 远程={total_size}")
+                file_path.unlink()
+                raise Exception("文件大小不匹配")
             
             # 创建软链接
             self.create_symlink_for_file(model_id, filename, file_path)
             
             self.log(f"下载完成: {file_path}")
             self.update_progress(filename, 100, "下载完成", False)
+            if callback:
+                callback(100, "下载完成")
             
+            # 5秒后清除进度记录
             def clear_after_delay():
                 time.sleep(5)
                 self.clear_progress(filename)
+            
             threading.Thread(target=clear_after_delay, daemon=True).start()
             return True
+            
         except Exception as e:
             self.log(f"下载失败: {e}")
             self.update_progress(filename, -1, f"下载失败: {e}", False)
+            if callback:
+                callback(-1, f"下载失败: {e}")
+            # 删除可能不完整的文件
             if file_path.exists():
                 file_path.unlink()
             return False
@@ -274,69 +312,64 @@ class ModelManager:
             return False
     
     def get_local_models(self) -> List[Dict]:
-        """获取已下载的模型文件列表（递归查找）"""
+        """获取已下载的模型文件列表（递归查找，保留路径信息）"""
         models = []
         if self.models_dir.exists():
-            for item in self.models_dir.iterdir():
-                if item.is_file() and item.suffix == '.gguf':
-                    # 根目录下的模型文件
+            # 遍历所有 gguf 文件
+            for item in self.models_dir.rglob('*.gguf'):
+                if item.is_file():
                     size = item.stat().st_size
                     size_gb = size / (1024 * 1024 * 1024)
+                    # 保留相对路径，用于区分同名文件
+                    rel_path = item.relative_to(self.models_dir)
                     models.append({
-                        'name': item.name,
+                        'name': str(rel_path),  # 使用相对路径作为名称
                         'path': str(item),
                         'size': size,
                         'size_str': f"{size_gb:.2f} GB",
                         'modified': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(item.stat().st_mtime))
                     })
-                elif item.is_dir():
-                    # 子目录中的模型文件
-                    for subitem in item.iterdir():
-                        if subitem.is_file() and subitem.suffix == '.gguf':
-                            size = subitem.stat().st_size
-                            size_gb = size / (1024 * 1024 * 1024)
-                            models.append({
-                                'name': f"{item.name}/{subitem.name}",
-                                'path': str(subitem),
-                                'size': size,
-                                'size_str': f"{size_gb:.2f} GB",
-                                'modified': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(subitem.stat().st_mtime))
-                            })
         return sorted(models, key=lambda x: x['name'])
     
     def delete_model(self, filename: str) -> bool:
         """删除模型文件及其软链接（支持路径格式）"""
         try:
-            # 尝试多种路径格式
-            paths_to_try = [
-                self.models_dir / filename,  # 根目录
-                self.models_dir / filename.replace('/', '_'),  # 可能是子目录格式
-            ]
+            deleted = False
             
-            # 也尝试在子目录中查找
+            # 尝试直接删除
+            direct_path = self.models_dir / filename
+            if direct_path.exists():
+                direct_path.unlink()
+                self.log(f"删除模型: {direct_path}")
+                deleted = True
+            
+            # 尝试在子目录中查找并删除
             for item in self.models_dir.iterdir():
                 if item.is_dir():
-                    if (item / filename).exists():
-                        paths_to_try.append(item / filename)
-            
-            deleted = False
-            for file_path in paths_to_try:
-                if file_path.exists():
-                    file_path.unlink()
-                    self.log(f"删除模型: {file_path}")
-                    deleted = True
-                    break
+                    file_path = item / filename
+                    if file_path.exists():
+                        file_path.unlink()
+                        self.log(f"删除模型: {file_path}")
+                        deleted = True
+                    # 也尝试用 filename 作为完整路径
+                    full_path = self.models_dir / filename
+                    if full_path.exists():
+                        full_path.unlink()
+                        self.log(f"删除模型: {full_path}")
+                        deleted = True
             
             # 删除对应的软链接
-            for link_item in self.links_dir.iterdir():
-                if link_item.is_symlink() and link_item.resolve() == file_path:
-                    link_item.unlink()
-                    self.log(f"删除软链接: {link_item}")
-                elif link_item.is_dir():
-                    for sublink in link_item.iterdir():
-                        if sublink.is_symlink() and sublink.resolve() == file_path:
-                            sublink.unlink()
-                            self.log(f"删除软链接: {sublink}")
+            for link_item in self.links_dir.rglob('*'):
+                if link_item.is_symlink():
+                    try:
+                        target = link_item.resolve()
+                        if str(target).startswith(str(self.models_dir)):
+                            # 检查目标文件是否还存在
+                            if not target.exists():
+                                link_item.unlink()
+                                self.log(f"删除失效软链接: {link_item}")
+                    except Exception:
+                        pass
             
             return deleted
         except Exception as e:
@@ -346,11 +379,12 @@ class ModelManager:
     def create_symlinks(self) -> int:
         """为所有模型创建软链接"""
         count = 0
-        # 递归查找所有模型文件并创建软链接
         for model in self.get_local_models():
             file_path = Path(model['path'])
             # 从路径中提取 model_id 和 filename
-            parts = file_path.relative_to(self.models_dir).parts
+            rel_path = file_path.relative_to(self.models_dir)
+            parts = rel_path.parts
+            
             if len(parts) == 2:
                 # 子目录中的文件：model_dir/filename
                 model_id = parts[0].replace('_', '/')
@@ -360,14 +394,32 @@ class ModelManager:
             else:
                 # 根目录的文件
                 filename = parts[0]
-                # 无法确定 model_id，直接创建软链接到根目录
-                link_path = self.links_dir / filename
-                if not link_path.exists():
-                    link_path.symlink_to(file_path)
+                # 尝试查找对应的 model_id
+                model_id = None
+                for cached_model_id in self.download_progress:
+                    if cached_model_id in str(file_path):
+                        model_id = cached_model_id
+                        break
+                if not model_id:
+                    model_id = "unknown"
+                if self.create_symlink_for_file(model_id, filename, file_path):
                     count += 1
         return count
     
     def is_model_downloaded(self, model_id: str, filename: str) -> bool:
         """检查模型是否已下载"""
         file_path = self.get_file_path(model_id, filename)
-        return file_path.exists()
+        return file_path.exists() and file_path.stat().st_size > 0
+    
+    def cleanup_incomplete_files(self) -> int:
+        """清理不完整的文件（文件大小为0或异常小）"""
+        cleaned = 0
+        for item in self.models_dir.rglob('*.gguf'):
+            if item.is_file():
+                size = item.stat().st_size
+                # 小于 1MB 的文件认为是无效的
+                if size < 1024 * 1024:
+                    self.log(f"清理不完整文件: {item} ({size} bytes)")
+                    item.unlink()
+                    cleaned += 1
+        return cleaned
