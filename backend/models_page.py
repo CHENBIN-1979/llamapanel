@@ -375,7 +375,7 @@ MODELS_PAGE = '''
                             ctrlGroup.innerHTML = `
                                 <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
                                 <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                                <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(filename)}', '${modelId}')">⏹</button>
+                                <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
                             `;
                         }
                     }
@@ -591,14 +591,14 @@ MODELS_PAGE = '''
                                 <div class="button-group" id="${ctrlGroupId}">
                                     <button id="${buttonId}" class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
                                     <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(file.filename)}')">⏸</button>
-                                    <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(file.filename)}', '${modelId}')">⏹</button>
+                                    <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(file.filename)}', '${modelId}')">🗑</button>
                                 </div>
                             `;
                         } else if (hasPartial) {
                             buttonHtml = `
                                 <div class="button-group" id="${ctrlGroupId}">
                                     <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">▶ 继续</button>
-                                    <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(file.filename)}', '${modelId}')">🗑</button>
+                                    <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(file.filename)}', '${modelId}')">🗑</button>
                                 </div>
                             `;
                         } else {
@@ -666,6 +666,14 @@ MODELS_PAGE = '''
                     delete progressIntervals[filename];
                 }
                 refreshLocalModels();
+                // 刷新文件列表
+                for (const modelId in expandedModels) {
+                    if (expandedModels[modelId]) {
+                        delete filesCache[modelId];
+                        loadModelFiles(modelId, true);
+                        break;
+                    }
+                }
             } else if (status === 'downloading') {
                 if (ctrlGroup) {
                     if (ctrlGroup.innerHTML.indexOf('⏸') === -1) {
@@ -674,7 +682,7 @@ MODELS_PAGE = '''
                         ctrlGroup.innerHTML = `
                             <button id="${buttonId}" class="small download-btn downloading" style="background:#38a169;" disabled>${percent}%</button>
                             <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                            <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(filename)}', '${modelId}')">⏹</button>
+                            <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
                         `;
                     } else {
                         const percentBtn = ctrlGroup.querySelector(`#${buttonId}`);
@@ -690,7 +698,7 @@ MODELS_PAGE = '''
                     const modelId = fileModelIdMap[filename] || '';
                     ctrlGroup.innerHTML = `
                         <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">▶ 继续</button>
-                        <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                        <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
                     `;
                 }
                 delete downloadingFiles[filename];
@@ -749,7 +757,7 @@ MODELS_PAGE = '''
                     ctrlGroup.innerHTML = `
                         <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
                         <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                        <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(filename)}', '${modelId}')">⏹</button>
+                        <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
                     `;
                 }
                 downloadingFiles[filename] = 0;
@@ -795,10 +803,10 @@ MODELS_PAGE = '''
             }
         }
         
-        async function stopDownload(filename, modelId) {
-            if (confirm(`停止下载 ${filename}？将删除已下载的部分。`)) {
+        async function deletePartial(filename, modelId) {
+            if (confirm(`删除 ${filename} 的部分下载文件？`)) {
                 try {
-                    const response = await fetch('/models/api/stop', {
+                    const response = await fetch('/models/api/delete_partial', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ filename: filename, model_id: modelId })
@@ -806,6 +814,7 @@ MODELS_PAGE = '''
                     const result = await response.json();
                     if (result.success) {
                         updateDownloadButton(filename, 0, 'stopped');
+                        // 刷新当前模型的文件列表
                         for (const cacheModelId in expandedModels) {
                             if (expandedModels[cacheModelId]) {
                                 delete filesCache[cacheModelId];
@@ -814,11 +823,11 @@ MODELS_PAGE = '''
                             }
                         }
                     } else {
-                        alert('停止失败: ' + result.message);
+                        alert('删除失败: ' + result.message);
                     }
                 } catch(e) {
-                    console.error('停止失败:', e);
-                    alert('停止失败: ' + e.message);
+                    console.error('删除失败:', e);
+                    alert('删除失败: ' + e.message);
                 }
             }
         }
@@ -830,7 +839,7 @@ MODELS_PAGE = '''
                 ctrlGroup.innerHTML = `
                     <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
                     <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                    <button class="tiny control-btn stop" onclick="stopDownload('${escapeHtml(filename)}', '${modelId}')">⏹</button>
+                    <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
                 `;
             }
             downloadingFiles[filename] = 0;
@@ -867,34 +876,6 @@ MODELS_PAGE = '''
             }
         }
         
-        async function cancelPartial(filename, modelId) {
-            if (confirm(`取消下载 ${filename}？将删除已下载的部分。`)) {
-                try {
-                    const response = await fetch('/models/api/cancel', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ filename: filename, model_id: modelId })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        updateDownloadButton(filename, 0, 'stopped');
-                        for (const cacheModelId in expandedModels) {
-                            if (expandedModels[cacheModelId]) {
-                                delete filesCache[cacheModelId];
-                                loadModelFiles(cacheModelId, true);
-                                break;
-                            }
-                        }
-                    } else {
-                        alert('取消失败: ' + result.message);
-                    }
-                } catch(e) {
-                    console.error('取消失败:', e);
-                    alert('取消失败: ' + e.message);
-                }
-            }
-        }
-        
         async function refreshLocalModels() {
             const modelsDiv = document.getElementById('localModelsList');
             modelsDiv.innerHTML = '<div class="loading"></div> 加载中...';
@@ -913,11 +894,11 @@ MODELS_PAGE = '''
                                 <td>${escapeHtml(displayName)}</td>
                                 <td>${model.size_str}</td>
                                 <td>${model.modified}</td>
-                                <td><button class="small" onclick="deleteModel('${escapeHtml(model.name)}')">🗑️ 删除</button></td>
+                                <td><button class="small danger" onclick="deleteLocalModel('${escapeHtml(model.name)}')">🗑️ 删除</button></td>
                             </tr>
                         `;
                     }
-                    html += '</tbody></td>';
+                    html += '</tbody></table>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
@@ -928,7 +909,7 @@ MODELS_PAGE = '''
             }
         }
         
-        async function deleteModel(filename) {
+        async function deleteLocalModel(filename) {
             if (confirm(`确定删除 ${filename}？`)) {
                 try {
                     const response = await fetch(`/models/api/delete?filename=${encodeURIComponent(filename)}`, {
@@ -1024,9 +1005,9 @@ async def pause_download(request: Request):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-@router.post("/api/stop")
-async def stop_download(request: Request):
-    """停止下载并删除部分文件"""
+@router.post("/api/delete_partial")
+async def delete_partial(request: Request):
+    """删除部分下载的文件"""
     data = await request.json()
     filename = data.get('filename')
     model_id = data.get('model_id', '')
@@ -1035,13 +1016,18 @@ async def stop_download(request: Request):
         model_manager.stop_download(filename)
         time.sleep(0.5)
         
+        # 删除部分下载文件
         file_path = model_manager.get_file_path(model_id, filename)
         partial_path = file_path.parent / (file_path.name + '.partial')
         if partial_path.exists():
             partial_path.unlink()
         
+        # 也删除不完整的文件
+        if file_path.exists() and file_path.stat().st_size > 0:
+            file_path.unlink()
+        
         model_manager.clear_progress(filename)
-        return {"success": True, "message": "已停止下载"}
+        return {"success": True, "message": "已删除部分下载文件"}
     except Exception as e:
         return {"success": False, "message": str(e)}
 
@@ -1061,27 +1047,6 @@ async def resume_download(request: Request, background_tasks: BackgroundTasks):
     
     background_tasks.add_task(run_download)
     return {"success": True, "message": f"恢复下载 {filename}"}
-
-@router.post("/api/cancel")
-async def cancel_download(request: Request):
-    """取消下载并删除部分文件"""
-    data = await request.json()
-    filename = data.get('filename')
-    model_id = data.get('model_id', '')
-    
-    try:
-        model_manager.stop_download(filename)
-        time.sleep(0.5)
-        
-        file_path = model_manager.get_file_path(model_id, filename)
-        partial_path = file_path.parent / (file_path.name + '.partial')
-        if partial_path.exists():
-            partial_path.unlink()
-        
-        model_manager.clear_progress(filename)
-        return {"success": True, "message": "已取消下载"}
-    except Exception as e:
-        return {"success": False, "message": str(e)}
 
 @router.get("/api/local")
 async def get_local_models():
