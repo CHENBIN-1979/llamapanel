@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import time
 from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from model_manager import ModelManager
@@ -666,14 +667,6 @@ MODELS_PAGE = '''
                     delete progressIntervals[filename];
                 }
                 refreshLocalModels();
-                // 刷新文件列表
-                for (const modelId in expandedModels) {
-                    if (expandedModels[modelId]) {
-                        delete filesCache[modelId];
-                        loadModelFiles(modelId, true);
-                        break;
-                    }
-                }
             } else if (status === 'downloading') {
                 if (ctrlGroup) {
                     if (ctrlGroup.innerHTML.indexOf('⏸') === -1) {
@@ -1024,7 +1017,10 @@ async def delete_partial(request: Request):
         
         # 也删除不完整的文件
         if file_path.exists() and file_path.stat().st_size > 0:
-            file_path.unlink()
+            # 检查是否是完整文件（如果文件很小，可能是不完整的）
+            file_size = file_path.stat().st_size
+            if file_size < 1024 * 1024:  # 小于1MB认为是不完整的
+                file_path.unlink()
         
         model_manager.clear_progress(filename)
         return {"success": True, "message": "已删除部分下载文件"}
