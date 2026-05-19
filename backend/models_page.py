@@ -542,7 +542,6 @@ MODELS_PAGE = '''
             const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
             const container = document.getElementById(`files-${safeId}`);
             if (container && container.style.display === 'block') {
-                // 清除缓存并重新加载
                 delete filesCache[modelId];
                 await loadModelFiles(modelId, true);
             }
@@ -607,14 +606,15 @@ MODELS_PAGE = '''
                                 </div>
                             `;
                         } else if (hasPartial) {
-                            // 获取部分文件的进度
-                            let partialProgress = 0;
-                            if (file.size > 0 && file.has_partial) {
-                                // 这里可以通过额外API获取，暂时显示"继续"
+                            // 有部分下载的文件，显示百分比进度
+                            let partialPercent = 0;
+                            if (downloadingFiles[file.filename] !== undefined && downloadingFiles[file.filename] > 0) {
+                                partialPercent = downloadingFiles[file.filename];
                             }
+                            let displayText = partialPercent > 0 ? `${partialPercent}%` : '▶ 继续';
                             buttonHtml = `
                                 <div class="button-group" id="${ctrlGroupId}">
-                                    <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">▶ 继续</button>
+                                    <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">${displayText}</button>
                                     <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(file.filename)}', '${modelId}')">🗑</button>
                                 </div>
                             `;
@@ -683,7 +683,6 @@ MODELS_PAGE = '''
                     delete progressIntervals[filename];
                 }
                 refreshLocalModels();
-                // 刷新当前展开的模型文件列表
                 for (const modelId in expandedModels) {
                     if (expandedModels[modelId]) {
                         refreshModelFiles(modelId);
@@ -711,8 +710,9 @@ MODELS_PAGE = '''
                 if (ctrlGroup) {
                     const downloadUrl = fileDownloadUrls[filename] || '';
                     const modelId = fileModelIdMap[filename] || '';
+                    const displayPercent = percent > 0 ? `${percent}%` : '▶ 继续';
                     ctrlGroup.innerHTML = `
-                        <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">▶ 继续</button>
+                        <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">${displayPercent}</button>
                         <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
                     `;
                 }
@@ -829,7 +829,6 @@ MODELS_PAGE = '''
                     const result = await response.json();
                     if (result.success) {
                         updateDownloadButton(filename, 0, 'stopped');
-                        // 刷新当前模型的文件列表
                         for (const cacheModelId in expandedModels) {
                             if (expandedModels[cacheModelId]) {
                                 delete filesCache[cacheModelId];
@@ -849,28 +848,28 @@ MODELS_PAGE = '''
         }
         
         async function resumeDownload(downloadUrl, filename, modelId) {
-            const ctrlGroupId = getControlGroupId(filename);
-            const ctrlGroup = document.getElementById(ctrlGroupId);
-            if (ctrlGroup) {
-                ctrlGroup.innerHTML = `
-                    <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
-                    <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                    <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
-                `;
-            }
-            downloadingFiles[filename] = 0;
-            
             // 先获取已有的进度
+            let existingPercent = 0;
             try {
                 const progressResponse = await fetch(`/models/api/progress?filename=${encodeURIComponent(filename)}`);
                 const existingProgress = await progressResponse.json();
                 if (existingProgress && existingProgress.percent > 0 && existingProgress.percent < 100) {
-                    updateDownloadButton(filename, existingProgress.percent, 'downloading');
-                    downloadingFiles[filename] = existingProgress.percent;
+                    existingPercent = existingProgress.percent;
                 }
             } catch(e) {
                 console.log('获取已有进度失败:', e);
             }
+            
+            const ctrlGroupId = getControlGroupId(filename);
+            const ctrlGroup = document.getElementById(ctrlGroupId);
+            if (ctrlGroup) {
+                ctrlGroup.innerHTML = `
+                    <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>${existingPercent > 0 ? existingPercent + '%' : '0%'}</button>
+                    <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
+                    <button class="tiny control-btn stop" onclick="deletePartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                `;
+            }
+            downloadingFiles[filename] = existingPercent;
             
             try {
                 const response = await fetch('/models/api/resume', {
@@ -902,10 +901,9 @@ MODELS_PAGE = '''
                 
                 if (data.success && data.models && data.models.length > 0) {
                     let html = '<table class="models-table">';
-                    html += '<thead><tr><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
+                    html += '<thead><tr><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></table></thead><tbody>';
                     for (const model of data.models) {
                         let displayName = model.name;
-                        // 标记部分下载的文件
                         let isPartial = displayName.endsWith('.partial') || displayName.includes('.partial');
                         let sizeClass = isPartial ? 'style="color: #e67e22;"' : '';
                         html += `
@@ -917,7 +915,7 @@ MODELS_PAGE = '''
                             </tr>
                         `;
                     }
-                    html += '</tbody></table>';
+                    html += '</tbody></tr>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
@@ -1035,16 +1033,14 @@ async def delete_partial(request: Request):
         model_manager.stop_download(filename)
         time.sleep(0.5)
         
-        # 删除部分下载文件
         file_path = model_manager.get_file_path(model_id, filename)
         partial_path = file_path.parent / (file_path.name + '.partial')
         if partial_path.exists():
             partial_path.unlink()
         
-        # 也删除不完整的文件
         if file_path.exists() and file_path.stat().st_size > 0:
             file_size = file_path.stat().st_size
-            if file_size < 1024 * 1024:  # 小于1MB认为是不完整的
+            if file_size < 1024 * 1024:
                 file_path.unlink()
         
         model_manager.clear_progress(filename)
@@ -1074,7 +1070,6 @@ async def get_local_models():
     """获取本地已下载的模型列表（包括部分下载的文件）"""
     models = model_manager.get_local_models()
     
-    # 添加部分下载的文件（.partial）
     partial_files = []
     for item in model_manager.models_dir.rglob('*.partial'):
         if item.is_file():
