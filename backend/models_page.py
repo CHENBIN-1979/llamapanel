@@ -369,7 +369,6 @@ MODELS_PAGE = '''
                 if (progress !== undefined && progress < 100) {
                     const ctrlGroup = document.getElementById(getControlGroupId(filename));
                     if (ctrlGroup && ctrlGroup.innerHTML.indexOf('下载') !== -1) {
-                        // 需要恢复控制按钮
                         const downloadUrl = fileDownloadUrls[filename] || '';
                         const modelId = fileModelIdMap[filename] || '';
                         if (downloadUrl) {
@@ -588,7 +587,6 @@ MODELS_PAGE = '''
                                 </div>
                             `;
                         } else if (downloadingFiles[file.filename] !== undefined && downloadingFiles[file.filename] < 100) {
-                            // 下载中，显示暂停和停止按钮
                             const progress = downloadingFiles[file.filename];
                             buttonHtml = `
                                 <div class="button-group" id="${ctrlGroupId}">
@@ -598,7 +596,6 @@ MODELS_PAGE = '''
                                 </div>
                             `;
                         } else if (hasPartial) {
-                            // 有部分下载的文件，显示继续和取消按钮
                             buttonHtml = `
                                 <div class="button-group" id="${ctrlGroupId}">
                                     <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">▶ 继续</button>
@@ -685,7 +682,6 @@ MODELS_PAGE = '''
                 refreshLocalModels();
             } else if (status === 'downloading') {
                 if (ctrlGroup) {
-                    // 检查是否已经有控制按钮
                     if (ctrlGroup.innerHTML.indexOf('⏸') === -1) {
                         const downloadUrl = fileDownloadUrls[filename] || '';
                         const modelId = fileModelIdMap[filename] || '';
@@ -805,6 +801,8 @@ MODELS_PAGE = '''
                 const result = await response.json();
                 if (result.success) {
                     updateDownloadButton(filename, 0, 'paused');
+                } else {
+                    alert('暂停失败: ' + result.message);
                 }
             } catch(e) {
                 console.error('暂停失败:', e);
@@ -831,6 +829,8 @@ MODELS_PAGE = '''
                                 break;
                             }
                         }
+                    } else {
+                        alert('停止失败: ' + result.message);
                     }
                 } catch(e) {
                     console.error('停止失败:', e);
@@ -891,6 +891,8 @@ MODELS_PAGE = '''
                                 break;
                             }
                         }
+                    } else {
+                        alert('取消失败: ' + result.message);
                     }
                 } catch(e) {
                     console.error('取消失败:', e);
@@ -1023,8 +1025,11 @@ async def pause_download(request: Request):
     """暂停下载"""
     data = await request.json()
     filename = data.get('filename')
-    success = model_manager.stop_download(filename)
-    return {"success": success, "message": "已暂停" if success else "暂停失败"}
+    try:
+        success = model_manager.pause_download(filename)
+        return {"success": success, "message": "已暂停" if success else "暂停失败"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
 
 @router.post("/api/stop")
 async def stop_download(request: Request):
@@ -1033,17 +1038,20 @@ async def stop_download(request: Request):
     filename = data.get('filename')
     model_id = data.get('model_id', '')
     
-    model_manager.stop_download(filename)
-    time.sleep(0.5)
-    
-    # 删除部分下载文件
-    file_path = model_manager.get_file_path(model_id, filename)
-    partial_path = file_path.parent / (file_path.name + '.partial')
-    if partial_path.exists():
-        partial_path.unlink()
-    
-    model_manager.clear_progress(filename)
-    return {"success": True, "message": "已停止下载"}
+    try:
+        model_manager.stop_download(filename)
+        time.sleep(0.5)
+        
+        # 删除部分下载文件
+        file_path = model_manager.get_file_path(model_id, filename)
+        partial_path = file_path.parent / (file_path.name + '.partial')
+        if partial_path.exists():
+            partial_path.unlink()
+        
+        model_manager.clear_progress(filename)
+        return {"success": True, "message": "已停止下载"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
 
 @router.post("/api/resume")
 async def resume_download(request: Request, background_tasks: BackgroundTasks):
@@ -1069,17 +1077,20 @@ async def cancel_download(request: Request):
     filename = data.get('filename')
     model_id = data.get('model_id', '')
     
-    model_manager.stop_download(filename)
-    time.sleep(0.5)
-    
-    # 删除部分下载文件
-    file_path = model_manager.get_file_path(model_id, filename)
-    partial_path = file_path.parent / (file_path.name + '.partial')
-    if partial_path.exists():
-        partial_path.unlink()
-    
-    model_manager.clear_progress(filename)
-    return {"success": True, "message": "已取消下载"}
+    try:
+        model_manager.stop_download(filename)
+        time.sleep(0.5)
+        
+        # 删除部分下载文件
+        file_path = model_manager.get_file_path(model_id, filename)
+        partial_path = file_path.parent / (file_path.name + '.partial')
+        if partial_path.exists():
+            partial_path.unlink()
+        
+        model_manager.clear_progress(filename)
+        return {"success": True, "message": "已取消下载"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
 
 @router.get("/api/local")
 async def get_local_models():
