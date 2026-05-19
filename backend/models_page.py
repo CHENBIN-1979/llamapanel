@@ -575,7 +575,6 @@ MODELS_PAGE = '''
                         const buttonId = getButtonId(file.filename);
                         const ctrlGroupId = getControlGroupId(file.filename);
                         
-                        // 存储下载URL和对应的modelId
                         fileDownloadUrls[file.filename] = file.download_url;
                         fileModelIdMap[file.filename] = modelId;
                         
@@ -667,14 +666,6 @@ MODELS_PAGE = '''
                     delete progressIntervals[filename];
                 }
                 refreshLocalModels();
-                // 刷新文件列表
-                for (const modelId in expandedModels) {
-                    if (expandedModels[modelId]) {
-                        delete filesCache[modelId];
-                        loadModelFiles(modelId, true);
-                        break;
-                    }
-                }
             } else if (status === 'downloading') {
                 if (ctrlGroup) {
                     if (ctrlGroup.innerHTML.indexOf('⏸') === -1) {
@@ -752,7 +743,6 @@ MODELS_PAGE = '''
         
         async function downloadModel(downloadUrl, filename, modelId) {
             if (confirm(`下载 ${filename}？\\n文件可能较大，请耐心等待。`)) {
-                // 立即更新按钮为下载中状态
                 const ctrlGroupId = getControlGroupId(filename);
                 const ctrlGroup = document.getElementById(ctrlGroupId);
                 if (ctrlGroup) {
@@ -816,6 +806,13 @@ MODELS_PAGE = '''
                     const result = await response.json();
                     if (result.success) {
                         updateDownloadButton(filename, 0, 'stopped');
+                        for (const cacheModelId in expandedModels) {
+                            if (expandedModels[cacheModelId]) {
+                                delete filesCache[cacheModelId];
+                                loadModelFiles(cacheModelId, true);
+                                break;
+                            }
+                        }
                     } else {
                         alert('停止失败: ' + result.message);
                     }
@@ -827,7 +824,6 @@ MODELS_PAGE = '''
         }
         
         async function resumeDownload(downloadUrl, filename, modelId) {
-            // 立即更新按钮为下载中状态
             const ctrlGroupId = getControlGroupId(filename);
             const ctrlGroup = document.getElementById(ctrlGroupId);
             if (ctrlGroup) {
@@ -838,6 +834,18 @@ MODELS_PAGE = '''
                 `;
             }
             downloadingFiles[filename] = 0;
+            
+            // 先获取已有的进度
+            try {
+                const progressResponse = await fetch(`/models/api/progress?filename=${encodeURIComponent(filename)}`);
+                const existingProgress = await progressResponse.json();
+                if (existingProgress && existingProgress.percent > 0 && existingProgress.percent < 100) {
+                    updateDownloadButton(filename, existingProgress.percent, 'downloading');
+                    downloadingFiles[filename] = existingProgress.percent;
+                }
+            } catch(e) {
+                console.log('获取已有进度失败:', e);
+            }
             
             try {
                 const response = await fetch('/models/api/resume', {
@@ -870,6 +878,13 @@ MODELS_PAGE = '''
                     const result = await response.json();
                     if (result.success) {
                         updateDownloadButton(filename, 0, 'stopped');
+                        for (const cacheModelId in expandedModels) {
+                            if (expandedModels[cacheModelId]) {
+                                delete filesCache[cacheModelId];
+                                loadModelFiles(cacheModelId, true);
+                                break;
+                            }
+                        }
                     } else {
                         alert('取消失败: ' + result.message);
                     }
@@ -902,7 +917,7 @@ MODELS_PAGE = '''
                             </tr>
                         `;
                     }
-                    html += '</tbody></table>';
+                    html += '</tbody></td>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
@@ -925,7 +940,6 @@ MODELS_PAGE = '''
                     
                     const baseFilename = filename.split('/').pop();
                     
-                    // 更新缓存
                     for (const cacheModelId in filesCache) {
                         if (filesCache[cacheModelId].includes(escapeHtml(baseFilename))) {
                             delete filesCache[cacheModelId];
@@ -1021,7 +1035,6 @@ async def stop_download(request: Request):
         model_manager.stop_download(filename)
         time.sleep(0.5)
         
-        # 删除部分下载文件
         file_path = model_manager.get_file_path(model_id, filename)
         partial_path = file_path.parent / (file_path.name + '.partial')
         if partial_path.exists():
@@ -1060,7 +1073,6 @@ async def cancel_download(request: Request):
         model_manager.stop_download(filename)
         time.sleep(0.5)
         
-        # 删除部分下载文件
         file_path = model_manager.get_file_path(model_id, filename)
         partial_path = file_path.parent / (file_path.name + '.partial')
         if partial_path.exists():
