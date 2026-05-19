@@ -261,14 +261,16 @@ MODELS_PAGE = '''
         let downloadingFiles = {};
         let expandedModels = {};
         
-        // 存储每个文件的下载URL（用于删除后恢复下载按钮）
+        // 存储每个文件的下载URL和modelId
         let fileDownloadUrls = {};
+        let fileModelIdMap = {};
         
         function saveFilesCacheToSession() {
             try {
                 sessionStorage.setItem('filesCache', JSON.stringify(filesCache));
                 sessionStorage.setItem('expandedModels', JSON.stringify(expandedModels));
                 sessionStorage.setItem('fileDownloadUrls', JSON.stringify(fileDownloadUrls));
+                sessionStorage.setItem('fileModelIdMap', JSON.stringify(fileModelIdMap));
             } catch(e) {
                 console.error('保存缓存失败:', e);
             }
@@ -288,9 +290,66 @@ MODELS_PAGE = '''
                 if (savedUrls) {
                     fileDownloadUrls = JSON.parse(savedUrls);
                 }
+                const savedMap = sessionStorage.getItem('fileModelIdMap');
+                if (savedMap) {
+                    fileModelIdMap = JSON.parse(savedMap);
+                }
             } catch(e) {
                 console.error('恢复缓存失败:', e);
             }
+        }
+        
+        // 验证并刷新缓存中的下载状态
+        async function refreshCacheDownloadStatus() {
+            for (const modelId in filesCache) {
+                try {
+                    const response = await fetch(`/models/api/files?model_id=${encodeURIComponent(modelId)}`);
+                    const data = await response.json();
+                    if (data.success && data.files) {
+                        let needUpdate = false;
+                        let newHtml = filesCache[modelId];
+                        
+                        for (const file of data.files) {
+                            const isDownloaded = file.is_downloaded === true;
+                            const buttonId = getButtonId(file.filename);
+                            const oldButtonPattern = new RegExp(
+                                `<button id="${buttonId}"[^>]*>.*?</button>`,
+                                'g'
+                            );
+                            
+                            let newButton;
+                            if (isDownloaded) {
+                                newButton = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
+                            } else {
+                                newButton = `<button id="${buttonId}" class="small download-btn" onclick="downloadModel('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">⬇️ 下载</button>`;
+                            }
+                            
+                            if (newHtml.includes(`id="${buttonId}"`)) {
+                                const oldButtonMatch = newHtml.match(oldButtonPattern);
+                                if (oldButtonMatch && oldButtonMatch[0] !== newButton) {
+                                    newHtml = newHtml.replace(oldButtonPattern, newButton);
+                                    needUpdate = true;
+                                }
+                            }
+                        }
+                        
+                        if (needUpdate) {
+                            filesCache[modelId] = newHtml;
+                            // 如果当前是展开状态，更新DOM
+                            if (expandedModels[modelId]) {
+                                const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
+                                const container = document.getElementById(`files-${safeId}`);
+                                if (container && container.style.display === 'block') {
+                                    container.innerHTML = newHtml;
+                                }
+                            }
+                        }
+                    }
+                } catch(e) {
+                    console.error('刷新缓存状态失败:', e);
+                }
+            }
+            saveFilesCacheToSession();
         }
         
         function saveSearchState(query, resultsHtml) {
@@ -481,9 +540,11 @@ MODELS_PAGE = '''
             filesCache = {};
             expandedModels = {};
             fileDownloadUrls = {};
+            fileModelIdMap = {};
             sessionStorage.removeItem('filesCache');
             sessionStorage.removeItem('expandedModels');
             sessionStorage.removeItem('fileDownloadUrls');
+            sessionStorage.removeItem('fileModelIdMap');
             sessionStorage.removeItem('lastSearchQuery');
             sessionStorage.removeItem('lastSearchResultsHtml');
             sessionStorage.removeItem('lastSearchTime');
@@ -537,8 +598,9 @@ MODELS_PAGE = '''
                         const buttonId = getButtonId(file.filename);
                         let buttonHtml = '';
                         
-                        // 存储下载URL
+                        // 存储下载URL和对应的modelId
                         fileDownloadUrls[file.filename] = file.download_url;
+                        fileModelIdMap[file.filename] = modelId;
                         
                         if (isDownloaded) {
                             buttonHtml = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
@@ -617,7 +679,6 @@ MODELS_PAGE = '''
                             filesCache[modelId] = cacheHtml.replace(oldButtonPattern, newButton);
                             saveFilesCacheToSession();
                             
-                            // 如果当前是展开状态，更新DOM中的按钮
                             if (expandedModels[modelId]) {
                                 const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
                                 const container = document.getElementById(`files-${safeId}`);
@@ -628,6 +689,7 @@ MODELS_PAGE = '''
                                     }
                                 }
                             }
+                            break;
                         }
                     }
                 } else if (status === 'downloading') {
@@ -725,7 +787,7 @@ MODELS_PAGE = '''
                             </tr>
                         `;
                     }
-                    html += '</tbody><table>';
+                    html += '</tbody></table>';
                     modelsDiv.innerHTML = html;
                 } else {
                     modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「下载模型」页面下载</div>';
@@ -752,31 +814,30 @@ MODELS_PAGE = '''
                     const downloadUrl = fileDownloadUrls[baseFilename] || '';
                     
                     // 更新所有缓存中该文件的状态为未下载
-                    for (const modelId in filesCache) {
-                        if (filesCache[modelId].includes(escapeHtml(baseFilename))) {
-                            const cacheHtml = filesCache[modelId];
+                    for (const cacheModelId in filesCache) {
+                        if (filesCache[cacheModelId].includes(escapeHtml(baseFilename))) {
+                            const cacheHtml = filesCache[cacheModelId];
                             const oldButtonPattern = new RegExp(
                                 `<button id="${buttonId}"[^>]*>.*?</button>`,
                                 'g'
                             );
-                            const newButton = `<button id="${buttonId}" class="small download-btn" onclick="downloadModel('${downloadUrl}', '${escapeHtml(baseFilename)}', '${modelId}')">⬇️ 下载</button>`;
+                            const newButton = `<button id="${buttonId}" class="small download-btn" onclick="downloadModel('${downloadUrl}', '${escapeHtml(baseFilename)}', '${cacheModelId}')">⬇️ 下载</button>`;
                             const newHtml = cacheHtml.replace(oldButtonPattern, newButton);
-                            filesCache[modelId] = newHtml;
+                            filesCache[cacheModelId] = newHtml;
                             
                             // 如果当前是展开状态，更新DOM中的按钮
-                            if (expandedModels[modelId]) {
-                                const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '_');
+                            if (expandedModels[cacheModelId]) {
+                                const safeId = cacheModelId.replace(/[^a-zA-Z0-9]/g, '_');
                                 const container = document.getElementById(`files-${safeId}`);
                                 if (container) {
                                     const btn = container.querySelector(`#${buttonId}`);
                                     if (btn) {
-                                        // 替换按钮
                                         const newBtnElement = document.createElement('button');
                                         newBtnElement.id = buttonId;
                                         newBtnElement.className = 'small download-btn';
                                         newBtnElement.innerHTML = '⬇️ 下载';
                                         newBtnElement.onclick = function() {
-                                            downloadModel(downloadUrl, baseFilename, modelId);
+                                            downloadModel(downloadUrl, baseFilename, cacheModelId);
                                         };
                                         btn.parentNode.replaceChild(newBtnElement, btn);
                                     }
@@ -804,11 +865,13 @@ MODELS_PAGE = '''
             }
         }
         
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             restoreFilesCacheFromSession();
             restoreSearchState();
             refreshLocalModels();
             restoreDownloadingStates();
+            // 刷新缓存中的下载状态
+            await refreshCacheDownloadStatus();
         });
     </script>
 </body>
@@ -873,5 +936,4 @@ async def create_symlinks():
 @router.get("/api/progress")
 async def get_download_progress(filename: str):
     """获取下载进度"""
-    progress = model_manager.get_progress(filename)
-    return progress
+    progress = model_manager.get_pro
