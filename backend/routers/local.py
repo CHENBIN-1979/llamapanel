@@ -2,15 +2,22 @@
 import time
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from starlette.templating import Jinja2Templates
 from pathlib import Path
+import jinja2
 from model_manager import ModelManager
 
 router = APIRouter(prefix="/api/local", tags=["local"])
 model_manager = ModelManager()
 
+# 设置模板目录 - 使用 jinja2.Environment 禁用缓存
 templates_dir = Path(__file__).parent.parent / "templates"
-templates = Jinja2Templates(directory=str(templates_dir))
+env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(str(templates_dir)),
+    enable_async=True,
+    cache_size=0
+)
+templates = Jinja2Templates(env=env)
 
 @router.get("/page", response_class=HTMLResponse)
 async def local_page(request: Request):

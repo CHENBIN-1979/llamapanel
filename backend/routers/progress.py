@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+import time
 from fastapi import APIRouter, Request, BackgroundTasks
+from starlette.templating import Jinja2Templates
 from model_manager import ModelManager
 
 router = APIRouter(prefix="/api/progress", tags=["progress"])
@@ -42,7 +44,6 @@ async def resume_download(request: Request, background_tasks: BackgroundTasks):
 @router.post("/delete_partial")
 async def delete_partial(request: Request):
     """删除部分下载的文件"""
-    import time
     data = await request.json()
     filename = data.get('filename')
     model_id = data.get('model_id', '')
