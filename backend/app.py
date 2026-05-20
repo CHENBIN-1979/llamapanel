@@ -102,16 +102,6 @@ def update_llamapanel():
         log_msg(traceback.format_exc())
         return False
 
-# 读取模型下载页面内容
-def read_model_page():
-    page_path = Path(__file__).parent / "templates" / "models_page.html"
-    if page_path.exists():
-        with open(page_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    return "<h1>页面加载失败</h1>"
-
-MODELS_PAGE = read_model_page()
-
 HTML_PAGE = '''
 <!DOCTYPE html>
 <html>
@@ -332,12 +322,12 @@ HTML_PAGE = '''
         
         <!-- 模型下载页面容器 -->
         <div id="downloadPage" class="page-content hidden">
-            <iframe src="/models/download" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
+            <iframe src="/api/download/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
         
         <!-- 本地模型页面容器 -->
         <div id="localPage" class="page-content hidden">
-            <iframe src="/models/local" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
+            <iframe src="/api/local/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
     </div>
     
@@ -372,7 +362,6 @@ HTML_PAGE = '''
             } else if (page === 'download') {
                 downloadPage.classList.remove('hidden');
                 navDownload.classList.add('active');
-                // 刷新 iframe
                 const iframe = document.querySelector('#downloadPage iframe');
                 if (iframe) {
                     iframe.contentWindow.location.reload();
@@ -380,7 +369,6 @@ HTML_PAGE = '''
             } else if (page === 'local') {
                 localPage.classList.remove('hidden');
                 navLocal.classList.add('active');
-                // 刷新 iframe
                 const iframe = document.querySelector('#localPage iframe');
                 if (iframe) {
                     iframe.contentWindow.location.reload();

@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
 import time
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
-from starlette.templating import Jinja2Templates
 from pathlib import Path
-import jinja2
 from model_manager import ModelManager
 
 router = APIRouter(prefix="/api/local", tags=["local"])
 model_manager = ModelManager()
 
-# 设置模板目录 - 使用 jinja2.Environment 禁用缓存
-templates_dir = Path(__file__).parent.parent / "templates"
-env = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(str(templates_dir)),
-    enable_async=True,
-    cache_size=0
-)
-templates = Jinja2Templates(env=env)
+# 读取 HTML 文件
+def read_html_file(filename):
+    filepath = Path(__file__).parent.parent / "templates" / filename
+    if filepath.exists():
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    return "<h1>页面加载失败</h1>"
+
+# 预加载 HTML 内容
+LOCAL_HTML = read_html_file("local.html")
 
 @router.get("/page", response_class=HTMLResponse)
-async def local_page(request: Request):
+async def local_page():
     """本地模型页面"""
-    return templates.TemplateResponse("local.html", {"request": request, "active_page": "local"})
+    return HTMLResponse(content=LOCAL_HTML)
 
 @router.get("/list")
 async def get_local_models():

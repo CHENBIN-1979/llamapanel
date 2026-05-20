@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-from fastapi import APIRouter, Request, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import HTMLResponse
-from starlette.templating import Jinja2Templates
 from pathlib import Path
-import jinja2
 from model_manager import ModelManager
 
 router = APIRouter(prefix="/api/download", tags=["download"])
 model_manager = ModelManager()
 
-# 设置模板目录 - 使用 jinja2.Environment 禁用缓存
-templates_dir = Path(__file__).parent.parent / "templates"
-env = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(str(templates_dir)),
-    enable_async=True,
-    cache_size=0
-)
-templates = Jinja2Templates(env=env)
+# 读取 HTML 文件
+def read_html_file(filename):
+    filepath = Path(__file__).parent.parent / "templates" / filename
+    if filepath.exists():
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    return "<h1>页面加载失败</h1>"
+
+# 预加载 HTML 内容
+DOWNLOAD_HTML = read_html_file("download.html")
 
 @router.get("/page", response_class=HTMLResponse)
-async def download_page(request: Request):
+async def download_page():
     """模型下载页面"""
-    return templates.TemplateResponse("download.html", {"request": request, "active_page": "download"})
+    return HTMLResponse(content=DOWNLOAD_HTML)
 
 @router.get("/search")
 async def search_models(q: str, limit: int = 30):
@@ -36,7 +36,7 @@ async def get_model_files(model_id: str):
     return {"success": True, "files": files}
 
 @router.post("/start")
-async def start_download(request: Request, background_tasks: BackgroundTasks):
+async def start_download(request, background_tasks: BackgroundTasks):
     """开始下载模型"""
     data = await request.json()
     download_url = data.get('download_url')
