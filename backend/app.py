@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import sys
 import subprocess
 import os
+import time
+import threading
 
 sys.path.append('/opt/llamapanel/backend')
 from installer import LlamaCppInstaller
@@ -26,7 +28,6 @@ templates = Jinja2Templates(directory=str(templates_dir))
 # 更新 LlamaPanel 的函数
 def update_llamapanel():
     """更新 LlamaPanel 自身"""
-    import time
     log_file = Path("/opt/llamapanel/logs/update.log")
     log_file.parent.mkdir(exist_ok=True)
     
@@ -196,8 +197,6 @@ async def delete_all(background_tasks: BackgroundTasks):
 @app.post("/api/update_panel")
 async def update_panel(background_tasks: BackgroundTasks):
     """更新 LlamaPanel 自身"""
-    import threading
-    
     if hasattr(update_panel, '_running') and update_panel._running:
         return {"success": False, "message": "更新任务已在运行中"}
     
