@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from starlette.templating import Jinja2Templates
 from pathlib import Path
 import sys
 import subprocess
 import os
 import time
+import jinja2
 
 sys.path.append('/opt/llamapanel/backend')
 from installer import LlamaCppInstaller
@@ -20,9 +21,10 @@ app.include_router(download_router)
 app.include_router(local_router)
 app.include_router(progress_router)
 
-# 设置模板目录
+# 设置模板目录 - 使用 jinja2.Environment
 TEMPLATES_DIR = str(Path(__file__).parent / "templates")
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
+env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
+templates = Jinja2Templates(env=env)
 
 def update_llamapanel():
     """更新 LlamaPanel 自身"""
