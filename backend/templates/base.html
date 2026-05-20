@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>LlamaPanel - {% block title %}llama.cpp 管理面板{% endblock %}</title>
+    <title>LlamaPanel - llama.cpp 管理面板</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -200,19 +200,58 @@
         .downloads-count { font-weight: bold; color: #667eea; }
         .hidden { display: none; }
     </style>
-    {% block extra_css %}{% endblock %}
 </head>
 <body>
     <div class="container">
         <div class="nav-bar">
-            <a href="/" class="{% if active_page == 'home' %}active{% endif %}">🏠 主页</a>
-            <a href="/download" class="{% if active_page == 'download' %}active{% endif %}">📥 模型下载</a>
-            <a href="/local" class="{% if active_page == 'local' %}active{% endif %}">💾 本地模型</a>
+            <a href="/" id="navHome">🏠 主页</a>
+            <a href="/download" id="navDownload">📥 模型下载</a>
+            <a href="/local" id="navLocal">💾 本地模型</a>
         </div>
         
-        {% block content %}{% endblock %}
+        <div id="pageContent">
+            <!-- 页面内容会被 JavaScript 动态加载 -->
+        </div>
     </div>
     
-    {% block scripts %}{% endblock %}
+    <script>
+        // 页面切换函数
+        function setActiveNav(page) {
+            document.getElementById('navHome').classList.remove('active');
+            document.getElementById('navDownload').classList.remove('active');
+            document.getElementById('navLocal').classList.remove('active');
+            if (page === 'home') document.getElementById('navHome').classList.add('active');
+            else if (page === 'download') document.getElementById('navDownload').classList.add('active');
+            else if (page === 'local') document.getElementById('navLocal').classList.add('active');
+        }
+        
+        // 加载页面内容
+        async function loadPage(page) {
+            const contentDiv = document.getElementById('pageContent');
+            contentDiv.innerHTML = '<div class="loading"></div> 加载中...';
+            setActiveNav(page);
+            
+            try {
+                const response = await fetch(`/api/page/${page}`);
+                const html = await response.text();
+                contentDiv.innerHTML = html;
+                
+                // 执行页面脚本
+                if (page === 'home' && window.initHomePage) window.initHomePage();
+                else if (page === 'download' && window.initDownloadPage) window.initDownloadPage();
+                else if (page === 'local' && window.initLocalPage) window.initLocalPage();
+            } catch(e) {
+                contentDiv.innerHTML = '<div class="card"><div class="info-text">加载失败: ' + e.message + '</div></div>';
+            }
+        }
+        
+        // 监听导航点击
+        document.getElementById('navHome').addEventListener('click', () => loadPage('home'));
+        document.getElementById('navDownload').addEventListener('click', () => loadPage('download'));
+        document.getElementById('navLocal').addEventListener('click', () => loadPage('local'));
+        
+        // 初始加载主页
+        loadPage('home');
+    </script>
 </body>
 </html>

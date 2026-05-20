@@ -1,8 +1,3 @@
-{% extends "base.html" %}
-
-{% block title %}本地模型{% endblock %}
-
-{% block content %}
 <div class="card">
     <h1>💾 本地模型</h1>
     <p class="subtitle">管理已下载的 GGUF 模型</p>
@@ -43,9 +38,7 @@
         <strong>作者:</strong> CHENBIN-1979
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
     let localModelsCache = [];
     
@@ -82,7 +75,7 @@
                         </tr>
                     `;
                 }
-                html += '</tbody> nahil';
+                html += '</tbody></table>';
                 modelsDiv.innerHTML = html;
             } else {
                 modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「模型下载」页面下载</div>';
@@ -102,11 +95,6 @@
                 const data = await response.json();
                 alert(data.message);
                 refreshLocalModels();
-                
-                // 通知下载页面刷新（如果存在）
-                if (window.parent && window.parent.refreshDownloadFileList) {
-                    window.parent.refreshDownloadFileList();
-                }
             } catch(e) {
                 console.error('删除失败:', e);
                 alert('删除失败: ' + e.message);
@@ -129,6 +117,10 @@
     window.refreshLocalModels = refreshLocalModels;
     
     // 页面加载时刷新
+    window.initLocalPage = () => {
+        refreshLocalModels();
+    };
+    
+    // 初始化
     refreshLocalModels();
 </script>
-{% endblock %}

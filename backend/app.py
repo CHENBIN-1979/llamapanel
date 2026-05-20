@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import sys
 import subprocess
@@ -20,85 +19,34 @@ app.include_router(download_router)
 app.include_router(local_router)
 app.include_router(progress_router)
 
-# 设置模板目录
-TEMPLATES_DIR = Path(__file__).parent / "templates"
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+# 读取 HTML 文件
+def read_html_file(filename):
+    filepath = Path(__file__).parent / "templates" / filename
+    if filepath.exists():
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    return f"<h1>File not found: {filename}</h1>"
 
-def update_llamapanel():
-    """更新 LlamaPanel 自身"""
-    log_file = Path("/opt/llamapanel/logs/update.log")
-    log_file.parent.mkdir(exist_ok=True)
-    
-    def log_msg(msg):
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        log_msg = f"[{timestamp}] {msg}"
-        print(log_msg)
-        with open(log_file, 'a', encoding='utf-8') as f:
-            f.write(log_msg + '\n')
-    
-    try:
-        log_msg("========== 开始更新 LlamaPanel ==========")
-        repo_path = "/opt/llamapanel"
-        
-        log_msg("执行: git pull")
-        result = subprocess.run(
-            ['git', 'pull'],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
-        log_msg(f"git pull 返回码: {result.returncode}")
-        if result.stdout:
-            log_msg(f"输出: {result.stdout}")
-        if result.stderr:
-            log_msg(f"错误: {result.stderr}")
-        
-        log_msg("代码更新完成")
-        
-        requirements_file = Path(repo_path) / "requirements.txt"
-        if requirements_file.exists():
-            log_msg("检查 Python 依赖...")
-            pip_result = subprocess.run(
-                ['/opt/llamapanel/venv/bin/pip', 'install', '-r', 'requirements.txt'],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-            log_msg(f"pip 安装返回码: {pip_result.returncode}")
-        
-        log_msg("重启 LlamaPanel 服务...")
-        restart_result = subprocess.run(
-            ['sudo', 'systemctl', 'restart', 'llamapanel'],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        log_msg(f"重启服务返回码: {restart_result.returncode}")
-        
-        log_msg("========== 更新完成 ==========")
-        return True
-    except Exception as e:
-        log_msg(f"更新失败: {e}")
-        import traceback
-        log_msg(traceback.format_exc())
-        return False
+# 预加载 HTML 内容
+BASE_HTML = read_html_file("base.html")
 
 @app.get("/")
-async def home_page(request: Request):
-    """主页"""
-    return templates.TemplateResponse("home.html", {"request": request, "active_page": "home"})
+async def root():
+    """主页 - 返回基础框架"""
+    return HTMLResponse(content=BASE_HTML)
 
-@app.get("/download")
-async def download_page(request: Request):
-    """模型下载页面"""
-    return templates.TemplateResponse("download.html", {"request": request, "active_page": "download"})
-
-@app.get("/local")
-async def local_page(request: Request):
-    """本地模型页面"""
-    return templates.TemplateResponse("local.html", {"request": request, "active_page": "local"})
+@app.get("/api/page/{page_name}")
+async def get_page(page_name: str):
+    """获取页面内容"""
+    if page_name == "home":
+        content = read_html_file("home.html")
+    elif page_name == "download":
+        content = read_html_file("download.html")
+    elif page_name == "local":
+        content = read_html_file("local.html")
+    else:
+        return HTMLResponse(content="<div class='card'><div class='info-text'>页面不存在</div></div>", status_code=404)
+    return HTMLResponse(content=content)
 
 @app.get("/api/status")
 async def get_status():
@@ -210,6 +158,67 @@ async def update_panel(background_tasks: BackgroundTasks):
     update_panel._running = False
     background_tasks.add_task(run_update)
     return {"success": True, "message": "LlamaPanel 更新任务已启动，请查看 /opt/llamapanel/logs/update.log"}
+
+def update_llamapanel():
+    """更新 LlamaPanel 自身"""
+    log_file = Path("/opt/llamapanel/logs/update.log")
+    log_file.parent.mkdir(exist_ok=True)
+    
+    def log_msg(msg):
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        log_msg = f"[{timestamp}] {msg}"
+        print(log_msg)
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(log_msg + '\n')
+    
+    try:
+        log_msg("========== 开始更新 LlamaPanel ==========")
+        repo_path = "/opt/llamapanel"
+        
+        log_msg("执行: git pull")
+        result = subprocess.run(
+            ['git', 'pull'],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        log_msg(f"git pull 返回码: {result.returncode}")
+        if result.stdout:
+            log_msg(f"输出: {result.stdout}")
+        if result.stderr:
+            log_msg(f"错误: {result.stderr}")
+        
+        log_msg("代码更新完成")
+        
+        requirements_file = Path(repo_path) / "requirements.txt"
+        if requirements_file.exists():
+            log_msg("检查 Python 依赖...")
+            pip_result = subprocess.run(
+                ['/opt/llamapanel/venv/bin/pip', 'install', '-r', 'requirements.txt'],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            log_msg(f"pip 安装返回码: {pip_result.returncode}")
+        
+        log_msg("重启 LlamaPanel 服务...")
+        restart_result = subprocess.run(
+            ['sudo', 'systemctl', 'restart', 'llamapanel'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        log_msg(f"重启服务返回码: {restart_result.returncode}")
+        
+        log_msg("========== 更新完成 ==========")
+        return True
+    except Exception as e:
+        log_msg(f"更新失败: {e}")
+        import traceback
+        log_msg(traceback.format_exc())
+        return False
 
 if __name__ == "__main__":
     import uvicorn
