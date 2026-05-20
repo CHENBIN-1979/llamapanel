@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse
-from starlette.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import sys
 import subprocess
 import os
 import time
-import jinja2
 
 sys.path.append('/opt/llamapanel/backend')
 from installer import LlamaCppInstaller
@@ -21,14 +20,9 @@ app.include_router(download_router)
 app.include_router(local_router)
 app.include_router(progress_router)
 
-# 设置模板目录 - 禁用缓存解决 unhashable type dict 错误
-TEMPLATES_DIR = str(Path(__file__).parent / "templates")
-env = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(TEMPLATES_DIR),
-    enable_async=True,
-    cache_size=0  # 禁用缓存
-)
-templates = Jinja2Templates(env=env)
+# 设置模板目录
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 def update_llamapanel():
     """更新 LlamaPanel 自身"""
