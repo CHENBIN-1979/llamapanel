@@ -34,6 +34,15 @@
         <code>/opt/llamapanel/model_links/模型文件夹/mmproj文件.gguf</code>
     </div>
 </div>
+
+<div class="card">
+    <h3>📋 系统信息</h3>
+    <div class="info-text">
+        <strong>项目版本:</strong> LlamaPanel v1.0<br>
+        <strong>GitHub:</strong> <a href="https://github.com/CHENBIN-1979/llamapanel" target="_blank">https://github.com/CHENBIN-1979/llamapanel</a><br>
+        <strong>作者:</strong> CHENBIN-1979
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -73,7 +82,7 @@
                         </tr>
                     `;
                 }
-                html += '</tbody></table>';
+                html += '</tbody> nahil';
                 modelsDiv.innerHTML = html;
             } else {
                 modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「模型下载」页面下载</div>';

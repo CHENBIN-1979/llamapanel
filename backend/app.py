@@ -101,11 +101,6 @@ async def local_page(request: Request):
     """本地模型页面"""
     return templates.TemplateResponse("local.html", {"request": request, "active_page": "local"})
 
-@app.get("/settings")
-async def settings_page(request: Request):
-    """配置页面"""
-    return templates.TemplateResponse("settings.html", {"request": request, "active_page": "settings"})
-
 @app.get("/api/status")
 async def get_status():
     """获取安装状态"""

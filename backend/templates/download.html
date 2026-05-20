@@ -425,7 +425,6 @@
                 const result = await response.json();
                 if (result.success) {
                     updateDownloadButton(filename, 0, 'stopped');
-                    // 刷新当前模型的文件列表
                     for (const cacheModelId in expandedModels) {
                         if (expandedModels[cacheModelId]) {
                             delete filesCache[cacheModelId];
