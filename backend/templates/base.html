@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LlamaPanel - {% block title %}llama.cpp 管理面板{% endblock %}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .nav-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .nav-bar a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.2);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .nav-bar a:hover { background: rgba(255,255,255,0.3); }
+        .nav-bar a.active {
+            background: white;
+            color: #667eea;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-bottom: 8px; }
+        h2 { color: #333; margin-bottom: 16px; font-size: 18px; }
+        h3 { color: #555; margin-bottom: 12px; font-size: 16px; }
+        .subtitle { color: #666; margin-bottom: 24px; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        button:hover { background: #5a67d8; transform: translateY(-1px); }
+        button.danger { background: #e53e3e; }
+        button.danger:hover { background: #c53030; }
+        button.small { padding: 4px 12px; font-size: 12px; min-width: 75px; }
+        button.tiny { padding: 4px 8px; font-size: 11px; min-width: 36px; }
+        button:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e2e8f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .info-text {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+        code {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-ok { background: #d4edda; color: #155724; }
+        .status-warning { background: #fff3cd; color: #856404; }
+        .status-building { background: #cce5ff; color: #004085; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .info-item {
+            background: #f7fafc;
+            padding: 12px;
+            border-radius: 8px;
+        }
+        .info-label { font-size: 12px; color: #718096; margin-bottom: 4px; }
+        .info-value { font-size: 16px; font-weight: 600; color: #2d3748; word-break: break-all; }
+        .log-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Courier New', monospace;
+            padding: 16px;
+            border-radius: 8px;
+            height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        .log-line {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 3px 5px;
+            border-bottom: 1px solid #2a2a2a;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .log-error { color: #ff6b6b; background-color: rgba(255,107,107,0.1); }
+        .log-warning { color: #ffd93d; }
+        .log-success { color: #6bcb77; }
+        .log-command { color: #4d9de0; }
+        .log-separator { color: #c9c9c9; font-weight: bold; border-bottom: 1px solid #555; margin: 5px 0; background-color: #2a2a2a; }
+        .button-group { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .log-controls { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+        .auto-refresh { font-size: 12px; color: #666; display: flex; align-items: center; gap: 5px; }
+        .models-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .models-table th, .models-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .models-table th {
+            background: #f7fafc;
+            font-weight: 600;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .search-box input {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+        }
+        .model-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .model-name {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            padding: 8px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+        .model-name:hover { background: #edf2f7; }
+        .model-meta { font-size: 12px; color: #718096; margin-bottom: 10px; padding-left: 8px; }
+        .file-list { margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .file-name { font-family: monospace; font-size: 13px; word-break: break-all; flex: 1; }
+        .file-size { font-size: 12px; color: #718096; white-space: nowrap; }
+        .btn-group { display: flex; gap: 5px; align-items: center; }
+        .download-btn { background: #667eea; }
+        .download-btn.downloading { background: #38a169; }
+        .download-btn.downloaded { background: #38a169; cursor: default; }
+        .control-btn { background: #4a5568; }
+        .control-btn.stop { background: #e53e3e; }
+        .downloads-count { font-weight: bold; color: #667eea; }
+        .hidden { display: none; }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="container">
+        <div class="nav-bar">
+            <a href="/" class="{% if active_page == 'home' %}active{% endif %}">🏠 主页</a>
+            <a href="/download" class="{% if active_page == 'download' %}active{% endif %}">📥 模型下载</a>
+            <a href="/local" class="{% if active_page == 'local' %}active{% endif %}">💾 本地模型</a>
+            <a href="/settings" class="{% if active_page == 'settings' %}active{% endif %}">⚙️ 配置</a>
+        </div>
+        
+        {% block content %}{% endblock %}
+    </div>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

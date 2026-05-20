@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}本地模型{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>💾 本地模型</h1>
+    <p class="subtitle">管理已下载的 GGUF 模型</p>
+    
+    <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+        <button onclick="refreshLocalModels()">🔄 刷新列表</button>
+        <button onclick="createSymlinks()">🔗 创建软链接</button>
+    </div>
+    
+    <div id="localModelsList">
+        <div class="loading"></div> 加载中...
+    </div>
+</div>
+
+<div class="card">
+    <h3>📁 模型存储路径</h3>
+    <div class="info-text">
+        <strong>模型目录:</strong> /opt/llamapanel/models/<br>
+        <strong>软链接目录:</strong> /opt/llamapanel/model_links/ (独立目录，不受 llama.cpp 更新影响)<br><br>
+        <strong>✨ 特性说明:</strong><br>
+        • 模型文件直接下载到模型目录，无需临时目录<br>
+        • 下载完成后自动创建软链接到独立目录<br>
+        • mmproj 文件自动存储到模型专属子目录，避免冲突<br>
+        • 支持暂停/继续下载（断点续传）<br>
+        • <span style="color: #e53e3e;">删除或更新 llama.cpp 目录不会影响已下载的模型和软链接</span><br><br>
+        <strong>💡 使用提示:</strong><br>
+        如需在 llama.cpp 中使用模型，请使用软链接目录中的文件路径：<br>
+        <code>/opt/llamapanel/model_links/模型文件名.gguf</code><br>
+        <code>/opt/llamapanel/model_links/模型文件夹/mmproj文件.gguf</code>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let localModelsCache = [];
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    async function refreshLocalModels() {
+        const modelsDiv = document.getElementById('localModelsList');
+        modelsDiv.innerHTML = '<div class="loading"></div> 加载中...';
+        
+        try {
+            const response = await fetch('/api/local/list');
+            const data = await response.json();
+            
+            if (data.success && data.models && data.models.length > 0) {
+                localModelsCache = data.models;
+                let html = '<table class="models-table">';
+                html += '<thead><tr><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
+                
+                const sortedModels = [...data.models].sort((a, b) => a.name.localeCompare(b.name));
+                for (const model of sortedModels) {
+                    let displayName = model.name;
+                    let isPartial = displayName.endsWith('.partial') || displayName.includes('.partial');
+                    let sizeClass = isPartial ? 'style="color: #e67e22;"' : '';
+                    html += `
+                        <tr>
+                            <td ${sizeClass}>${escapeHtml(displayName)}${isPartial ? ' (下载中)' : ''}</td>
+                            <td>${model.size_str}</td>
+                            <td>${model.modified}</td>
+                            <td><button class="small danger" onclick="deleteLocalModel('${escapeHtml(model.name)}')">🗑️ 删除</button></td>
+                        </tr>
+                    `;
+                }
+                html += '</tbody></table>';
+                modelsDiv.innerHTML = html;
+            } else {
+                modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「模型下载」页面下载</div>';
+            }
+        } catch(e) {
+            console.error('刷新失败:', e);
+            modelsDiv.innerHTML = '<div class="info-text">加载失败: ' + e.message + '</div>';
+        }
+    }
+    
+    async function deleteLocalModel(filename) {
+        if (confirm(`确定删除 ${filename}？`)) {
+            try {
+                const response = await fetch(`/api/local/delete?filename=${encodeURIComponent(filename)}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                alert(data.message);
+                refreshLocalModels();
+                
+                // 通知下载页面刷新（如果存在）
+                if (window.parent && window.parent.refreshDownloadFileList) {
+                    window.parent.refreshDownloadFileList();
+                }
+            } catch(e) {
+                console.error('删除失败:', e);
+                alert('删除失败: ' + e.message);
+            }
+        }
+    }
+    
+    async function createSymlinks() {
+        try {
+            const response = await fetch('/api/local/symlinks', { method: 'POST' });
+            const data = await response.json();
+            alert(data.message);
+        } catch(e) {
+            console.error('创建软链接失败:', e);
+            alert('创建失败: ' + e.message);
+        }
+    }
+    
+    // 供下载页面调用的刷新函数
+    window.refreshLocalModels = refreshLocalModels;
+    
+    // 页面加载时刷新
+    refreshLocalModels();
+</script>
+{% endblock %}

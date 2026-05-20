@@ -27,7 +27,7 @@ source venv/bin/activate
 # 安装 Python 依赖
 echo "📚 安装 Python 依赖..."
 pip install --upgrade pip
-pip install fastapi uvicorn psutil
+pip install fastapi uvicorn psutil jinja2
 
 # 创建必要目录
 mkdir -p logs data
