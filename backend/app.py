@@ -7,7 +7,6 @@ import sys
 import subprocess
 import os
 import time
-import threading
 
 sys.path.append('/opt/llamapanel/backend')
 from installer import LlamaCppInstaller
@@ -25,7 +24,6 @@ app.include_router(progress_router)
 templates_dir = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
 
-# 更新 LlamaPanel 的函数
 def update_llamapanel():
     """更新 LlamaPanel 自身"""
     log_file = Path("/opt/llamapanel/logs/update.log")
