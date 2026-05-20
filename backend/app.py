@@ -21,8 +21,8 @@ app.include_router(local_router)
 app.include_router(progress_router)
 
 # 设置模板目录
-templates_dir = Path(__file__).parent / "templates"
-templates = Jinja2Templates(directory=str(templates_dir))
+TEMPLATES_DIR = str(Path(__file__).parent / "templates")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 def update_llamapanel():
     """更新 LlamaPanel 自身"""
