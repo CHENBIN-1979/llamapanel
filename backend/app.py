@@ -21,9 +21,13 @@ app.include_router(download_router)
 app.include_router(local_router)
 app.include_router(progress_router)
 
-# 设置模板目录 - 使用 jinja2.Environment
+# 设置模板目录 - 禁用缓存解决 unhashable type dict 错误
 TEMPLATES_DIR = str(Path(__file__).parent / "templates")
-env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
+env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(TEMPLATES_DIR),
+    enable_async=True,
+    cache_size=0  # 禁用缓存
+)
 templates = Jinja2Templates(env=env)
 
 def update_llamapanel():
