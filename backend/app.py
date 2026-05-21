@@ -9,10 +9,15 @@ import time
 
 sys.path.append('/opt/llamapanel/backend')
 from installer import LlamaCppInstaller
-from routers import download_router, local_router, progress_router
+from routers import download_router, local_router, progress_router, set_model_manager
+from model_manager import ModelManager
 
 app = FastAPI(title="LlamaPanel", description="llama.cpp 管理面板")
 installer = LlamaCppInstaller()
+
+# 创建全局单例 ModelManager 并设置到路由模块
+model_manager = ModelManager()
+set_model_manager(model_manager)
 
 # 注册路由
 app.include_router(download_router)

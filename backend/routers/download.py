@@ -2,10 +2,9 @@
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse
 from pathlib import Path
-from model_manager import ModelManager
+from . import get_model_manager
 
 router = APIRouter(prefix="/api/download", tags=["download"])
-model_manager = ModelManager()
 
 # 读取 HTML 文件
 def read_html_file(filename):
@@ -15,7 +14,6 @@ def read_html_file(filename):
             return f.read()
     return "<h1>页面加载失败</h1>"
 
-# 预加载 HTML 内容
 DOWNLOAD_HTML = read_html_file("download.html")
 
 @router.get("/page", response_class=HTMLResponse)
@@ -26,13 +24,15 @@ async def download_page():
 @router.get("/search")
 async def search_models(q: str, limit: int = 30):
     """搜索 HuggingFace 模型"""
-    results = model_manager.search_huggingface_models(q, limit)
+    mm = get_model_manager()
+    results = mm.search_huggingface_models(q, limit)
     return {"success": True, "results": results}
 
 @router.get("/files")
 async def get_model_files(model_id: str):
     """获取模型的 GGUF 文件列表"""
-    files = model_manager.get_model_files(model_id)
+    mm = get_model_manager()
+    files = mm.get_model_files(model_id)
     return {"success": True, "files": files}
 
 @router.post("/start")
@@ -46,8 +46,9 @@ async def start_download(request: Request, background_tasks: BackgroundTasks):
     if not download_url or not filename:
         return {"success": False, "message": "缺少必要参数"}
     
+    mm = get_model_manager()
     def run_download():
-        model_manager.download_model(download_url, filename, model_id)
+        mm.download_model(download_url, filename, model_id)
     
     background_tasks.add_task(run_download)
     return {"success": True, "message": f"开始下载 {filename}"}

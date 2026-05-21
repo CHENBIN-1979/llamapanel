@@ -3,10 +3,9 @@ import time
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from pathlib import Path
-from model_manager import ModelManager
+from . import get_model_manager
 
 router = APIRouter(prefix="/api/local", tags=["local"])
-model_manager = ModelManager()
 
 # 读取 HTML 文件
 def read_html_file(filename):
@@ -16,7 +15,6 @@ def read_html_file(filename):
             return f.read()
     return "<h1>页面加载失败</h1>"
 
-# 预加载 HTML 内容
 LOCAL_HTML = read_html_file("local.html")
 
 @router.get("/page", response_class=HTMLResponse)
@@ -27,15 +25,16 @@ async def local_page():
 @router.get("/list")
 async def get_local_models():
     """获取本地已下载的模型列表"""
-    models = model_manager.get_local_models()
+    mm = get_model_manager()
+    models = mm.get_local_models()
     
     # 添加部分下载的文件
     partial_files = []
-    for item in model_manager.models_dir.rglob('*.partial'):
+    for item in mm.models_dir.rglob('*.partial'):
         if item.is_file():
             size = item.stat().st_size
             size_gb = size / (1024 * 1024 * 1024)
-            rel_path = item.relative_to(model_manager.models_dir)
+            rel_path = item.relative_to(mm.models_dir)
             partial_files.append({
                 'name': str(rel_path),
                 'path': str(item),
@@ -51,7 +50,8 @@ async def get_local_models():
 @router.delete("/delete")
 async def delete_model(filename: str):
     """删除本地模型"""
-    success = model_manager.delete_model(filename)
+    mm = get_model_manager()
+    success = mm.delete_model(filename)
     if success:
         return {"success": True, "message": f"已删除 {filename}"}
     else:
@@ -60,5 +60,6 @@ async def delete_model(filename: str):
 @router.post("/symlinks")
 async def create_symlinks():
     """创建所有模型的软链接"""
-    count = model_manager.create_symlinks()
+    mm = get_model_manager()
+    count = mm.create_symlinks()
     return {"success": True, "message": f"已创建 {count} 个软链接"}

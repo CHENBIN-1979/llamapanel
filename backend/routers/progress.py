@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 import time
 from fastapi import APIRouter, Request, BackgroundTasks
-from starlette.templating import Jinja2Templates
-from model_manager import ModelManager
+from . import get_model_manager
 
 router = APIRouter(prefix="/api/progress", tags=["progress"])
-model_manager = ModelManager()
 
 @router.get("/status")
 async def get_progress(filename: str):
     """获取下载进度"""
-    progress = model_manager.get_progress(filename)
+    mm = get_model_manager()
+    progress = mm.get_progress(filename)
     return progress
 
 @router.post("/pause")
@@ -19,7 +18,8 @@ async def pause_download(request: Request):
     data = await request.json()
     filename = data.get('filename')
     try:
-        success = model_manager.pause_download(filename)
+        mm = get_model_manager()
+        success = mm.pause_download(filename)
         return {"success": success, "message": "已暂停" if success else "暂停失败"}
     except Exception as e:
         return {"success": False, "message": str(e)}
@@ -35,8 +35,9 @@ async def resume_download(request: Request, background_tasks: BackgroundTasks):
     if not download_url or not filename:
         return {"success": False, "message": "缺少必要参数"}
     
+    mm = get_model_manager()
     def run_download():
-        model_manager.download_model(download_url, filename, model_id)
+        mm.download_model(download_url, filename, model_id)
     
     background_tasks.add_task(run_download)
     return {"success": True, "message": f"恢复下载 {filename}"}
@@ -49,10 +50,11 @@ async def delete_partial(request: Request):
     model_id = data.get('model_id', '')
     
     try:
-        model_manager.stop_download(filename)
+        mm = get_model_manager()
+        mm.stop_download(filename)
         time.sleep(0.5)
         
-        file_path = model_manager.get_file_path(model_id, filename)
+        file_path = mm.get_file_path(model_id, filename)
         partial_path = file_path.parent / (file_path.name + '.partial')
         if partial_path.exists():
             partial_path.unlink()
@@ -62,7 +64,7 @@ async def delete_partial(request: Request):
             if file_size < 1024 * 1024:
                 file_path.unlink()
         
-        model_manager.clear_progress(filename)
+        mm.clear_progress(filename)
         return {"success": True, "message": "已删除部分下载文件"}
     except Exception as e:
         return {"success": False, "message": str(e)}
