@@ -332,14 +332,14 @@
                     if (isDownloaded) {
                         buttonHtml = `
                             <div class="btn-group" id="${ctrlGroupId}">
-                                <button class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>
+                                <button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>
                             </div>
                         `;
                     } else if (downloadingFiles[file.filename] !== undefined && downloadingFiles[file.filename] < 100) {
                         const progress = downloadingFiles[file.filename];
                         buttonHtml = `
                             <div class="btn-group" id="${ctrlGroupId}">
-                                <button class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
+                                <button id="${buttonId}" class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
                                 <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(file.filename)}')">⏸</button>
                                 <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(file.filename)}', '${modelId}')">🗑</button>
                             </div>
@@ -356,14 +356,14 @@
                         let displayText = partialPercent > 0 ? `${partialPercent}%` : '▶ 继续';
                         buttonHtml = `
                             <div class="btn-group" id="${ctrlGroupId}">
-                                <button class="small download-btn" onclick="resumeDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">${displayText}</button>
+                                <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">${displayText}</button>
                                 <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(file.filename)}', '${modelId}')">🗑</button>
                             </div>
                         `;
                     } else {
                         buttonHtml = `
                             <div class="btn-group" id="${ctrlGroupId}">
-                                <button class="small download-btn" onclick="startDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">⬇️ 下载</button>
+                                <button id="${buttonId}" class="small download-btn" onclick="startDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">⬇️ 下载</button>
                             </div>
                         `;
                     }
@@ -407,8 +407,8 @@
                     const modelId = fileModelIdMap[filename] || '';
                     if (downloadUrl) {
                         ctrlGroup.innerHTML = `
-                            <div class="btn-group" id="${ctrlGroupId}">
-                                <button class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
+                            <div class="btn-group" id="${getControlGroupId(filename)}">
+                                <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
                                 <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
                                 <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
                             </div>
@@ -433,10 +433,11 @@
         const buttonId = getButtonId(filename);
         const ctrlGroupId = getControlGroupId(filename);
         const ctrlGroup = document.getElementById(ctrlGroupId);
+        const btn = document.getElementById(buttonId);
         
         if (status === 'completed') {
             if (ctrlGroup) {
-                ctrlGroup.innerHTML = `<button class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
+                ctrlGroup.innerHTML = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
             }
             delete downloadingFiles[filename];
             if (progressIntervals[filename]) {
@@ -447,21 +448,11 @@
                 window.parent.refreshLocalModels();
             }
         } else if (status === 'downloading') {
-            if (ctrlGroup) {
-                if (ctrlGroup.innerHTML.indexOf('⏸') === -1) {
-                    const downloadUrl = fileDownloadUrls[filename] || '';
-                    const modelId = fileModelIdMap[filename] || '';
-                    ctrlGroup.innerHTML = `
-                        <div class="btn-group" id="${ctrlGroupId}">
-                            <button class="small download-btn downloading" style="background:#38a169;" disabled>${percent}%</button>
-                            <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                            <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
-                        </div>
-                    `;
-                } else {
-                    const percentBtn = ctrlGroup.querySelector(`.download-btn`);
-                    if (percentBtn) percentBtn.innerHTML = percent + '%';
-                }
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('downloading');
+                btn.innerHTML = percent + '%';
+                btn.style.background = '#38a169';
             }
             downloadingFiles[filename] = percent;
         } else if (status === 'paused') {
@@ -470,10 +461,8 @@
                 const modelId = fileModelIdMap[filename] || '';
                 const displayPercent = percent > 0 ? `${percent}%` : '▶ 继续';
                 ctrlGroup.innerHTML = `
-                    <div class="btn-group" id="${ctrlGroupId}">
-                        <button class="small download-btn" onclick="resumeDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">${displayPercent}</button>
-                        <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
-                    </div>
+                    <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">${displayPercent}</button>
+                    <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
                 `;
             }
             delete downloadingFiles[filename];
@@ -485,11 +474,7 @@
             if (ctrlGroup) {
                 const downloadUrl = fileDownloadUrls[filename] || '';
                 const modelId = fileModelIdMap[filename] || '';
-                ctrlGroup.innerHTML = `
-                    <div class="btn-group" id="${ctrlGroupId}">
-                        <button class="small download-btn" onclick="startDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">⬇️ 下载</button>
-                    </div>
-                `;
+                ctrlGroup.innerHTML = `<button id="${buttonId}" class="small download-btn" onclick="startDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">⬇️ 下载</button>`;
             }
             delete downloadingFiles[filename];
             if (progressIntervals[filename]) {
@@ -510,7 +495,9 @@
                     if (percent < 0) percent = 0;
                     if (percent > 100) percent = 100;
                     updateDownloadButton(filename, percent, 'downloading');
-                    if (percent >= 100) updateDownloadButton(filename, 100, 'completed');
+                    if (percent >= 100) {
+                        updateDownloadButton(filename, 100, 'completed');
+                    }
                 } else if (progress && progress.downloading === false && progress.percent === 100) {
                     updateDownloadButton(filename, 100, 'completed');
                 } else if (progress && progress.percent === -1) {
@@ -527,7 +514,7 @@
             if (ctrlGroup) {
                 ctrlGroup.innerHTML = `
                     <div class="btn-group" id="${ctrlGroupId}">
-                        <button class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
+                        <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
                         <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
                         <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
                     </div>
@@ -615,7 +602,7 @@
         if (ctrlGroup) {
             ctrlGroup.innerHTML = `
                 <div class="btn-group" id="${ctrlGroupId}">
-                    <button class="small download-btn downloading" style="background:#38a169;" disabled>${existingPercent > 0 ? existingPercent + '%' : '0%'}</button>
+                    <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>${existingPercent > 0 ? existingPercent + '%' : '0%'}</button>
                     <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
                     <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
                 </div>
