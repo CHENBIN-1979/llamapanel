@@ -3,8 +3,8 @@
     <p class="subtitle">管理已下载的 GGUF 模型</p>
     
     <div style="margin-bottom: 15px; display: flex; gap: 10px;">
-        <button onclick="refreshLocalModels()">🔄 刷新列表</button>
-        <button onclick="createSymlinks()">🔗 创建软链接</button>
+        <button class="btn-primary" onclick="refreshLocalModels()">🔄 刷新列表</button>
+        <button class="btn-primary" onclick="createSymlinks()">🔗 创建软链接</button>
     </div>
     
     <div id="localModelsList">
@@ -15,8 +15,8 @@
 <div class="card">
     <h3>📁 模型存储路径</h3>
     <div class="info-text">
-        <strong>模型目录:</strong> /opt/llamapanel/models/<br>
-        <strong>软链接目录:</strong> /opt/llamapanel/model_links/ (独立目录，不受 llama.cpp 更新影响)<br><br>
+        <strong>模型目录:</strong> <code>/opt/llamapanel/models/</code><br>
+        <strong>软链接目录:</strong> <code>/opt/llamapanel/model_links/</code> (独立目录，不受 llama.cpp 更新影响)<br><br>
         <strong>✨ 特性说明:</strong><br>
         • 模型文件直接下载到模型目录，无需临时目录<br>
         • 下载完成后自动创建软链接到独立目录<br>
@@ -38,6 +38,86 @@
         <strong>作者:</strong> CHENBIN-1979
     </div>
 </div>
+
+<style>
+    .btn-primary {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+    .btn-primary:hover {
+        background: #5a67d8;
+        transform: translateY(-1px);
+    }
+    .models-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .models-table th, .models-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .models-table th {
+        background: #f7fafc;
+        font-weight: 600;
+    }
+    .models-table tr:hover {
+        background: #f7fafc;
+    }
+    button.small {
+        background: #e53e3e;
+        color: white;
+        border: none;
+        padding: 4px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.3s;
+    }
+    button.small:hover {
+        background: #c53030;
+    }
+    .loading {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #e2e8f0;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .info-text {
+        font-size: 12px;
+        color: #718096;
+        margin-top: 10px;
+        padding: 10px;
+        background: #f7fafc;
+        border-radius: 8px;
+        line-height: 1.6;
+    }
+    code {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+    }
+    a {
+        color: #667eea;
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+</style>
 
 <script>
     let localModelsCache = [];
@@ -68,21 +148,21 @@
                     let sizeClass = isPartial ? 'style="color: #e67e22;"' : '';
                     html += `
                         <tr>
-                            <td ${sizeClass}>${escapeHtml(displayName)}${isPartial ? ' (下载中)' : ''}</td>
+                            <td ${sizeClass}>${escapeHtml(displayName)}${isPartial ? ' <span style="color:#e67e22;">(下载中)</span>' : ''}</td>
                             <td>${model.size_str}</td>
                             <td>${model.modified}</td>
-                            <td><button class="small danger" onclick="deleteLocalModel('${escapeHtml(model.name)}')">🗑️ 删除</button></td>
+                            <td><button class="small" onclick="deleteLocalModel('${escapeHtml(model.name)}')">🗑️ 删除</button></td>
                         </tr>
                     `;
                 }
                 html += '</tbody></table>';
                 modelsDiv.innerHTML = html;
             } else {
-                modelsDiv.innerHTML = '<div class="info-text">暂无本地模型，请从「模型下载」页面下载</div>';
+                modelsDiv.innerHTML = '<div class="info-text">📭 暂无本地模型，请从「模型下载」页面下载</div>';
             }
         } catch(e) {
             console.error('刷新失败:', e);
-            modelsDiv.innerHTML = '<div class="info-text">加载失败: ' + e.message + '</div>';
+            modelsDiv.innerHTML = '<div class="info-text">❌ 加载失败: ' + e.message + '</div>';
         }
     }
     
@@ -95,6 +175,11 @@
                 const data = await response.json();
                 alert(data.message);
                 refreshLocalModels();
+                
+                // 通知下载页面刷新（如果存在）
+                if (window.parent && window.parent.refreshDownloadFileList) {
+                    window.parent.refreshDownloadFileList();
+                }
             } catch(e) {
                 console.error('删除失败:', e);
                 alert('删除失败: ' + e.message);
@@ -117,10 +202,5 @@
     window.refreshLocalModels = refreshLocalModels;
     
     // 页面加载时刷新
-    window.initLocalPage = () => {
-        refreshLocalModels();
-    };
-    
-    // 初始化
     refreshLocalModels();
 </script>
