@@ -457,13 +457,11 @@
         }
     }
     
-    // 导出函数到全局
-    window.initDownloadPage = () => {
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) {
-            searchInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') searchModels();
-            });
-        }
-    };
+    // 页面初始化
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchModels();
+        });
+    }
 </script>
