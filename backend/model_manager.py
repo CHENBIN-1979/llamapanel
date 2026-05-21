@@ -240,7 +240,11 @@ class ModelManager:
             self.create_symlink_for_file(model_id, filename, file_path)
             if callback:
                 callback(100, "文件已存在")
-            self.clear_progress(filename)
+            # 延迟清除进度
+            def delayed_clear():
+                time.sleep(5)
+                self.clear_progress(filename)
+            threading.Thread(target=delayed_clear, daemon=True).start()
             return True
         
         # 检查是否有部分下载的文件
@@ -365,8 +369,11 @@ class ModelManager:
             if callback:
                 callback(100, "下载完成")
             
-            # 清理
-            self.clear_progress(filename)
+            # 延迟清除进度，让前端有时间获取完成状态
+            def delayed_clear():
+                time.sleep(5)
+                self.clear_progress(filename)
+            threading.Thread(target=delayed_clear, daemon=True).start()
             return True
             
         except urllib.error.HTTPError as e:
@@ -380,7 +387,11 @@ class ModelManager:
                     if callback:
                         callback(100, "下载完成")
                     self.create_symlink_for_file(model_id, filename, file_path)
-                    self.clear_progress(filename)
+                    # 延迟清除进度
+                    def delayed_clear():
+                        time.sleep(5)
+                        self.clear_progress(filename)
+                    threading.Thread(target=delayed_clear, daemon=True).start()
                     return True
             self.update_progress(filename, -1, f"下载失败: HTTP {e.code}", False)
             if callback:
