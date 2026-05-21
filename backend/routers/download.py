@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 from model_manager import ModelManager
@@ -36,7 +36,7 @@ async def get_model_files(model_id: str):
     return {"success": True, "files": files}
 
 @router.post("/start")
-async def start_download(request, background_tasks: BackgroundTasks):
+async def start_download(request: Request, background_tasks: BackgroundTasks):
     """开始下载模型"""
     data = await request.json()
     download_url = data.get('download_url')
