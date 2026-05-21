@@ -13,6 +13,117 @@
     <div id="searchResults"></div>
 </div>
 
+<style>
+    .model-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 15px;
+        transition: all 0.3s;
+        background: white;
+    }
+    .model-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .model-name {
+        font-weight: bold;
+        font-size: 16px;
+        margin-bottom: 5px;
+        cursor: pointer;
+        padding: 8px;
+        background: #f7fafc;
+        border-radius: 8px;
+        transition: background 0.3s;
+    }
+    .model-name:hover {
+        background: #edf2f7;
+    }
+    .model-meta {
+        font-size: 12px;
+        color: #718096;
+        margin-bottom: 10px;
+        padding-left: 8px;
+    }
+    .downloads-count {
+        font-weight: bold;
+        color: #667eea;
+    }
+    .file-list {
+        margin-top: 12px;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 12px;
+    }
+    .file-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .file-name {
+        font-family: monospace;
+        font-size: 13px;
+        word-break: break-all;
+        flex: 1;
+    }
+    .file-size {
+        font-size: 12px;
+        color: #718096;
+        white-space: nowrap;
+    }
+    .btn-group {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+    }
+    button.small {
+        padding: 4px 12px;
+        font-size: 12px;
+        min-width: 75px;
+    }
+    button.tiny {
+        padding: 4px 8px;
+        font-size: 11px;
+        min-width: 36px;
+    }
+    .download-btn {
+        background: #667eea;
+    }
+    .download-btn.downloading {
+        background: #38a169;
+    }
+    .download-btn.downloaded {
+        background: #38a169;
+        cursor: default;
+    }
+    .control-btn {
+        background: #4a5568;
+    }
+    .control-btn.stop {
+        background: #e53e3e;
+    }
+    .info-text {
+        font-size: 12px;
+        color: #718096;
+        margin-top: 10px;
+        padding: 10px;
+        background: #f7fafc;
+        border-radius: 8px;
+    }
+    .loading {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #e2e8f0;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
 <script>
     let currentSearchResults = [];
     let filesCache = {};
@@ -84,12 +195,12 @@
                     html += `
                         <div class="model-card" id="card-${safeId}">
                             <div class="model-name" onclick="toggleModelFiles('${safeId}')">
-                                📄 ${model.name}
+                                📄 ${escapeHtml(model.name)}
                             </div>
                             <div class="model-meta">
-                                作者: ${model.author} | ❤️ ${model.likes} | 📥 <span class="downloads-count">${downloadsFormatted}</span>
+                                作者: ${escapeHtml(model.author)} | ❤️ ${model.likes} | 📥 <span class="downloads-count">${downloadsFormatted}</span>
                             </div>
-                            <button onclick="loadModelFiles('${model.id.replace(/'/g, "\\'")}')" id="btn-${safeId}" data-model-id="${model.id}">📂 查看 GGUF 文件</button>
+                            <button onclick="loadModelFiles('${escapeHtml(model.id).replace(/'/g, "\\'")}')" id="btn-${safeId}" data-model-id="${escapeHtml(model.id)}">📂 查看 GGUF 文件</button>
                             <div id="files-${safeId}" style="margin-top: 12px; display: none;"></div>
                         </div>
                     `;
