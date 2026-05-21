@@ -39,6 +39,10 @@
         padding: 12px 24px;
         font-size: 14px;
         white-space: nowrap;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s;
     }
     .model-card {
         border: 1px solid #e2e8f0;
@@ -104,18 +108,37 @@
         gap: 5px;
         align-items: center;
     }
+    button {
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-weight: 500;
+    }
     button.small {
-        padding: 4px 12px;
+        padding: 6px 14px;
         font-size: 12px;
         min-width: 75px;
     }
     button.tiny {
-        padding: 4px 8px;
+        padding: 4px 10px;
         font-size: 11px;
         min-width: 36px;
     }
+    button:hover {
+        transform: translateY(-1px);
+    }
+    button:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+    }
     .download-btn {
         background: #667eea;
+        color: white;
+    }
+    .download-btn:hover {
+        background: #5a67d8;
     }
     .download-btn.downloading {
         background: #38a169;
@@ -124,11 +147,22 @@
         background: #38a169;
         cursor: default;
     }
+    .download-btn.downloaded:hover {
+        transform: none;
+        background: #38a169;
+    }
     .control-btn {
         background: #4a5568;
+        color: white;
+    }
+    .control-btn:hover {
+        background: #2d3748;
     }
     .control-btn.stop {
         background: #e53e3e;
+    }
+    .control-btn.stop:hover {
+        background: #c53030;
     }
     .info-text {
         font-size: 12px;
@@ -226,7 +260,7 @@
                             <div class="model-meta">
                                 作者: ${escapeHtml(model.author)} | ❤️ ${model.likes} | 📥 <span class="downloads-count">${downloadsFormatted}</span>
                             </div>
-                            <button onclick="loadModelFiles('${escapeHtml(model.id).replace(/'/g, "\\'")}')" id="btn-${safeId}" data-model-id="${escapeHtml(model.id)}">📂 查看 GGUF 文件</button>
+                            <button class="small" onclick="loadModelFiles('${escapeHtml(model.id).replace(/'/g, "\\'")}')" id="btn-${safeId}" data-model-id="${escapeHtml(model.id)}">📂 查看 GGUF 文件</button>
                             <div id="files-${safeId}" style="margin-top: 12px; display: none;"></div>
                         </div>
                     `;
@@ -298,14 +332,14 @@
                     if (isDownloaded) {
                         buttonHtml = `
                             <div class="btn-group" id="${ctrlGroupId}">
-                                <button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>
+                                <button class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>
                             </div>
                         `;
                     } else if (downloadingFiles[file.filename] !== undefined && downloadingFiles[file.filename] < 100) {
                         const progress = downloadingFiles[file.filename];
                         buttonHtml = `
                             <div class="btn-group" id="${ctrlGroupId}">
-                                <button id="${buttonId}" class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
+                                <button class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
                                 <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(file.filename)}')">⏸</button>
                                 <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(file.filename)}', '${modelId}')">🗑</button>
                             </div>
@@ -322,14 +356,14 @@
                         let displayText = partialPercent > 0 ? `${partialPercent}%` : '▶ 继续';
                         buttonHtml = `
                             <div class="btn-group" id="${ctrlGroupId}">
-                                <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">${displayText}</button>
+                                <button class="small download-btn" onclick="resumeDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">${displayText}</button>
                                 <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(file.filename)}', '${modelId}')">🗑</button>
                             </div>
                         `;
                     } else {
                         buttonHtml = `
                             <div class="btn-group" id="${ctrlGroupId}">
-                                <button id="${buttonId}" class="small download-btn" onclick="startDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">⬇️ 下载</button>
+                                <button class="small download-btn" onclick="startDownload('${file.download_url}', '${escapeHtml(file.filename)}', '${modelId}')">⬇️ 下载</button>
                             </div>
                         `;
                     }
@@ -373,9 +407,11 @@
                     const modelId = fileModelIdMap[filename] || '';
                     if (downloadUrl) {
                         ctrlGroup.innerHTML = `
-                            <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
-                            <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                            <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                            <div class="btn-group" id="${ctrlGroupId}">
+                                <button class="small download-btn downloading" style="background:#38a169;" disabled>${progress}%</button>
+                                <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
+                                <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                            </div>
                         `;
                     }
                 }
@@ -400,7 +436,7 @@
         
         if (status === 'completed') {
             if (ctrlGroup) {
-                ctrlGroup.innerHTML = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
+                ctrlGroup.innerHTML = `<button class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
             }
             delete downloadingFiles[filename];
             if (progressIntervals[filename]) {
@@ -416,12 +452,14 @@
                     const downloadUrl = fileDownloadUrls[filename] || '';
                     const modelId = fileModelIdMap[filename] || '';
                     ctrlGroup.innerHTML = `
-                        <button id="${buttonId}" class="small download-btn downloading" style="background:#38a169;" disabled>${percent}%</button>
-                        <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                        <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                        <div class="btn-group" id="${ctrlGroupId}">
+                            <button class="small download-btn downloading" style="background:#38a169;" disabled>${percent}%</button>
+                            <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
+                            <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                        </div>
                     `;
                 } else {
-                    const percentBtn = ctrlGroup.querySelector(`#${buttonId}`);
+                    const percentBtn = ctrlGroup.querySelector(`.download-btn`);
                     if (percentBtn) percentBtn.innerHTML = percent + '%';
                 }
             }
@@ -432,8 +470,10 @@
                 const modelId = fileModelIdMap[filename] || '';
                 const displayPercent = percent > 0 ? `${percent}%` : '▶ 继续';
                 ctrlGroup.innerHTML = `
-                    <button id="${buttonId}" class="small download-btn" onclick="resumeDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">${displayPercent}</button>
-                    <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                    <div class="btn-group" id="${ctrlGroupId}">
+                        <button class="small download-btn" onclick="resumeDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">${displayPercent}</button>
+                        <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                    </div>
                 `;
             }
             delete downloadingFiles[filename];
@@ -445,7 +485,11 @@
             if (ctrlGroup) {
                 const downloadUrl = fileDownloadUrls[filename] || '';
                 const modelId = fileModelIdMap[filename] || '';
-                ctrlGroup.innerHTML = `<button id="${buttonId}" class="small download-btn" onclick="startDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">⬇️ 下载</button>`;
+                ctrlGroup.innerHTML = `
+                    <div class="btn-group" id="${ctrlGroupId}">
+                        <button class="small download-btn" onclick="startDownload('${downloadUrl}', '${escapeHtml(filename)}', '${modelId}')">⬇️ 下载</button>
+                    </div>
+                `;
             }
             delete downloadingFiles[filename];
             if (progressIntervals[filename]) {
@@ -482,9 +526,11 @@
             const ctrlGroup = document.getElementById(ctrlGroupId);
             if (ctrlGroup) {
                 ctrlGroup.innerHTML = `
-                    <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
-                    <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                    <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                    <div class="btn-group" id="${ctrlGroupId}">
+                        <button class="small download-btn downloading" style="background:#38a169;" disabled>0%</button>
+                        <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
+                        <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                    </div>
                 `;
             }
             downloadingFiles[filename] = 0;
@@ -568,9 +614,11 @@
         const ctrlGroup = document.getElementById(ctrlGroupId);
         if (ctrlGroup) {
             ctrlGroup.innerHTML = `
-                <button id="${getButtonId(filename)}" class="small download-btn downloading" style="background:#38a169;" disabled>${existingPercent > 0 ? existingPercent + '%' : '0%'}</button>
-                <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
-                <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                <div class="btn-group" id="${ctrlGroupId}">
+                    <button class="small download-btn downloading" style="background:#38a169;" disabled>${existingPercent > 0 ? existingPercent + '%' : '0%'}</button>
+                    <button class="tiny control-btn" onclick="pauseDownload('${escapeHtml(filename)}')">⏸</button>
+                    <button class="tiny control-btn stop" onclick="cancelPartial('${escapeHtml(filename)}', '${modelId}')">🗑</button>
+                </div>
             `;
         }
         downloadingFiles[filename] = existingPercent;
