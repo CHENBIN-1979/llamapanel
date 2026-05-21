@@ -4,8 +4,10 @@
     
     <div class="search-box">
         <input type="text" id="searchInput" placeholder="搜索 GGUF 模型... (例如: llama, qwen, mistral)">
-        <button onclick="searchModels()" id="searchBtn">🔍 搜索</button>
-        <button onclick="clearSearch()">🗑️ 清空</button>
+        <div class="search-buttons">
+            <button onclick="searchModels()" id="searchBtn">🔍 搜索</button>
+            <button onclick="clearSearch()">🗑️ 清空</button>
+        </div>
     </div>
     <div class="info-text" style="margin-bottom: 10px;">
         💡 提示：搜索会自动添加 "GGUF" 关键词，只显示可下载的量化模型。
@@ -14,6 +16,30 @@
 </div>
 
 <style>
+    .search-box {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+        align-items: center;
+    }
+    .search-box input {
+        flex: 1;
+        padding: 12px 16px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        font-size: 14px;
+        width: 100%;
+    }
+    .search-buttons {
+        display: flex;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+    .search-buttons button {
+        padding: 12px 24px;
+        font-size: 14px;
+        white-space: nowrap;
+    }
     .model-card {
         border: 1px solid #e2e8f0;
         border-radius: 12px;
