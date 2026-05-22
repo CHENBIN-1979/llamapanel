@@ -306,9 +306,31 @@ class ModelManager:
                 
                 with open(download_path, 'ab') as f:
                     last_log_time = time.time()
+                    last_chunk_time = time.time()  # 最后一次收到数据的时间
+                    last_progress_time = time.time()  # 最后一次进度变化的时间
                     while True:
-                        # 检查是否收到停止信号
-                        if self.download_stop_flags.get(filename, False):
+                        # 检查是否收到停止信号（加锁读取）
+                        with self.progress_lock:
+                            should_stop = self.download_stop_flags.get(filename, False)
+                            should_pause = self.download_paused.get(filename, False)
+                        
+                        # 超时保护：60秒无数据接收则超时退出
+                        if time.time() - last_chunk_time > 60:
+                            self.log(f"下载超时（60秒无数据）: {filename}")
+                            self.update_progress(filename, last_percent, "下载超时", False)
+                            if callback:
+                                callback(last_percent, "下载超时")
+                            return False
+                        
+                        # 超时保护：300秒进度无变化则超时退出（网络卡死）
+                        if time.time() - last_progress_time > 300:
+                            self.log(f"下载超时（300秒无进度变化）: {filename}")
+                            self.update_progress(filename, last_percent, "下载超时", False)
+                            if callback:
+                                callback(last_percent, "下载超时")
+                            return False
+                        
+                        if should_stop:
                             self.log(f"下载已停止: {filename}")
                             self.update_progress(filename, last_percent, "已停止", False)
                             if callback:
@@ -318,8 +340,7 @@ class ModelManager:
                                 download_path.unlink()
                             return False
                         
-                        # 检查是否收到暂停信号
-                        if self.download_paused.get(filename, False):
+                        if should_pause:
                             self.log(f"下载已暂停: {filename}")
                             self.update_progress(filename, last_percent, "已暂停", False)
                             if callback:
@@ -335,11 +356,13 @@ class ModelManager:
                             break
                         f.write(chunk)
                         downloaded += len(chunk)
+                        last_chunk_time = time.time()  # 更新最后接收数据时间
                         
                         if total_size > 0:
                             percent = int(downloaded * 100 / total_size)
                             if percent > last_percent:
                                 last_percent = percent
+                                last_progress_time = time.time()  # 更新最后进度变化时间
                                 self.update_progress(filename, percent, f"下载中... {percent}%", True)
                                 if callback:
                                     callback(percent, f"下载中... {percent}%")

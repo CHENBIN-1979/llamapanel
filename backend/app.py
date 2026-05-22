@@ -6,8 +6,10 @@ import sys
 import subprocess
 import os
 import time
+import threading
 
-sys.path.append('/opt/llamapanel/backend')
+# 动态获取 backend 目录路径，支持本地开发和服务器部署
+sys.path.append(str(Path(__file__).parent))
 from installer import LlamaCppInstaller
 from routers import download_router, local_router, progress_router, set_model_manager
 from model_manager import ModelManager
@@ -640,13 +642,8 @@ HTML_PAGE = '''
         }
         
         function startMonitoring() {
-            if (statusInterval) clearInterval(statusInterval);
-            statusInterval = setInterval(() => {
-                refreshStatus();
-            }, 3000);
-            setTimeout(() => {
-                if (statusInterval) clearInterval(statusInterval);
-            }, 300000);
+            // 安装/编译开始后，立即刷新一次状态
+            refreshStatus();
         }
         
         // 初始化
@@ -654,6 +651,7 @@ HTML_PAGE = '''
         refreshLog();
         startAutoRefresh();
         bindAutoRefreshCheckbox();
+        // 统一使用5秒间隔刷新状态（避免多个定时器冲突）
         setInterval(refreshStatus, 5000);
     </script>
 </body>
@@ -753,21 +751,25 @@ async def delete_all(background_tasks: BackgroundTasks):
 @app.post("/api/update_panel")
 async def update_panel(background_tasks: BackgroundTasks):
     """更新 LlamaPanel 自身"""
-    import threading
+    if not hasattr(update_panel, '_lock'):
+        update_panel._lock = threading.Lock()
+        update_panel._running = False
     
-    if hasattr(update_panel, '_running') and update_panel._running:
-        return {"success": False, "message": "更新任务已在运行中"}
+    # 加锁检查并设置运行标志，防止竞态条件
+    with update_panel._lock:
+        if update_panel._running:
+            return {"success": False, "message": "更新任务已在运行中"}
+        update_panel._running = True
     
     def run_update():
-        update_panel._running = True
         try:
             update_llamapanel()
         except Exception as e:
             print(f"更新异常: {e}")
         finally:
-            update_panel._running = False
+            with update_panel._lock:
+                update_panel._running = False
     
-    update_panel._running = False
     background_tasks.add_task(run_update)
     return {"success": True, "message": "LlamaPanel 更新任务已启动，请查看 /opt/llamapanel/logs/update.log"}
 

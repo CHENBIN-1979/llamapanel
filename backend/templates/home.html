@@ -34,7 +34,6 @@
 
 <script>
     let autoRefreshInterval = null;
-    let statusInterval = null;
     
     function startAutoRefresh() {
         if (autoRefreshInterval) clearInterval(autoRefreshInterval);
@@ -295,27 +294,19 @@
     }
     
     function startMonitoring() {
-        if (statusInterval) clearInterval(statusInterval);
-        statusInterval = setInterval(() => {
-            refreshStatus();
-        }, 3000);
-        setTimeout(() => {
-            if (statusInterval) clearInterval(statusInterval);
-        }, 300000);
+        // 安装/编译开始后，立即刷新一次状态
+        refreshStatus();
     }
     
-    // 初始化
+    // 初始化（主页面已有 setInterval 轮询，这里只做一次性刷新）
     refreshStatus();
     refreshLog();
     startAutoRefresh();
     bindAutoRefreshCheckbox();
-    setInterval(refreshStatus, 5000);
     
     // 导出到全局
     window.initHomePage = () => {
         refreshStatus();
         refreshLog();
-        startAutoRefresh();
-        bindAutoRefreshCheckbox();
     };
 </script>
