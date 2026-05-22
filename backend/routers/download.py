@@ -47,6 +47,9 @@ async def start_download(request: Request, background_tasks: BackgroundTasks):
         return {"success": False, "message": "缺少必要参数"}
     
     mm = get_model_manager()
+    # 【修复】立即设置初始进度状态，让前端轮询能立即获取到
+    mm.update_progress(filename, 0, "开始下载...", True, 0, 0)
+    
     def run_download():
         mm.download_model(download_url, filename, model_id)
     
