@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 import time
 from fastapi import APIRouter, Request, BackgroundTasks
-from . import get_model_manager
-
 router = APIRouter(prefix="/api/progress", tags=["progress"])
 
 @router.get("/status")
 async def get_progress(filename: str):
     """获取下载进度"""
+    from . import get_model_manager
     mm = get_model_manager()
     progress = mm.get_progress(filename)
     return progress
@@ -18,6 +17,7 @@ async def pause_download(request: Request):
     data = await request.json()
     filename = data.get('filename')
     try:
+        from . import get_model_manager
         mm = get_model_manager()
         success = mm.pause_download(filename)
         return {"success": success, "message": "已暂停" if success else "暂停失败"}
@@ -35,6 +35,7 @@ async def resume_download(request: Request, background_tasks: BackgroundTasks):
     if not download_url or not filename:
         return {"success": False, "message": "缺少必要参数"}
     
+    from . import get_model_manager
     mm = get_model_manager()
     def run_download():
         mm.download_model(download_url, filename, model_id)
@@ -50,6 +51,7 @@ async def delete_partial(request: Request):
     model_id = data.get('model_id', '')
     
     try:
+        from . import get_model_manager
         mm = get_model_manager()
         mm.stop_download(filename)
         time.sleep(0.5)

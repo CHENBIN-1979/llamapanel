@@ -3,8 +3,6 @@ import time
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from pathlib import Path
-from . import get_model_manager
-
 router = APIRouter(prefix="/api/local", tags=["local"])
 
 # 读取 HTML 文件
@@ -25,6 +23,7 @@ async def local_page():
 @router.get("/list")
 async def get_local_models():
     """获取本地已下载的模型列表"""
+    from . import get_model_manager
     mm = get_model_manager()
     models = mm.get_local_models()
     
@@ -50,6 +49,7 @@ async def get_local_models():
 @router.delete("/delete")
 async def delete_model(filename: str):
     """删除本地模型"""
+    from . import get_model_manager
     mm = get_model_manager()
     success = mm.delete_model(filename)
     if success:
@@ -60,6 +60,7 @@ async def delete_model(filename: str):
 @router.post("/symlinks")
 async def create_symlinks():
     """创建所有模型的软链接"""
+    from . import get_model_manager
     mm = get_model_manager()
     count = mm.create_symlinks()
     return {"success": True, "message": f"已创建 {count} 个软链接"}
