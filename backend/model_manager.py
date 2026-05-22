@@ -34,21 +34,38 @@ class ModelManager:
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(log_msg + '\n')
     
-    def update_progress(self, filename: str, percent: int, status: str, downloading: bool = True):
+    def update_progress(self, filename: str, percent: int, status: str, downloading: bool = True,
+                        downloaded_bytes: int = 0, total_bytes: int = 0):
         with self.progress_lock:
             self.download_progress[filename] = {
                 'percent': percent,
                 'status': status,
                 'downloading': downloading,
+                'downloaded_bytes': downloaded_bytes,
+                'total_bytes': total_bytes,
                 'updated_at': time.time()
             }
-            self.log(f"进度更新 [{filename}]: {percent}% - {status}")
+            # 只有百分比变化或每10秒记录一次日志，避免刷屏
+            current_time = time.time()
+            last_log = getattr(self, '_last_progress_log', {})
+            last_log_time = last_log.get(filename, 0)
+            if percent != last_log.get(f'{filename}_pct') or current_time - last_log_time >= 10:
+                if not hasattr(self, '_last_progress_log'):
+                    self._last_progress_log = {}
+                self._last_progress_log[filename] = current_time
+                self._last_progress_log[f'{filename}_pct'] = percent
+                bytes_str = self.format_size(downloaded_bytes) if downloaded_bytes > 0 else ""
+                total_str = self.format_size(total_bytes) if total_bytes > 0 else ""
+                if bytes_str and total_str:
+                    self.log(f"进度更新 [{filename}]: {percent}% ({bytes_str}/{total_str}) - {status}")
+                else:
+                    self.log(f"进度更新 [{filename}]: {percent}% - {status}")
     
     def get_progress(self, filename: str) -> Dict:
         with self.progress_lock:
             if filename in self.download_progress:
                 return self.download_progress[filename]
-            return {'percent': 0, 'status': '未开始', 'downloading': False}
+            return {'percent': 0, 'status': '未开始', 'downloading': False, 'downloaded_bytes': 0, 'total_bytes': 0}
     
     def clear_progress(self, filename: str):
         with self.progress_lock:
@@ -236,7 +253,7 @@ class ModelManager:
         # 检查文件是否已存在且完整
         if file_path.exists() and file_path.stat().st_size > 0:
             self.log(f"模型已存在: {file_path}")
-            self.update_progress(filename, 100, "文件已存在", False)
+            self.update_progress(filename, 100, "文件已存在", False, file_path.stat().st_size, file_path.stat().st_size)
             self.create_symlink_for_file(model_id, filename, file_path)
             if callback:
                 callback(100, "文件已存在")
@@ -295,12 +312,12 @@ class ModelManager:
                 # 立即报告已有进度
                 if resume_byte > 0 and total_size > 0:
                     initial_percent = int(resume_byte * 100 / total_size)
-                    self.update_progress(filename, initial_percent, f"续传中... {initial_percent}%", True)
+                    self.update_progress(filename, initial_percent, f"续传中... {initial_percent}%", True, resume_byte, total_size)
                     if callback:
                         callback(initial_percent, f"续传中... {initial_percent}%")
-                    self.log(f"续传开始，当前进度: {initial_percent}%")
+                    self.log(f"续传开始，当前进度: {initial_percent}% ({self.format_size(resume_byte)}/{self.format_size(total_size)})")
                 else:
-                    self.update_progress(filename, 0, "开始下载...", True)
+                    self.update_progress(filename, 0, "开始下载...", True, 0, total_size)
                     if callback:
                         callback(0, "开始下载...")
                 
@@ -308,6 +325,8 @@ class ModelManager:
                     last_log_time = time.time()
                     last_chunk_time = time.time()  # 最后一次收到数据的时间
                     last_progress_time = time.time()  # 最后一次进度变化的时间
+                    last_update_time = time.time()  # 最后一次更新前端进度的时间
+                    chunk_count = 0
                     while True:
                         # 检查是否收到停止信号（加锁读取）
                         with self.progress_lock:
@@ -317,7 +336,7 @@ class ModelManager:
                         # 超时保护：60秒无数据接收则超时退出
                         if time.time() - last_chunk_time > 60:
                             self.log(f"下载超时（60秒无数据）: {filename}")
-                            self.update_progress(filename, last_percent, "下载超时", False)
+                            self.update_progress(filename, last_percent, "下载超时", False, downloaded, total_size)
                             if callback:
                                 callback(last_percent, "下载超时")
                             return False
@@ -325,14 +344,14 @@ class ModelManager:
                         # 超时保护：300秒进度无变化则超时退出（网络卡死）
                         if time.time() - last_progress_time > 300:
                             self.log(f"下载超时（300秒无进度变化）: {filename}")
-                            self.update_progress(filename, last_percent, "下载超时", False)
+                            self.update_progress(filename, last_percent, "下载超时", False, downloaded, total_size)
                             if callback:
                                 callback(last_percent, "下载超时")
                             return False
                         
                         if should_stop:
                             self.log(f"下载已停止: {filename}")
-                            self.update_progress(filename, last_percent, "已停止", False)
+                            self.update_progress(filename, last_percent, "已停止", False, downloaded, total_size)
                             if callback:
                                 callback(last_percent, "已停止")
                             # 删除部分下载的文件
@@ -342,7 +361,7 @@ class ModelManager:
                         
                         if should_pause:
                             self.log(f"下载已暂停: {filename}")
-                            self.update_progress(filename, last_percent, "已暂停", False)
+                            self.update_progress(filename, last_percent, "已暂停", False, downloaded, total_size)
                             if callback:
                                 callback(last_percent, "已暂停")
                             # 保留部分下载的文件（重命名为 .partial）
@@ -356,21 +375,40 @@ class ModelManager:
                             break
                         f.write(chunk)
                         downloaded += len(chunk)
+                        chunk_count += 1
                         last_chunk_time = time.time()  # 更新最后接收数据时间
                         
                         if total_size > 0:
                             percent = int(downloaded * 100 / total_size)
-                            if percent > last_percent:
+                            # 记录百分比是否刚发生变化
+                            percent_changed = (percent > last_percent)
+                            if percent_changed:
                                 last_percent = percent
                                 last_progress_time = time.time()  # 更新最后进度变化时间
-                                self.update_progress(filename, percent, f"下载中... {percent}%", True)
+                            
+                            # 核心修复：百分比变化时立即更新，否则每50个chunk或每1秒更新一次
+                            current_time = time.time()
+                            should_update = (percent_changed or 
+                                             chunk_count >= 50 or 
+                                             current_time - last_update_time >= 1.0)
+                            
+                            if should_update:
+                                chunk_count = 0
+                                last_update_time = current_time
+                                # 百分比为0时显示已下载字节数，让用户知道正在下载
+                                if percent == 0 and downloaded > 1024 * 1024:
+                                    status_text = f"下载中... {self.format_size(downloaded)}/{self.format_size(total_size)}"
+                                else:
+                                    status_text = f"下载中... {percent}%"
+                                self.update_progress(filename, percent, status_text, True, downloaded, total_size)
                                 if callback:
-                                    callback(percent, f"下载中... {percent}%")
+                                    callback(percent, status_text)
                                 
                                 # 每10秒记录一次日志，避免日志过多
-                                current_time = time.time()
                                 if current_time - last_log_time >= 10:
-                                    self.log(f"下载进度 [{filename}]: {percent}% ({downloaded}/{total_size} bytes)")
+                                    bytes_str = self.format_size(downloaded)
+                                    total_str = self.format_size(total_size)
+                                    self.log(f"下载进度 [{filename}]: {percent}% ({bytes_str}/{total_str})")
                                     last_log_time = current_time
             
             # 下载完成，处理文件
@@ -388,7 +426,7 @@ class ModelManager:
             self.create_symlink_for_file(model_id, filename, file_path)
             
             self.log(f"下载完成: {file_path}")
-            self.update_progress(filename, 100, "下载完成", False)
+            self.update_progress(filename, 100, "下载完成", False, total_size, total_size)
             if callback:
                 callback(100, "下载完成")
             
@@ -406,7 +444,8 @@ class ModelManager:
                 if download_path.exists() and download_path != file_path:
                     shutil.move(str(download_path), str(file_path))
                 if file_path.exists():
-                    self.update_progress(filename, 100, "下载完成", False)
+                    file_size = file_path.stat().st_size
+                    self.update_progress(filename, 100, "下载完成", False, file_size, file_size)
                     if callback:
                         callback(100, "下载完成")
                     self.create_symlink_for_file(model_id, filename, file_path)
