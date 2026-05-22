@@ -379,7 +379,7 @@ class ModelManager:
                         last_chunk_time = time.time()  # 更新最后接收数据时间
                         
                         current_time = time.time()
-                        # 计算百分比（如果 total_size 为0，用-1表示未知总量）
+                        # 计算百分比（如果 total_size 为0，percent=0）
                         if total_size > 0:
                             percent = int(downloaded * 100 / total_size)
                         else:
@@ -391,17 +391,26 @@ class ModelManager:
                             last_percent = percent
                             last_progress_time = time.time()  # 更新最后进度变化时间
                         
-                        # 核心修复：百分比变化时立即更新，否则每50个chunk或每1秒更新一次
+                        # 【修复】更频繁地更新进度：
+                        # - 百分比变化时立即更新
+                        # - total_size=0时每2个chunk更新一次（快速显示字节数）
+                        # - 前5MB每5个chunk更新一次
+                        # - 之后每50个chunk或每1秒更新一次
+                        if total_size <= 0:
+                            early_chunk_threshold = 2  # 总量未知时，每2个chunk更新
+                        else:
+                            is_early_stage = (downloaded < 5 * 1024 * 1024)  # 前5MB为早期阶段
+                            early_chunk_threshold = 5 if is_early_stage else 50
                         should_update = (percent_changed or 
-                                         chunk_count >= 50 or 
+                                         chunk_count >= early_chunk_threshold or 
                                          current_time - last_update_time >= 1.0)
                         
                         if should_update:
                             chunk_count = 0
                             last_update_time = current_time
-                            # total_size > 0 时显示百分比+字节，total_size=0 时只显示已下载字节
+                            # 构建状态文本：始终包含字节信息
                             if total_size > 0:
-                                if percent == 0 and downloaded > 1024 * 1024:
+                                if percent == 0 and downloaded > resume_byte:
                                     status_text = f"下载中... {self.format_size(downloaded)}/{self.format_size(total_size)} (0%)"
                                 else:
                                     status_text = f"下载中... {percent}% ({self.format_size(downloaded)}/{self.format_size(total_size)})"
