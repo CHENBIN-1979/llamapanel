@@ -378,38 +378,49 @@ class ModelManager:
                         chunk_count += 1
                         last_chunk_time = time.time()  # 更新最后接收数据时间
                         
+                        current_time = time.time()
+                        # 计算百分比（如果 total_size 为0，用-1表示未知总量）
                         if total_size > 0:
                             percent = int(downloaded * 100 / total_size)
-                            # 记录百分比是否刚发生变化
-                            percent_changed = (percent > last_percent)
-                            if percent_changed:
-                                last_percent = percent
-                                last_progress_time = time.time()  # 更新最后进度变化时间
-                            
-                            # 核心修复：百分比变化时立即更新，否则每50个chunk或每1秒更新一次
-                            current_time = time.time()
-                            should_update = (percent_changed or 
-                                             chunk_count >= 50 or 
-                                             current_time - last_update_time >= 1.0)
-                            
-                            if should_update:
-                                chunk_count = 0
-                                last_update_time = current_time
-                                # 百分比为0时显示已下载字节数，让用户知道正在下载
+                        else:
+                            percent = 0
+                        
+                        # 记录百分比是否刚发生变化
+                        percent_changed = (percent > last_percent)
+                        if percent_changed:
+                            last_percent = percent
+                            last_progress_time = time.time()  # 更新最后进度变化时间
+                        
+                        # 核心修复：百分比变化时立即更新，否则每50个chunk或每1秒更新一次
+                        should_update = (percent_changed or 
+                                         chunk_count >= 50 or 
+                                         current_time - last_update_time >= 1.0)
+                        
+                        if should_update:
+                            chunk_count = 0
+                            last_update_time = current_time
+                            # total_size > 0 时显示百分比+字节，total_size=0 时只显示已下载字节
+                            if total_size > 0:
                                 if percent == 0 and downloaded > 1024 * 1024:
-                                    status_text = f"下载中... {self.format_size(downloaded)}/{self.format_size(total_size)}"
+                                    status_text = f"下载中... {self.format_size(downloaded)}/{self.format_size(total_size)} (0%)"
                                 else:
-                                    status_text = f"下载中... {percent}%"
-                                self.update_progress(filename, percent, status_text, True, downloaded, total_size)
-                                if callback:
-                                    callback(percent, status_text)
-                                
-                                # 每10秒记录一次日志，避免日志过多
-                                if current_time - last_log_time >= 10:
-                                    bytes_str = self.format_size(downloaded)
+                                    status_text = f"下载中... {percent}% ({self.format_size(downloaded)}/{self.format_size(total_size)})"
+                            else:
+                                # total_size 未知时，只显示已下载字节数
+                                status_text = f"下载中... {self.format_size(downloaded)}"
+                            self.update_progress(filename, percent, status_text, True, downloaded, total_size)
+                            if callback:
+                                callback(percent, status_text)
+                            
+                            # 每10秒记录一次日志，避免日志过多
+                            if current_time - last_log_time >= 10:
+                                bytes_str = self.format_size(downloaded)
+                                if total_size > 0:
                                     total_str = self.format_size(total_size)
                                     self.log(f"下载进度 [{filename}]: {percent}% ({bytes_str}/{total_str})")
-                                    last_log_time = current_time
+                                else:
+                                    self.log(f"下载进度 [{filename}]: {bytes_str} (总量未知)")
+                                last_log_time = current_time
             
             # 下载完成，处理文件
             if download_path != file_path:

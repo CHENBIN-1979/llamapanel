@@ -449,8 +449,15 @@
         
         // 构建进度文本：百分比 + 字节数
         let progressText = percent + '%';
-        if (downloadedBytes !== undefined && totalBytes !== undefined && totalBytes > 0 && percent < 100) {
-            progressText = formatBytes(downloadedBytes) + ' / ' + formatBytes(totalBytes) + ' (' + percent + '%)';
+        const hasBytes = downloadedBytes !== undefined && downloadedBytes > 0;
+        const hasTotal = totalBytes !== undefined && totalBytes > 0;
+        if (hasBytes && percent < 100) {
+            if (hasTotal) {
+                progressText = formatBytes(downloadedBytes) + ' / ' + formatBytes(totalBytes) + ' (' + percent + '%)';
+            } else {
+                // 总量未知时，只显示已下载字节数
+                progressText = formatBytes(downloadedBytes) + ' (0%)';
+            }
         }
         
         if (status === 'completed') {
