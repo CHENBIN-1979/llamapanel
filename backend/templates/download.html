@@ -333,6 +333,7 @@
                         buttonHtml = `
                             <div class="btn-group" id="${ctrlGroupId}">
                                 <button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>
+                                <button class="small control-btn stop" onclick="deleteDownloadedModel('${escapeHtml(file.filename)}', '${modelId}')">🗑️ 删除</button>
                             </div>
                         `;
                     } else if (downloadingFiles[file.filename] !== undefined && downloadingFiles[file.filename] < 100) {
@@ -456,7 +457,9 @@
         
         if (status === 'completed' || percent >= 100) {
             if (ctrlGroup) {
-                ctrlGroup.innerHTML = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>`;
+                const delModelId = fileModelIdMap[filename] || '';
+                ctrlGroup.innerHTML = `<button id="${buttonId}" class="small download-btn downloaded" disabled style="background:#38a169;">✅ 已下载</button>
+                <button class="small control-btn stop" onclick="deleteDownloadedModel('${escapeHtml(filename)}', '${delModelId}')">🗑️ 删除</button>`;
             }
             delete downloadingFiles[filename];
             if (progressIntervals[filename]) {
@@ -549,8 +552,8 @@
             if (ctrlGroup) {
             ctrlGroup.innerHTML = '' +
                 '<button id="' + getButtonId(filename) + '" class="small download-btn downloading" disabled style="background:#38a169;">0%</button>' +
-                '<button class="small control-btn" onclick="pauseDownload(\'' + escapeHtml(filename) + '\')\">⏸</button>' +
-                '<button class="small control-btn stop" onclick="cancelPartial(\'' + escapeHtml(filename) + '\', \'' + modelId + '\')\">🗑</button>';
+                '<button class="small control-btn" onclick="pauseDownload(\'' + escapeHtml(filename) + '\')">⏸</button>' +
+                '<button class="small control-btn stop" onclick="cancelPartial(\'' + escapeHtml(filename) + '\', \'' + modelId + '\')">🗑</button>';
             }
             downloadingFiles[filename] = 0;
             
@@ -658,6 +661,36 @@
         }
     }
     
+    async function deleteDownloadedModel(filename, modelId) {
+        if (!confirm(`确定要删除已下载的模型文件 ${filename} 吗？此操作不可撤销。`)) {
+            return;
+        }
+        try {
+            const response = await fetch(`/api/local/delete?filename=${encodeURIComponent(filename)}`, {
+                method: 'DELETE'
+            });
+            const result = await response.json();
+            if (result.success) {
+                // 刷新当前展开的模型文件列表
+                for (const cacheModelId in expandedModels) {
+                    if (expandedModels[cacheModelId]) {
+                        delete filesCache[cacheModelId];
+                        await loadModelFiles(cacheModelId, true);
+                        break;
+                    }
+                }
+                // 同时刷新 iframe 父页面的本地模型列表
+                if (window.parent && window.parent.refreshLocalModels) {
+                    window.parent.refreshLocalModels();
+                }
+            } else {
+                alert('删除失败: ' + result.message);
+            }
+        } catch(e) {
+            alert('删除失败: ' + e.message);
+        }
+    }
+
     // 页面初始化
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
