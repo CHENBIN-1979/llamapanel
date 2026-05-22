@@ -548,9 +548,9 @@
             const ctrlGroup = document.getElementById(ctrlGroupId);
             if (ctrlGroup) {
             ctrlGroup.innerHTML = '' +
-                '<button id="' + getButtonId(filename) + '" class="small download-btn downloading" disabled style="background:#38a169;">' + existingPercent + '%</button>' +
-                '<button class="small control-btn" onclick="pauseDownload(\\'' + escapeHtml(filename) + '\\')\">⏸</button>' +
-                '<button class="small control-btn stop" onclick="cancelPartial(\\'' + escapeHtml(filename) + '\\', \\'' + modelId + '\\')\">🗑</button>';
+                '<button id="' + getButtonId(filename) + '" class="small download-btn downloading" disabled style="background:#38a169;">0%</button>' +
+                '<button class="small control-btn" onclick="pauseDownload(\'' + escapeHtml(filename) + '\')\">⏸</button>' +
+                '<button class="small control-btn stop" onclick="cancelPartial(\'' + escapeHtml(filename) + '\', \'' + modelId + '\')\">🗑</button>';
             }
             downloadingFiles[filename] = 0;
             
