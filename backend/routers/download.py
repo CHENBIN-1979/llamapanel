@@ -2,8 +2,6 @@
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse
 from pathlib import Path
-from . import get_model_manager
-
 router = APIRouter(prefix="/api/download", tags=["download"])
 
 # 读取 HTML 文件
@@ -24,6 +22,7 @@ async def download_page():
 @router.get("/search")
 async def search_models(q: str, limit: int = 30):
     """搜索 HuggingFace 模型"""
+    from . import get_model_manager
     mm = get_model_manager()
     results = mm.search_huggingface_models(q, limit)
     return {"success": True, "results": results}
@@ -31,6 +30,7 @@ async def search_models(q: str, limit: int = 30):
 @router.get("/files")
 async def get_model_files(model_id: str):
     """获取模型的 GGUF 文件列表"""
+    from . import get_model_manager
     mm = get_model_manager()
     files = mm.get_model_files(model_id)
     return {"success": True, "files": files}
@@ -46,6 +46,7 @@ async def start_download(request: Request, background_tasks: BackgroundTasks):
     if not download_url or not filename:
         return {"success": False, "message": "缺少必要参数"}
     
+    from . import get_model_manager
     mm = get_model_manager()
     # 【修复】立即设置初始进度状态，让前端轮询能立即获取到
     mm.update_progress(filename, 0, "开始下载...", True, 0, 0)
