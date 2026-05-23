@@ -72,7 +72,7 @@ async def list_symlinks():
     mm = get_model_manager()
     
     symlink_files = []
-    links_dir = Path(mm.model_links_path)
+    links_dir = mm.links_dir
     if links_dir.exists():
         for item in sorted(links_dir.iterdir()):
             if item.is_symlink() or item.is_file():
