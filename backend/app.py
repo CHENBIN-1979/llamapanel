@@ -937,6 +937,8 @@ async def update_panel():
         
         if pull_ok:
             log_msg("✅ git pull 成功")
+            # pull 成功时，判断是否真的有新代码
+            actually_updated = not already_up_to_date
         else:
             log_msg("⚠️ git pull 失败，尝试 git fetch + reset --hard 降级方案")
             log_msg("执行: git fetch origin")
@@ -979,9 +981,6 @@ async def update_panel():
                     "message": f"git pull 和 git reset --hard {remote_branch} 均失败，请手动检查",
                     "log": _read_log_safe(log_file)
                 }
-        else:
-            # pull 成功时，判断是否真的有新代码
-            actually_updated = not already_up_to_date
         
         # ---- 第5步：恢复 stash 的本地修改 ----
         if pull_ok and had_local_changes:
