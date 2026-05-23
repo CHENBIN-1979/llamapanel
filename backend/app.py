@@ -640,20 +640,35 @@ HTML_PAGE = '''
         }
         
         async function updateLlamaPanel() {
-            if (confirm('更新 LlamaPanel 面板本身？\\n这将从 GitHub 拉取最新代码并重启服务。\\n服务重启后页面将重新加载。')) {
+            if (confirm('🔄 更新 LlamaPanel 面板？\n\n将从 GitHub 拉取最新代码并更新依赖。\n如果系统配置了 NOPASSWD sudo，服务将自动重启。\n继续吗？')) {
                 const btn = document.getElementById('updatePanelBtn');
                 btn.disabled = true;
                 btn.innerHTML = '<span class="loading"></span> 更新中...';
                 try {
                     const result = await fetchAPI('/api/update_panel', 'POST');
-                    alert(result.message);
+                    // 构建详细的提示信息
+                    let msg = result.message;
+                    if (result.log) {
+                        // 提取日志最后几行
+                        const lines = result.log.trim().split('\n');
+                        const lastLines = lines.slice(-5).join('\n');
+                        msg += '\n\n--- 最近日志 ---\n' + lastLines;
+                    }
                     if (result.success) {
-                        setTimeout(() => {
-                            location.reload();
-                        }, 3000);
+                        alert('✅ ' + msg);
+                        // 如果提示需要手动重启或已经是最新，不自动刷新
+                        if (msg.includes('手动重启') || msg.includes('已经是最新版本')) {
+                            // 不自动刷新
+                        } else {
+                            setTimeout(() => {
+                                location.reload();
+                            }, 5000);
+                        }
+                    } else {
+                        alert('❌ ' + msg);
                     }
                 } catch(e) {
-                    alert('更新失败: ' + e.message);
+                    alert('❌ 更新失败: ' + e.message);
                 } finally {
                     btn.disabled = false;
                     btn.innerHTML = '🔄 更新 LlamaPanel';
@@ -768,9 +783,86 @@ async def delete_all(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_delete)
     return {"success": True, "message": "删除任务已启动，请查看日志面板"}
 
+def _read_log_safe(log_path: Path) -> str:
+    """安全读取日志文件，避免编码问题"""
+    try:
+        return log_path.read_text(encoding='utf-8')
+    except Exception:
+        try:
+            return log_path.read_text(encoding='utf-8', errors='replace')
+        except Exception:
+            return "（无法读取日志文件）"
+
+def _try_restart_service(log_msg) -> str:
+    """尝试重启 LlamaPanel 服务（避免 sudo 挂起）"""
+    import shutil
+    
+    # 方案1：尝试 sudo -n（非交互式），不会挂起
+    sudo_path = shutil.which('sudo')
+    if sudo_path:
+        log_msg("方案1: 尝试 sudo -n systemctl restart llamapanel（非交互式）")
+        try:
+            r = subprocess.run(
+                [sudo_path, '-n', 'systemctl', 'restart', 'llamapanel'],
+                capture_output=True, text=True, timeout=15
+            )
+            log_msg(f"返回码: {r.returncode}")
+            if r.stderr:
+                log_msg(f"错误: {r.stderr.strip()}")
+            if r.returncode == 0:
+                log_msg("✅ 服务重启成功")
+                return "✅ 更新成功！服务正在重启..."
+        except subprocess.TimeoutExpired:
+            log_msg("⏱️ sudo -n 超时（可能需要密码），跳过")
+        except Exception as e:
+            log_msg(f"sudo -n 异常: {e}")
+    else:
+        log_msg("⚠️ 未找到 sudo 命令")
+    
+    # 方案2：尝试 systemctl --user（用户级服务）
+    log_msg("方案2: 尝试 systemctl --user restart llamapanel")
+    try:
+        r2 = subprocess.run(
+            ['systemctl', '--user', 'restart', 'llamapanel'],
+            capture_output=True, text=True, timeout=15
+        )
+        log_msg(f"返回码: {r2.returncode}")
+        if r2.stderr:
+            log_msg(f"错误: {r2.stderr.strip()}")
+        if r2.returncode == 0:
+            log_msg("✅ 用户级服务重启成功")
+            return "✅ 更新成功！服务正在重启..."
+    except subprocess.TimeoutExpired:
+        log_msg("⏱️ systemctl --user 超时")
+    except Exception as e:
+        log_msg(f"systemctl --user 异常: {e}")
+    
+    # 方案3：尝试直接 systemctl restart（不带 sudo，可能因为 NOPASSWD 或 root 用户而成功）
+    log_msg("方案3: 尝试直接 systemctl restart llamapanel（无 sudo）")
+    try:
+        r3 = subprocess.run(
+            ['systemctl', 'restart', 'llamapanel'],
+            capture_output=True, text=True, timeout=15
+        )
+        log_msg(f"返回码: {r3.returncode}")
+        if r3.stderr:
+            log_msg(f"错误: {r3.stderr.strip()}")
+        if r3.returncode == 0:
+            log_msg("✅ 直接重启成功")
+            return "✅ 更新成功！服务正在重启..."
+    except subprocess.TimeoutExpired:
+        log_msg("⏱️ 直接重启超时")
+    except Exception as e:
+        log_msg(f"直接重启异常: {e}")
+    
+    # 全部失败：提示用户手动重启
+    log_msg("⚠️ 所有自动重启方式均失败，请手动重启服务")
+    return "✅ 更新成功！请手动重启 LlamaPanel 服务（sudo systemctl restart llamapanel）"
+
 @app.post("/api/update_panel")
 async def update_panel():
     """更新 LlamaPanel 自身（同步执行，返回实际结果）"""
+    import platform
     log_file = LOGS_DIR / "update.log"
     log_file.parent.mkdir(exist_ok=True)
     
@@ -781,6 +873,9 @@ async def update_panel():
         with open(log_file, 'a', encoding='utf-8') as f:
             f.write(line + '\n')
     
+    is_windows = platform.system() == "Windows"
+    log_msg(f"操作系统: {platform.system()} {platform.release()}")
+    
     try:
         log_msg("========== 开始更新 LlamaPanel ==========")
         repo_path = str(PROJECT_DIR)
@@ -790,42 +885,157 @@ async def update_panel():
         git_dir = os.path.join(repo_path, '.git')
         if not os.path.isdir(git_dir):
             log_msg("❌ 未找到 .git 目录，不是 git 仓库")
-            return {"success": False, "message": "未找到 .git 目录，无法使用 git 更新", "log": open(log_file).read()}
+            return {"success": False, "message": "未找到 .git 目录，无法使用 git 更新",
+                    "log": _read_log_safe(log_file)}
         log_msg("✅ .git 目录存在")
         
-        # 执行 git pull
+        # ---- 第1步：获取当前分支名（用于后续 reset）----
+        log_msg("检测当前分支...")
+        branch_result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            cwd=repo_path, capture_output=True, text=True, timeout=10
+        )
+        current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else "main"
+        log_msg(f"当前分支: {current_branch}")
+        
+        # ---- 第2步：先 stash 本地未提交的更改 ----
+        log_msg("执行: git stash push -m 'llamapanel-auto-stash'")
+        stash_result = subprocess.run(
+            ['git', 'stash', 'push', '-m', 'llamapanel-auto-stash'],
+            cwd=repo_path, capture_output=True, text=True, timeout=30
+        )
+        # 判断是否有本地修改被暂存：returncode==0 且输出不包含 "No local changes"
+        stash_stdout = stash_result.stdout.strip()
+        had_local_changes = (
+            stash_result.returncode == 0
+            and "No local changes to save" not in stash_stdout
+            and stash_stdout != ""
+        )
+        log_msg(f"stash 返回码: {stash_result.returncode}")
+        if stash_stdout:
+            log_msg(f"stash 输出: {stash_stdout}")
+        if had_local_changes:
+            log_msg("📦 已暂存本地修改，更新完成后将恢复")
+        else:
+            log_msg("ℹ️ 没有需要暂存的本地修改")
+        
+        # ---- 第3步：执行 git pull ----
         log_msg("执行: git pull")
-        result = subprocess.run(['git', 'pull'], cwd=repo_path, capture_output=True, text=True, timeout=60)
-        log_msg(f"返回码: {result.returncode}")
-        if result.stdout:
-            log_msg(f"输出: {result.stdout.strip()}")
-        if result.stderr:
-            log_msg(f"错误: {result.stderr.strip()}")
+        pull_result = subprocess.run(
+            ['git', 'pull'],
+            cwd=repo_path, capture_output=True, text=True, timeout=60
+        )
+        log_msg(f"git pull 返回码: {pull_result.returncode}")
+        if pull_result.stdout:
+            log_msg(f"输出: {pull_result.stdout.strip()}")
+        if pull_result.stderr:
+            log_msg(f"错误: {pull_result.stderr.strip()}")
         
-        # 检查 git pull 结果
-        if result.returncode != 0:
-            log_msg("⚠️ git pull 失败")
-            return {
-                "success": False,
-                "message": f"git pull 失败 (返回码: {result.returncode})",
-                "log": open(log_file, encoding='utf-8').read()
-            }
+        # ---- 第4步：判断 pull 结果 ----
+        pull_ok = (pull_result.returncode == 0)
+        already_up_to_date = "Already up to date" in pull_result.stdout
         
-        # 检查是否有更新
-        is_updated = "Already up to date" not in result.stdout
-        if is_updated:
+        if pull_ok:
+            log_msg("✅ git pull 成功")
+        else:
+            log_msg("⚠️ git pull 失败，尝试 git fetch + reset --hard 降级方案")
+            log_msg("执行: git fetch origin")
+            fetch_result = subprocess.run(
+                ['git', 'fetch', 'origin'],
+                cwd=repo_path, capture_output=True, text=True, timeout=60
+            )
+            log_msg(f"fetch 返回码: {fetch_result.returncode}")
+            if fetch_result.stdout:
+                log_msg(f"fetch 输出: {fetch_result.stdout.strip()}")
+            if fetch_result.stderr:
+                log_msg(f"fetch 错误: {fetch_result.stderr.strip()}")
+            
+            if fetch_result.returncode != 0:
+                return {
+                    "success": False,
+                    "message": f"git pull 失败且 git fetch 也失败，请检查网络/权限",
+                    "log": _read_log_safe(log_file)
+                }
+            
+            # reset 到远程跟踪分支（动态使用当前分支名）
+            remote_branch = f"origin/{current_branch}"
+            log_msg(f"执行: git reset --hard {remote_branch}")
+            reset_result = subprocess.run(
+                ['git', 'reset', '--hard', remote_branch],
+                cwd=repo_path, capture_output=True, text=True, timeout=30
+            )
+            log_msg(f"reset 返回码: {reset_result.returncode}")
+            if reset_result.stdout:
+                log_msg(f"reset 输出: {reset_result.stdout.strip()}")
+            
+            if reset_result.returncode == 0:
+                log_msg(f"✅ git fetch + reset --hard {remote_branch} 成功")
+                # 降级分支走完后，视为有新代码（因为 pull 失败后被强制重置了）
+                actually_updated = True
+            else:
+                log_msg("❌ git reset 也失败")
+                return {
+                    "success": False,
+                    "message": f"git pull 和 git reset --hard {remote_branch} 均失败，请手动检查",
+                    "log": _read_log_safe(log_file)
+                }
+        else:
+            # pull 成功时，判断是否真的有新代码
+            actually_updated = not already_up_to_date
+        
+        # ---- 第5步：恢复 stash 的本地修改 ----
+        if pull_ok and had_local_changes:
+            log_msg("执行: git stash pop")
+            pop_result = subprocess.run(
+                ['git', 'stash', 'pop'],
+                cwd=repo_path, capture_output=True, text=True, timeout=30
+            )
+            log_msg(f"stash pop 返回码: {pop_result.returncode}")
+            if pop_result.stdout:
+                log_msg(f"stash pop 输出: {pop_result.stdout.strip()}")
+            if pop_result.returncode != 0:
+                log_msg("⚠️ 恢复本地修改时出现冲突，请手动解决后执行 'git stash drop'")
+        
+        # 如果在降级分支中 stash 了但 pull 失败走了 reset，stash 已被 reset 清除，不需要 pop
+        
+        # 记录最新提交
+        head_result = subprocess.run(
+            ['git', 'log', '--oneline', '-1'],
+            cwd=repo_path, capture_output=True, text=True, timeout=10
+        )
+        latest_commit = head_result.stdout.strip() if head_result.returncode == 0 else "未知"
+        log_msg(f"当前最新提交: {latest_commit}")
+        
+        if actually_updated:
             log_msg("✅ 检测到新代码，正在安装依赖...")
         else:
             log_msg("ℹ️ 已经是最新版本")
         
-        # 安装/更新依赖
+        # ---- 第6步：安装/更新 Python 依赖 ----
         requirements_file = PROJECT_DIR / "requirements.txt"
-        if requirements_file.exists():
-            pip_path = PROJECT_DIR / "venv/bin/pip"
-            if not pip_path.exists():
-                pip_path = PROJECT_DIR / ".venv/bin/pip"
+        if requirements_file.exists() and actually_updated:
+            if is_windows:
+                pip_candidates = [
+                    PROJECT_DIR / "venv" / "Scripts" / "pip.exe",
+                    PROJECT_DIR / "venv" / "Scripts" / "pip3.exe",
+                    PROJECT_DIR / ".venv" / "Scripts" / "pip.exe",
+                    PROJECT_DIR / ".venv" / "Scripts" / "pip3.exe",
+                ]
+            else:
+                pip_candidates = [
+                    PROJECT_DIR / "venv/bin/pip",
+                    PROJECT_DIR / ".venv/bin/pip",
+                    PROJECT_DIR / "venv/bin/pip3",
+                    PROJECT_DIR / ".venv/bin/pip3",
+                ]
             
-            if pip_path.exists():
+            pip_path = None
+            for p in pip_candidates:
+                if p.exists():
+                    pip_path = p
+                    break
+            
+            if pip_path:
                 log_msg(f"使用 pip: {pip_path}")
                 log_msg("安装/更新 Python 依赖...")
                 pip_result = subprocess.run(
@@ -833,42 +1043,67 @@ async def update_panel():
                     cwd=repo_path, capture_output=True, text=True, timeout=120
                 )
                 log_msg(f"pip 返回码: {pip_result.returncode}")
+                if pip_result.stdout:
+                    for line in pip_result.stdout.split('\n'):
+                        line_s = line.strip()
+                        if line_s and ('Successfully' in line_s or 'Installing' in line_s or 'ERROR' in line_s.upper()):
+                            log_msg(f"pip: {line_s}")
                 if pip_result.stderr:
-                    # 只记录错误行，忽略 warnings
                     for line in pip_result.stderr.split('\n'):
                         if 'ERROR' in line.upper() or 'error' in line.lower():
                             log_msg(f"pip 错误: {line.strip()}")
+                if pip_result.returncode == 0:
+                    log_msg("✅ Python 依赖安装完成")
+                else:
+                    log_msg("⚠️ pip 安装返回非零，但可能部分依赖已安装")
             else:
-                log_msg("⚠️ 未找到 pip，跳过依赖安装")
+                log_msg("⚠️ 未找到虚拟环境的 pip，尝试系统 pip3...")
+                try:
+                    pip_result = subprocess.run(
+                        ['pip3', 'install', '-r', str(requirements_file)],
+                        cwd=repo_path, capture_output=True, text=True, timeout=120
+                    )
+                    log_msg(f"系统 pip3 返回码: {pip_result.returncode}")
+                except FileNotFoundError:
+                    log_msg("⚠️ 系统 pip3 不可用，跳过依赖安装")
         else:
-            log_msg("⚠️ requirements.txt 不存在，跳过依赖安装")
+            if not actually_updated:
+                log_msg("ℹ️ 无新代码，跳过依赖安装")
         
         log_msg("========== 更新完成 ==========")
-        log_content = open(log_file, encoding='utf-8').read()
+        log_content = _read_log_safe(log_file)
         
-        # 使用 subprocess.Popen 在后台重启服务（不阻塞响应返回）
-        log_msg("正在后台重启服务...")
-        subprocess.Popen(
-            ['sudo', 'systemctl', 'restart', 'llamapanel'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
+        # ---- 第7步：重启服务 ----
+        if not actually_updated:
+            # 没有新代码，不需要重启
+            return {
+                "success": True,
+                "message": "✅ 已经是最新版本，无需重启",
+                "log": log_content
+            }
+        
+        if is_windows:
+            log_msg("ℹ️ Windows 下请手动重启服务")
+            restart_message = "✅ 更新成功！请手动重启 LlamaPanel 服务"
+        else:
+            # Linux：尝试多种重启方式，避免 sudo 挂起
+            restart_message = _try_restart_service(log_msg)
         
         return {
             "success": True,
-            "message": "✅ 更新成功！服务正在重启..." if is_updated else "✅ 已经是最新版本",
+            "message": restart_message,
             "log": log_content
         }
         
     except subprocess.TimeoutExpired as e:
         err_msg = f"操作超时: {e}"
         log_msg(f"❌ {err_msg}")
-        return {"success": False, "message": err_msg, "log": open(log_file, encoding='utf-8').read()}
+        return {"success": False, "message": err_msg, "log": _read_log_safe(log_file)}
     except Exception as e:
         log_msg(f"❌ 更新失败: {e}")
         import traceback
         log_msg(traceback.format_exc())
-        return {"success": False, "message": f"更新失败: {str(e)}", "log": open(log_file, encoding='utf-8').read()}
+        return {"success": False, "message": f"更新失败: {str(e)}", "log": _read_log_safe(log_file)}
 
 if __name__ == "__main__":
     import uvicorn
