@@ -30,7 +30,7 @@ if [ "$CURRENT_DIR" = "$PROJECT_DIR" ]; then
     echo "📁 已在 $PROJECT_DIR 目录，跳过复制"
 else
     echo "📁 复制项目文件..."
-    rsync -av --exclude='venv' --exclude='logs' --exclude='data' --exclude='__pycache__' --exclude='*.py[cod]' --exclude='.git' "$CURRENT_DIR/" "$PROJECT_DIR/"
+    rsync -av --exclude='venv' --exclude='logs' --exclude='data' --exclude='__pycache__' --exclude='*.py[cod]' "$CURRENT_DIR/" "$PROJECT_DIR/"
 fi
 
 # 创建数据目录（与项目代码分离）
