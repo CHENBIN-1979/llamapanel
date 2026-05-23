@@ -257,8 +257,14 @@
                 html += '<thead><tr><th>文件名</th><th>类型</th><th>操作</th></tr></thead><tbody>';
                 
                 for (const f of data.symlinks) {
-                    const typeIcon = f.is_symlink ? '🔗 软链接' : '📄 文件';
-                    const encodedName = encodeURIComponent(f.name);
+                    let typeIcon;
+                    if (f.is_dir) {
+                        typeIcon = '📁 目录';
+                    } else if (f.is_symlink) {
+                        typeIcon = '🔗 软链接';
+                    } else {
+                        typeIcon = '📄 文件';
+                    }
                     html += `
                         <tr>
                             <td><span class="symlink-name">${escapeHtml(f.name)}</span></td>
@@ -293,7 +299,7 @@
     }
 
     async function deleteSymlink(filename) {
-        if (!confirm(`确定删除软链接 ${filename}？`)) return;
+        if (!confirm(`确定删除 ${filename}？`)) return;
         try {
             const response = await fetch(`/api/local/symlink-delete?filename=${encodeURIComponent(filename)}`, {
                 method: 'DELETE'

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import shutil
 import time
 from typing import List, Optional
 from fastapi import APIRouter, Body
@@ -106,16 +107,17 @@ async def list_symlinks():
         links_dir = mm.links_dir
         
         if links_dir.exists():
-            for name in sorted(os.listdir(str(links_dir))):
-                file_path = links_dir / name
-                # 使用 lexists 而非 isfile：isfile 会跟随软链接，
-                # 若目标文件不存在（断链）则返回 False，导致条目被过滤
-                if os.path.lexists(str(file_path)):
-                    symlink_files.append({
-                        'name': name,
-                        'path': str(file_path),
-                        'is_symlink': os.path.islink(str(file_path)),
-                    })
+            for root, dirs, files in os.walk(str(links_dir)):
+                for entry in sorted(dirs + files):
+                    entry_path = os.path.join(root, entry)
+                    rel_path = os.path.relpath(entry_path, str(links_dir))
+                    if os.path.lexists(entry_path):
+                        symlink_files.append({
+                            'name': rel_path,
+                            'path': entry_path,
+                            'is_symlink': os.path.islink(entry_path),
+                            'is_dir': os.path.isdir(entry_path) and not os.path.islink(entry_path),
+                        })
         
         return {"success": True, "symlinks": symlink_files}
     except Exception as e:
@@ -126,17 +128,25 @@ async def list_symlinks():
 
 @router.delete("/symlink-delete")
 async def delete_symlink(filename: str):
-    """删除指定软链接文件"""
+    """删除指定软链接文件或目录（支持子目录中的路径）"""
     import traceback
     from . import get_model_manager
     try:
         mm = get_model_manager()
         link_path = mm.links_dir / filename
-        if os.path.lexists(str(link_path)):
-            link_path.unlink()
-            return {"success": True, "message": f"已删除软链接 {filename}"}
-        else:
+        # 安全检查：防止路径遍历攻击
+        link_path = link_path.resolve()
+        links_dir_resolved = mm.links_dir.resolve()
+        if not str(link_path).startswith(str(links_dir_resolved) + os.sep) and link_path != links_dir_resolved:
+            return {"success": False, "message": f"非法路径: {filename}"}
+        if not os.path.lexists(str(link_path)):
             return {"success": False, "message": f"软链接 {filename} 不存在"}
+        if os.path.isdir(str(link_path)) and not os.path.islink(str(link_path)):
+            shutil.rmtree(str(link_path))
+            return {"success": True, "message": f"已删除目录 {filename}"}
+        else:
+            os.unlink(str(link_path))
+            return {"success": True, "message": f"已删除 {filename}"}
     except Exception as e:
         error_detail = f"{type(e).__name__}: {str(e)}"
         print(f"[ERROR] delete_symlink 失败: {error_detail}")
