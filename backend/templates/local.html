@@ -20,6 +20,13 @@
     </div>
 </div>
 
+<div class="card">
+    <h3>🔗 软链接文件列表</h3>
+    <div id="symlinksList">
+        <div class="loading"></div> 加载中...
+    </div>
+</div>
+
 <style>
     .btn-primary {
         background: #667eea;
@@ -168,11 +175,46 @@
         }
     }
     
+    async function refreshSymlinks() {
+        const listDiv = document.getElementById('symlinksList');
+        listDiv.innerHTML = '<div class="loading"></div> 加载中...';
+        
+        try {
+            const response = await fetch('/api/local/symlinks-list');
+            const data = await response.json();
+            
+            if (data.success && data.symlinks && data.symlinks.length > 0) {
+                let html = '<table class="models-table">';
+                html += '<thead><tr><th>文件名</th><th>大小</th><th>类型</th><th>修改时间</th></tr></thead><tbody>';
+                
+                for (const f of data.symlinks) {
+                    const typeIcon = f.is_symlink ? '🔗 软链接' : '📄 文件';
+                    html += `
+                        <tr>
+                            <td><code>${escapeHtml(f.name)}</code></td>
+                            <td>${f.size_str}</td>
+                            <td>${typeIcon}</td>
+                            <td>${f.modified}</td>
+                        </tr>
+                    `;
+                }
+                html += '</tbody></table>';
+                listDiv.innerHTML = html;
+            } else {
+                listDiv.innerHTML = '<div class="info-text">📭 暂无软链接文件，请先下载模型或点击「🔗 创建软链接」</div>';
+            }
+        } catch(e) {
+            console.error('加载软链接列表失败:', e);
+            listDiv.innerHTML = '<div class="info-text">❌ 加载失败: ' + e.message + '</div>';
+        }
+    }
+    
     async function createSymlinks() {
         try {
             const response = await fetch('/api/local/symlinks', { method: 'POST' });
             const data = await response.json();
             alert(data.message);
+            refreshSymlinks();
         } catch(e) {
             console.error('创建软链接失败:', e);
             alert('创建失败: ' + e.message);
@@ -184,4 +226,5 @@
     
     // 页面加载时刷新
     refreshLocalModels();
+    refreshSymlinks();
 </script>

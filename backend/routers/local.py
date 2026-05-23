@@ -64,3 +64,32 @@ async def create_symlinks():
     mm = get_model_manager()
     count = mm.create_symlinks()
     return {"success": True, "message": f"已创建 {count} 个软链接"}
+
+@router.get("/symlinks-list")
+async def list_symlinks():
+    """获取软链接目录中的文件列表"""
+    from . import get_model_manager
+    mm = get_model_manager()
+    
+    symlink_files = []
+    if mm.links_dir.exists():
+        for item in sorted(mm.links_dir.iterdir()):
+            if item.is_symlink() or item.is_file():
+                stat = item.stat()
+                size = stat.st_size
+                if size > 1024 * 1024 * 1024:
+                    size_str = f"{size / (1024*1024*1024):.2f} GB"
+                elif size > 1024 * 1024:
+                    size_str = f"{size / (1024*1024):.1f} MB"
+                else:
+                    size_str = f"{size / 1024:.1f} KB"
+                symlink_files.append({
+                    'name': item.name,
+                    'path': str(item),
+                    'size': size,
+                    'size_str': size_str,
+                    'is_symlink': item.is_symlink(),
+                    'modified': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+                })
+    
+    return {"success": True, "symlinks": symlink_files}
