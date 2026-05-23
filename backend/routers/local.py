@@ -85,7 +85,7 @@ async def create_symlinks(models: Optional[List[str]] = Body(None)):
                     if mm.create_symlink_for_file(model_id, filename, file_path):
                         success_count += 1
                         found = True
-                    break
+                        break
             if not found:
                 failed_models.append(model_name)
         return {"success": True, "message": f"已创建 {success_count}/{len(models)} 个软链接", "count": success_count, "failed": failed_models}
@@ -96,29 +96,37 @@ async def create_symlinks(models: Optional[List[str]] = Body(None)):
 @router.get("/symlinks-list")
 async def list_symlinks():
     """获取软链接目录中的文件列表"""
+    import traceback
     from . import get_model_manager
-    mm = get_model_manager()
     
-    symlink_files = []
-    links_dir = mm.links_dir
-    if links_dir.exists():
-        for item in sorted(links_dir.iterdir()):
-            if item.is_symlink() or item.is_file():
-                stat = item.stat()
-                size = stat.st_size
-                if size > 1024 * 1024 * 1024:
-                    size_str = f"{size / (1024*1024*1024):.2f} GB"
-                elif size > 1024 * 1024:
-                    size_str = f"{size / (1024*1024):.1f} MB"
-                else:
-                    size_str = f"{size / 1024:.1f} KB"
-                symlink_files.append({
-                    'name': item.name,
-                    'path': str(item),
-                    'size': size,
-                    'size_str': size_str,
-                    'is_symlink': item.is_symlink(),
-                    'modified': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
-                })
-    
-    return {"success": True, "symlinks": symlink_files}
+    try:
+        mm = get_model_manager()
+        symlink_files = []
+        links_dir = mm.links_dir
+        
+        if links_dir.exists():
+            for item in sorted(links_dir.iterdir()):
+                if item.is_symlink() or item.is_file():
+                    stat = item.stat()
+                    size = stat.st_size
+                    if size > 1024 * 1024 * 1024:
+                        size_str = f"{size / (1024*1024*1024):.2f} GB"
+                    elif size > 1024 * 1024:
+                        size_str = f"{size / (1024*1024):.1f} MB"
+                    else:
+                        size_str = f"{size / 1024:.1f} KB"
+                    symlink_files.append({
+                        'name': item.name,
+                        'path': str(item),
+                        'size': size,
+                        'size_str': size_str,
+                        'is_symlink': item.is_symlink(),
+                        'modified': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+                    })
+        
+        return {"success": True, "symlinks": symlink_files}
+    except Exception as e:
+        error_detail = f"{type(e).__name__}: {str(e)}"
+        print(f"[ERROR] list_symlinks 失败: {error_detail}")
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        return {"success": False, "error": error_detail, "symlinks": []}

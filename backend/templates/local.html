@@ -249,6 +249,8 @@
                 }
                 html += '</tbody></table>';
                 listDiv.innerHTML = html;
+            } else if (data.error) {
+                listDiv.innerHTML = '<div class="info-text">❌ 加载失败: ' + escapeHtml(data.error) + '</div>';
             } else {
                 listDiv.innerHTML = '<div class="info-text">📭 暂无软链接文件，请先下载模型或点击「🔗 创建软链接」</div>';
             }
