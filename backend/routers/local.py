@@ -105,23 +105,13 @@ async def list_symlinks():
         links_dir = mm.links_dir
         
         if links_dir.exists():
-            for item in sorted(links_dir.iterdir()):
-                if item.is_symlink() or item.is_file():
-                    stat = item.stat()
-                    size = stat.st_size
-                    if size > 1024 * 1024 * 1024:
-                        size_str = f"{size / (1024*1024*1024):.2f} GB"
-                    elif size > 1024 * 1024:
-                        size_str = f"{size / (1024*1024):.1f} MB"
-                    else:
-                        size_str = f"{size / 1024:.1f} KB"
+            for name in sorted(os.listdir(str(links_dir))):
+                file_path = links_dir / name
+                if os.path.isfile(str(file_path)):
                     symlink_files.append({
-                        'name': item.name,
-                        'path': str(item),
-                        'size': size,
-                        'size_str': size_str,
-                        'is_symlink': item.is_symlink(),
-                        'modified': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+                        'name': name,
+                        'path': str(file_path),
+                        'is_symlink': os.path.islink(str(file_path)),
                     })
         
         return {"success": True, "symlinks": symlink_files}
