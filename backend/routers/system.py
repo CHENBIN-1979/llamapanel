@@ -12,12 +12,11 @@ def read_html_file(filename):
             return f.read()
     return "<h1>页面加载失败</h1>"
 
-SYSTEM_HTML = read_html_file("system.html")
-
 @router.get("/page", response_class=HTMLResponse)
 async def system_page():
-    """系统信息页面"""
-    return HTMLResponse(content=SYSTEM_HTML)
+    """系统信息页面（每次动态读取，无需重启）"""
+    html = read_html_file("system.html")
+    return HTMLResponse(content=html)
 
 @router.get("/paths")
 async def get_paths_info():
