@@ -61,11 +61,14 @@ async def delete_model(filename: str):
         return {"success": False, "message": "删除失败"}
 
 @router.post("/symlinks")
-async def create_symlinks(model_names: Optional[List[str]] = Body(None)):
+async def create_symlinks(payload: Optional[dict] = Body(None)):
     """创建所有或指定模型的软链接"""
     import traceback
     from . import get_model_manager
     mm = get_model_manager()
+    
+    # 从 payload 中提取 model_names 列表
+    model_names = payload.get("model_names") if payload else None
     
     if model_names and len(model_names) > 0:
         # 为指定模型创建软链接（model_manager 统一处理，与全部创建共享完全相同的逻辑）
