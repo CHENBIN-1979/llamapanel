@@ -1,9 +1,14 @@
 #!/bin/bash
 # LlamaPanel 一键安装脚本 (Ubuntu/Debian)
+# 数据与代码分离：代码在 /opt/llamapanel，数据在 /data/llamapanel
 
 set -e
 echo "🦙 LlamaPanel 安装脚本启动..."
 echo "================================"
+
+# 定义路径
+PROJECT_DIR="/opt/llamapanel"
+DATA_DIR="/data/llamapanel"
 
 # 安装系统依赖
 echo "📦 安装系统依赖..."
@@ -13,28 +18,34 @@ sudo apt install -y python3-pip python3-venv git cmake build-essential curl wget
 # 创建专用用户（如果不存在）
 if ! id -u llamapanel &>/dev/null; then
     echo "👤 创建 llamapanel 用户..."
-    sudo useradd -r -s /bin/false -d /opt/llamapanel llamapanel
+    sudo useradd -r -s /bin/false -d "$PROJECT_DIR" llamapanel
 fi
 
 # 创建项目目录
-sudo mkdir -p /opt/llamapanel
+sudo mkdir -p "$PROJECT_DIR"
 
 # 复制项目文件（跳过 rsync 如果已经在目标目录中）
 CURRENT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ "$CURRENT_DIR" = "/opt/llamapanel" ]; then
-    echo "📁 已在 /opt/llamapanel 目录，跳过复制"
+if [ "$CURRENT_DIR" = "$PROJECT_DIR" ]; then
+    echo "📁 已在 $PROJECT_DIR 目录，跳过复制"
 else
     echo "📁 复制项目文件..."
-    rsync -av --exclude='venv' --exclude='logs' --exclude='data' --exclude='__pycache__' --exclude='*.py[cod]' --exclude='.git' "$CURRENT_DIR/" /opt/llamapanel/
+    rsync -av --exclude='venv' --exclude='logs' --exclude='data' --exclude='__pycache__' --exclude='*.py[cod]' --exclude='.git' "$CURRENT_DIR/" "$PROJECT_DIR/"
 fi
 
+# 创建数据目录（与项目代码分离）
+echo "📂 创建数据目录..."
+sudo mkdir -p "$DATA_DIR"/{models,model_links,logs,llama.cpp/build}
+
 # 设置目录权限（llamapanel 用户拥有）
-sudo chown -R llamapanel:llamapanel /opt/llamapanel
-sudo chmod 755 /opt/llamapanel
+sudo chown -R llamapanel:llamapanel "$PROJECT_DIR"
+sudo chown -R llamapanel:llamapanel "$DATA_DIR"
+sudo chmod 755 "$PROJECT_DIR"
+sudo chmod 755 "$DATA_DIR"
 
 # 创建 Python 虚拟环境
 echo "🐍 创建 Python 虚拟环境..."
-cd /opt/llamapanel
+cd "$PROJECT_DIR"
 python3 -m venv venv
 source venv/bin/activate
 
@@ -43,15 +54,9 @@ echo "📚 安装 Python 依赖..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# 创建必要目录
-mkdir -p logs data
-
-# 确保 llamapanel 用户可写
-sudo chown -R llamapanel:llamapanel /opt/llamapanel/logs /opt/llamapanel/data
-
-# 创建 systemd 服务文件
+# 创建 systemd 服务文件（设置环境变量指定数据目录）
 echo "🔧 创建系统服务..."
-sudo tee /etc/systemd/system/llamapanel.service > /dev/null << 'SERVICE'
+sudo tee /etc/systemd/system/llamapanel.service > /dev/null << SERVICE
 [Unit]
 Description=LlamaPanel Web Service
 After=network.target
@@ -60,9 +65,10 @@ After=network.target
 Type=simple
 User=llamapanel
 Group=llamapanel
-WorkingDirectory=/opt/llamapanel
-Environment="PATH=/opt/llamapanel/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/opt/llamapanel/venv/bin/python /opt/llamapanel/backend/app.py
+WorkingDirectory=$PROJECT_DIR
+Environment="PATH=$PROJECT_DIR/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="LLAMAPANEL_DATA_DIR=$DATA_DIR"
+ExecStart=$PROJECT_DIR/venv/bin/python $PROJECT_DIR/backend/app.py
 Restart=always
 RestartSec=10
 
@@ -83,6 +89,13 @@ sudo chmod 440 /etc/sudoers.d/llamapanel
 
 echo ""
 echo "✅ 安装完成！"
+echo ""
+echo "📁 项目代码目录: $PROJECT_DIR"
+echo "📂 数据存储目录: $DATA_DIR"
+echo "   ├─ 模型文件:   $DATA_DIR/models/"
+echo "   ├─ 软链接:     $DATA_DIR/model_links/"
+echo "   ├─ 日志:       $DATA_DIR/logs/"
+echo "   └─ llama.cpp:  $DATA_DIR/llama.cpp/"
 echo ""
 echo "启动服务: sudo systemctl start llamapanel"
 echo "开机自启: sudo systemctl enable llamapanel"
