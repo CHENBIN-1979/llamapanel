@@ -272,20 +272,30 @@
     }
     
     async function updateLlamaPanel() {
-        if (confirm('更新 LlamaPanel 面板本身？\n这将从 GitHub 拉取最新代码并重启服务。\n服务重启后页面将重新加载。')) {
+        if (confirm('🔄 更新 LlamaPanel 面板？\n\n将从 GitHub 拉取最新代码并重启服务。\n继续吗？')) {
             const btn = document.getElementById('updatePanelBtn');
             btn.disabled = true;
             btn.innerHTML = '<span class="loading"></span> 更新中...';
             try {
                 const result = await fetchAPI('/api/update_panel', 'POST');
-                alert(result.message);
+                // 构建详细的提示信息
+                let msg = result.message;
+                if (result.log) {
+                    // 提取日志最后几行
+                    const lines = result.log.trim().split('\n');
+                    const lastLines = lines.slice(-5).join('\n');
+                    msg += '\n\n--- 最近日志 ---\n' + lastLines;
+                }
                 if (result.success) {
+                    alert('✅ ' + msg);
                     setTimeout(() => {
                         location.reload();
-                    }, 3000);
+                    }, 5000);
+                } else {
+                    alert('❌ ' + msg);
                 }
             } catch(e) {
-                alert('更新失败: ' + e.message);
+                alert('❌ 更新失败: ' + e.message);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '🔄 更新 LlamaPanel';

@@ -6,7 +6,7 @@ import sys
 import subprocess
 import os
 import time
-import threading
+
 
 # 动态获取 backend 目录路径，支持本地开发和服务器部署
 sys.path.append(str(Path(__file__).parent))
@@ -769,29 +769,106 @@ async def delete_all(background_tasks: BackgroundTasks):
     return {"success": True, "message": "删除任务已启动，请查看日志面板"}
 
 @app.post("/api/update_panel")
-async def update_panel(background_tasks: BackgroundTasks):
-    """更新 LlamaPanel 自身"""
-    if not hasattr(update_panel, '_lock'):
-        update_panel._lock = threading.Lock()
-        update_panel._running = False
+async def update_panel():
+    """更新 LlamaPanel 自身（同步执行，返回实际结果）"""
+    log_file = LOGS_DIR / "update.log"
+    log_file.parent.mkdir(exist_ok=True)
     
-    # 加锁检查并设置运行标志，防止竞态条件
-    with update_panel._lock:
-        if update_panel._running:
-            return {"success": False, "message": "更新任务已在运行中"}
-        update_panel._running = True
+    def log_msg(msg):
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        line = f"[{timestamp}] {msg}"
+        print(line)
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(line + '\n')
     
-    def run_update():
-        try:
-            update_llamapanel()
-        except Exception as e:
-            print(f"更新异常: {e}")
-        finally:
-            with update_panel._lock:
-                update_panel._running = False
-    
-    background_tasks.add_task(run_update)
-    return {"success": True, "message": f"LlamaPanel 更新任务已启动，请查看 {LOGS_DIR / 'update.log'}"}
+    try:
+        log_msg("========== 开始更新 LlamaPanel ==========")
+        repo_path = str(PROJECT_DIR)
+        log_msg(f"项目目录: {repo_path}")
+        
+        # 检查 .git 目录
+        git_dir = os.path.join(repo_path, '.git')
+        if not os.path.isdir(git_dir):
+            log_msg("❌ 未找到 .git 目录，不是 git 仓库")
+            return {"success": False, "message": "未找到 .git 目录，无法使用 git 更新", "log": open(log_file).read()}
+        log_msg("✅ .git 目录存在")
+        
+        # 执行 git pull
+        log_msg("执行: git pull")
+        result = subprocess.run(['git', 'pull'], cwd=repo_path, capture_output=True, text=True, timeout=60)
+        log_msg(f"返回码: {result.returncode}")
+        if result.stdout:
+            log_msg(f"输出: {result.stdout.strip()}")
+        if result.stderr:
+            log_msg(f"错误: {result.stderr.strip()}")
+        
+        # 检查 git pull 结果
+        if result.returncode != 0:
+            log_msg("⚠️ git pull 失败")
+            return {
+                "success": False,
+                "message": f"git pull 失败 (返回码: {result.returncode})",
+                "log": open(log_file, encoding='utf-8').read()
+            }
+        
+        # 检查是否有更新
+        is_updated = "Already up to date" not in result.stdout
+        if is_updated:
+            log_msg("✅ 检测到新代码，正在安装依赖...")
+        else:
+            log_msg("ℹ️ 已经是最新版本")
+        
+        # 安装/更新依赖
+        requirements_file = PROJECT_DIR / "requirements.txt"
+        if requirements_file.exists():
+            pip_path = PROJECT_DIR / "venv/bin/pip"
+            if not pip_path.exists():
+                pip_path = PROJECT_DIR / ".venv/bin/pip"
+            
+            if pip_path.exists():
+                log_msg(f"使用 pip: {pip_path}")
+                log_msg("安装/更新 Python 依赖...")
+                pip_result = subprocess.run(
+                    [str(pip_path), 'install', '-r', str(requirements_file)],
+                    cwd=repo_path, capture_output=True, text=True, timeout=120
+                )
+                log_msg(f"pip 返回码: {pip_result.returncode}")
+                if pip_result.stderr:
+                    # 只记录错误行，忽略 warnings
+                    for line in pip_result.stderr.split('\n'):
+                        if 'ERROR' in line.upper() or 'error' in line.lower():
+                            log_msg(f"pip 错误: {line.strip()}")
+            else:
+                log_msg("⚠️ 未找到 pip，跳过依赖安装")
+        else:
+            log_msg("⚠️ requirements.txt 不存在，跳过依赖安装")
+        
+        log_msg("========== 更新完成 ==========")
+        log_content = open(log_file, encoding='utf-8').read()
+        
+        # 使用 subprocess.Popen 在后台重启服务（不阻塞响应返回）
+        log_msg("正在后台重启服务...")
+        subprocess.Popen(
+            ['sudo', 'systemctl', 'restart', 'llamapanel'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        
+        return {
+            "success": True,
+            "message": "✅ 更新成功！服务正在重启..." if is_updated else "✅ 已经是最新版本",
+            "log": log_content
+        }
+        
+    except subprocess.TimeoutExpired as e:
+        err_msg = f"操作超时: {e}"
+        log_msg(f"❌ {err_msg}")
+        return {"success": False, "message": err_msg, "log": open(log_file, encoding='utf-8').read()}
+    except Exception as e:
+        log_msg(f"❌ 更新失败: {e}")
+        import traceback
+        log_msg(traceback.format_exc())
+        return {"success": False, "message": f"更新失败: {str(e)}", "log": open(log_file, encoding='utf-8').read()}
 
 if __name__ == "__main__":
     import uvicorn
