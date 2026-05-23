@@ -63,6 +63,5 @@ async def get_paths_info():
         "dir_sizes": {
             "models": format_size(get_dir_size(MODELS_DIR)) if MODELS_DIR.exists() else "空",
             "links": format_size(get_dir_size(LINKS_DIR)) if LINKS_DIR.exists() else "空",
-            "llama": format_size(get_dir_size(LLAMA_DIR)) if LLAMA_DIR.exists() else "空",
         }
     }
