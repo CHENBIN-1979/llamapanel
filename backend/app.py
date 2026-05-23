@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).parent))
 from installer import LlamaCppInstaller
 from routers import download_router, local_router, progress_router, system_router, set_model_manager
 from model_manager import ModelManager
+from config import PROJECT_DIR, LOGS_DIR, ensure_dirs
 
 app = FastAPI(title="LlamaPanel", description="llama.cpp 管理面板")
 installer = LlamaCppInstaller()
@@ -30,7 +31,7 @@ app.include_router(system_router)
 # 更新 LlamaPanel 的函数
 def update_llamapanel():
     """更新 LlamaPanel 自身"""
-    log_file = Path("/opt/llamapanel/logs/update.log")
+    log_file = LOGS_DIR / "update.log"
     log_file.parent.mkdir(exist_ok=True)
     
     def log_msg(msg):
@@ -43,9 +44,10 @@ def update_llamapanel():
     try:
         log_msg("========== 开始更新 LlamaPanel ==========")
         
-        repo_path = "/opt/llamapanel"
+        repo_path = str(PROJECT_DIR)
         
         log_msg(f"当前工作目录: {os.getcwd()}")
+        log_msg(f"项目目录: {repo_path}")
         
         git_check = subprocess.run(['which', 'git'], capture_output=True, text=True)
         log_msg(f"git 路径: {git_check.stdout.strip()}")
@@ -79,11 +81,11 @@ def update_llamapanel():
         
         log_msg("代码更新完成")
         
-        requirements_file = Path(repo_path) / "requirements.txt"
+        requirements_file = PROJECT_DIR / "requirements.txt"
         if requirements_file.exists():
             log_msg("检查 Python 依赖...")
             pip_result = subprocess.run(
-                ['/opt/llamapanel/venv/bin/pip', 'install', '-r', 'requirements.txt'],
+                [str(PROJECT_DIR / "venv/bin/pip"), 'install', '-r', 'requirements.txt'],
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
@@ -789,7 +791,7 @@ async def update_panel(background_tasks: BackgroundTasks):
                 update_panel._running = False
     
     background_tasks.add_task(run_update)
-    return {"success": True, "message": "LlamaPanel 更新任务已启动，请查看 /opt/llamapanel/logs/update.log"}
+    return {"success": True, "message": f"LlamaPanel 更新任务已启动，请查看 {LOGS_DIR / 'update.log'}"}
 
 if __name__ == "__main__":
     import uvicorn

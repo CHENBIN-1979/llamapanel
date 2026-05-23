@@ -8,13 +8,15 @@ import re
 import json
 import urllib.request
 from pathlib import Path
+from config import LLAMA_DIR, BUILD_DIR, LOGS_DIR, ensure_dirs
 
 class LlamaCppInstaller:
     def __init__(self):
-        self.base_dir = Path("/opt/llamapanel")
-        self.llama_dir = self.base_dir / "llama.cpp"
-        self.build_dir = self.llama_dir / "build"
-        self.log_file = self.base_dir / "logs" / "install.log"
+        ensure_dirs()
+        self.base_dir = LLAMA_DIR.parent  # /data/llamapanel
+        self.llama_dir = LLAMA_DIR
+        self.build_dir = BUILD_DIR
+        self.log_file = LOGS_DIR / "install.log"
         self.log_file.parent.mkdir(exist_ok=True)
         self._install_running = False
         self._latest_version = None

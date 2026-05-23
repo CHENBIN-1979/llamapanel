@@ -10,13 +10,15 @@ import urllib.parse
 import threading
 from pathlib import Path
 from typing import Optional, List, Dict
+from config import MODELS_DIR, LINKS_DIR, LOGS_DIR, ensure_dirs
 
 class ModelManager:
     def __init__(self):
-        self.base_dir = Path("/opt/llamapanel")
-        self.models_dir = self.base_dir / "models"
-        self.links_dir = self.base_dir / "model_links"
-        self.log_file = self.base_dir / "logs" / "models.log"
+        ensure_dirs()
+        self.base_dir = MODELS_DIR.parent  # /data/llamapanel
+        self.models_dir = MODELS_DIR
+        self.links_dir = LINKS_DIR
+        self.log_file = LOGS_DIR / "models.log"
         
         self.download_progress = {}
         self.download_threads = {}
