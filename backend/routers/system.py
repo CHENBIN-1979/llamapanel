@@ -25,10 +25,6 @@ async def get_paths_info():
     import sys
     sys.path.append(str(Path(__file__).parent.parent))
     from config import get_path_info, PROJECT_DIR, DATA_DIR, MODELS_DIR, LINKS_DIR, LOGS_DIR, LLAMA_DIR
-    from installer import LlamaCppInstaller
-    
-    installer = LlamaCppInstaller()
-    status = installer.get_status()
     
     # 计算目录大小
     def get_dir_size(path):
@@ -60,14 +56,6 @@ async def get_paths_info():
     
     return {
         "paths": paths,
-        "llama_status": {
-            "cloned": status.get("cloned", False),
-            "built": status.get("built", False),
-            "version": status.get("version", "未知"),
-            "server_path": status.get("server_path"),
-            "has_update": status.get("has_update", False),
-            "latest_version": status.get("latest_version"),
-        },
         "disk_usage": {
             "total": format_size(disk_usage.total) if disk_usage else "未知",
             "used": format_size(disk_usage.used) if disk_usage else "未知",
