@@ -381,25 +381,10 @@ class LlamaCppInstaller:
             'has_amd': has_amd
         }
     
-    def _is_valid_llama_repo(self):
-        """检查 llama.cpp 目录是否为有效的 git 仓库且包含 CMakeLists.txt"""
-        if not self.llama_dir.exists():
-            return False
-        cmake_file = self.llama_dir / "CMakeLists.txt"
-        git_dir = self.llama_dir / ".git"
-        return cmake_file.exists() and git_dir.exists()
-
     def clone_llama_cpp(self):
-        if self._is_valid_llama_repo():
-            self.log(f"✅ 检测到有效的 llama.cpp 仓库: {self.llama_dir}，跳过克隆")
-            return
-        
-        # 目录存在但不是有效仓库 → 删除后重新克隆
         if self.llama_dir.exists():
-            self.log(f"⚠️ 目录 {self.llama_dir} 已存在但不是有效的 llama.cpp 仓库，将重新克隆")
-            import shutil
-            shutil.rmtree(self.llama_dir)
-            self.log("已删除无效目录")
+            self.log(f"目录已存在: {self.llama_dir}，跳过克隆")
+            return
         
         self.log("开始克隆 llama.cpp...")
         git_cmd = self.get_cmd_path('git')
@@ -451,27 +436,18 @@ class LlamaCppInstaller:
     def build_llama_cpp(self):
         self.log("开始编译 llama.cpp...")
         
-        # 确保源目录存在
-        if not self.llama_dir.exists():
-            raise Exception(f"llama.cpp 源目录不存在: {self.llama_dir}，请先点击「完整安装」")
-        
-        if not self.llama_dir.joinpath("CMakeLists.txt").exists():
-            raise Exception(f"llama.cpp 源目录中未找到 CMakeLists.txt，请先点击「完整安装」")
-        
-        # 创建构建目录
-        self.build_dir.mkdir(parents=True, exist_ok=True)
+        if not self.build_dir.exists():
+            self.build_dir.mkdir(parents=True, exist_ok=True)
         
         hw = self.detect_hardware()
+        os.chdir(self.build_dir)
         
         cmake_cmd = self.get_cmd_path('cmake')
         make_cmd = self.get_cmd_path('make')
         gcc_cmd = self.get_cmd_path('gcc')
         gpp_cmd = self.get_cmd_path('g++')
         
-        # 使用 -S 和 -B 明确指定源目录和构建目录，避免路径歧义
-        cmake_args = [cmake_cmd,
-                      '-S', str(self.llama_dir),
-                      '-B', str(self.build_dir),
+        cmake_args = [cmake_cmd, '..',
                       f'-DCMAKE_C_COMPILER={gcc_cmd}',
                       f'-DCMAKE_CXX_COMPILER={gpp_cmd}']
         
@@ -485,8 +461,7 @@ class LlamaCppInstaller:
             self.log("使用 CPU 模式（无 GPU 加速）")
         
         self.log(f"CMake 配置: {' '.join(cmake_args)}")
-        # cmake -S / -B 不需要在特定目录执行，cwd 使用默认即可
-        self.run_command(cmake_args)
+        self.run_command(cmake_args, cwd=self.build_dir)
         
         total_cores = hw['cpu_cores']
         compile_jobs = max(1, total_cores // 2)
