@@ -108,7 +108,9 @@ async def list_symlinks():
         if links_dir.exists():
             for name in sorted(os.listdir(str(links_dir))):
                 file_path = links_dir / name
-                if os.path.isfile(str(file_path)):
+                # 使用 lexists 而非 isfile：isfile 会跟随软链接，
+                # 若目标文件不存在（断链）则返回 False，导致条目被过滤
+                if os.path.lexists(str(file_path)):
                     symlink_files.append({
                         'name': name,
                         'path': str(file_path),
