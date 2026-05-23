@@ -68,47 +68,9 @@ async def create_symlinks(model_names: Optional[List[str]] = Body(None)):
     mm = get_model_manager()
     
     if model_names and len(model_names) > 0:
-        # 为指定模型创建软链接（使用与 mm.create_symlinks() 完全一致的逻辑）
-        success_count = 0
-        failed_names = []
-        all_local = mm.get_local_models()
-        # 建立 name→model 的快速查找表
-        model_by_name = {m['name']: m for m in all_local}
-        
-        for model_name in model_names:
-            try:
-                if model_name not in model_by_name:
-                    failed_names.append(model_name)
-                    continue
-                model = model_by_name[model_name]
-                file_path = Path(model['path'])
-                
-                # 以下逻辑与 mm.create_symlinks() 完全一致
-                rel_path = file_path.relative_to(mm.models_dir)
-                parts = rel_path.parts
-                
-                if len(parts) == 2:
-                    model_id = parts[0].replace('_', '/')
-                    filename = parts[1]
-                else:
-                    filename = parts[0]
-                    model_id = "unknown"
-                
-                if mm.create_symlink_for_file(model_id, filename, file_path):
-                    success_count += 1
-                else:
-                    failed_names.append(model_name)
-            except Exception as e:
-                print(f"[ERROR] create_symlinks 选中创建失败: {e}")
-                print(f"[ERROR] Traceback: {traceback.format_exc()}")
-                failed_names.append(model_name)
-        
-        msg = f"已创建 {success_count}/{len(model_names)} 个软链接"
-        if failed_names:
-            msg += f"，失败: {', '.join(failed_names[:5])}"
-            if len(failed_names) > 5:
-                msg += f" 等 {len(failed_names)} 个"
-        return {"success": True, "message": msg, "count": success_count, "failed": failed_names}
+        # 为指定模型创建软链接（model_manager 统一处理，与全部创建共享完全相同的逻辑）
+        result = mm.create_symlinks_for_selected(model_names)
+        return result
     else:
         count = mm.create_symlinks()
         return {"success": True, "message": f"已创建 {count} 个软链接", "count": count}

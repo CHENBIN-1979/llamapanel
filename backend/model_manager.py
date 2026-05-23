@@ -563,21 +563,51 @@ class ModelManager:
     def create_symlinks(self) -> int:
         count = 0
         for model in self.get_local_models():
-            file_path = Path(model['path'])
-            rel_path = file_path.relative_to(self.models_dir)
-            parts = rel_path.parts
-            
-            if len(parts) == 2:
-                model_id = parts[0].replace('_', '/')
-                filename = parts[1]
-                if self.create_symlink_for_file(model_id, filename, file_path):
-                    count += 1
-            else:
-                filename = parts[0]
-                model_id = "unknown"
-                if self.create_symlink_for_file(model_id, filename, file_path):
-                    count += 1
+            if self._create_symlink_for_model(model):
+                count += 1
         return count
+    
+    def create_symlinks_for_selected(self, names: List[str]) -> dict:
+        """为指定名称的模型创建软链接（与 create_symlinks 共享完全相同的逻辑）"""
+        success_count = 0
+        failed_names = []
+        all_local = self.get_local_models()
+        model_by_name = {m['name']: m for m in all_local}
+        
+        for model_name in names:
+            try:
+                if model_name not in model_by_name:
+                    failed_names.append(model_name)
+                    continue
+                if self._create_symlink_for_model(model_by_name[model_name]):
+                    success_count += 1
+                else:
+                    failed_names.append(model_name)
+            except Exception as e:
+                self.log(f"为 {model_name} 创建软链接失败: {e}")
+                failed_names.append(model_name)
+        
+        msg = f"已创建 {success_count}/{len(names)} 个软链接"
+        if failed_names:
+            msg += f"，失败: {', '.join(failed_names[:5])}"
+            if len(failed_names) > 5:
+                msg += f" 等 {len(failed_names)} 个"
+        return {"success": True, "message": msg, "count": success_count, "failed": failed_names}
+    
+    def _create_symlink_for_model(self, model: dict) -> bool:
+        """为单个模型创建软链接（被 create_symlinks 和 create_symlinks_for_selected 共用）"""
+        file_path = Path(model['path'])
+        rel_path = file_path.relative_to(self.models_dir)
+        parts = rel_path.parts
+        
+        if len(parts) == 2:
+            model_id = parts[0].replace('_', '/')
+            filename = parts[1]
+            return self.create_symlink_for_file(model_id, filename, file_path)
+        else:
+            filename = parts[0]
+            model_id = "unknown"
+            return self.create_symlink_for_file(model_id, filename, file_path)
     
     def cleanup_incomplete_files(self) -> int:
         """清理不完整的文件"""
