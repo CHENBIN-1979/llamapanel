@@ -2,9 +2,11 @@
     <h1>💾 本地模型</h1>
     <p class="subtitle">管理已下载的 GGUF 模型</p>
     
-    <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+    <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
         <button class="btn-primary" onclick="refreshLocalModels()">🔄 刷新列表</button>
-        <button class="btn-primary" onclick="createSymlinks()">🔗 创建软链接</button>
+        <button class="btn-primary" onclick="createSymlinksForSelected()">🔗 为选中创建软链接</button>
+        <button class="btn-primary" onclick="createSymlinks()">🔗 全部创建软链接</button>
+        <span id="selectedCount" style="font-size: 13px; color: #667eea; display: none;">已选 0 个</span>
     </div>
     
     <div id="localModelsList">
@@ -127,15 +129,17 @@
             if (data.success && data.models && data.models.length > 0) {
                 localModelsCache = data.models;
                 let html = '<table class="models-table">';
-                html += '<thead><tr><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
+                html += '<thead><tr><th><input type="checkbox" id="selectAll" onclick="toggleSelectAll()" title="全选/取消全选"></th><th>模型名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
                 
                 const sortedModels = [...data.models].sort((a, b) => a.name.localeCompare(b.name));
                 for (const model of sortedModels) {
                     let displayName = model.name;
                     let isPartial = displayName.endsWith('.partial') || displayName.includes('.partial');
                     let sizeClass = isPartial ? 'style="color: #e67e22;"' : '';
+                    const encodedName = encodeURIComponent(model.name);
                     html += `
                         <tr>
+                            <td><input type="checkbox" class="model-checkbox" value="${encodedName}" onchange="updateSelectedCount()" ${isPartial ? 'disabled' : ''}></td>
                             <td ${sizeClass}>${escapeHtml(displayName)}${isPartial ? ' <span style="color:#e67e22;">(下载中)</span>' : ''}</td>
                             <td>${model.size_str}</td>
                             <td>${model.modified}</td>
@@ -174,7 +178,52 @@
             }
         }
     }
+
+    function toggleSelectAll() {
+        const selectAll = document.getElementById('selectAll');
+        const checkboxes = document.querySelectorAll('.model-checkbox:not([disabled])');
+        checkboxes.forEach(cb => cb.checked = selectAll.checked);
+        updateSelectedCount();
+    }
     
+    function updateSelectedCount() {
+        const checked = document.querySelectorAll('.model-checkbox:checked').length;
+        const span = document.getElementById('selectedCount');
+        if (checked > 0) {
+            span.style.display = 'inline';
+            span.textContent = `已选 ${checked} 个`;
+        } else {
+            span.style.display = 'none';
+        }
+    }
+    
+    function getSelectedModels() {
+        const checkboxes = document.querySelectorAll('.model-checkbox:checked');
+        return Array.from(checkboxes).map(cb => decodeURIComponent(cb.value));
+    }
+    
+    async function createSymlinksForSelected() {
+        const selected = getSelectedModels();
+        if (selected.length === 0) {
+            alert('请先选择要创建软链接的模型');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/local/symlinks', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({models: selected})
+            });
+            const data = await response.json();
+            alert(data.message);
+            refreshSymlinks();
+        } catch(e) {
+            console.error('创建软链接失败:', e);
+            alert('创建失败: ' + e.message);
+        }
+    }
+
     async function refreshSymlinks() {
         const listDiv = document.getElementById('symlinksList');
         listDiv.innerHTML = '<div class="loading"></div> 加载中...';

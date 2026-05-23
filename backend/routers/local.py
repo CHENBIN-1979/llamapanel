@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import time
-from fastapi import APIRouter
+from typing import List, Optional
+from fastapi import APIRouter, Body
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 router = APIRouter(prefix="/api/local", tags=["local"])
@@ -58,12 +59,39 @@ async def delete_model(filename: str):
         return {"success": False, "message": "删除失败"}
 
 @router.post("/symlinks")
-async def create_symlinks():
-    """创建所有模型的软链接"""
+async def create_symlinks(models: Optional[List[str]] = Body(None)):
+    """创建所有或指定模型的软链接"""
     from . import get_model_manager
     mm = get_model_manager()
-    count = mm.create_symlinks()
-    return {"success": True, "message": f"已创建 {count} 个软链接"}
+    
+    if models and len(models) > 0:
+        # 为指定模型创建软链接
+        success_count = 0
+        failed_models = []
+        all_local = mm.get_local_models()
+        for model_name in models:
+            found = False
+            for m in all_local:
+                if m['name'] == model_name:
+                    file_path = Path(m['path'])
+                    rel_path = file_path.relative_to(mm.models_dir)
+                    parts = rel_path.parts
+                    if len(parts) >= 2:
+                        model_id = parts[0].replace('_', '/')
+                        filename = parts[-1]
+                    else:
+                        model_id = "unknown"
+                        filename = parts[0]
+                    if mm.create_symlink_for_file(model_id, filename, file_path):
+                        success_count += 1
+                        found = True
+                    break
+            if not found:
+                failed_models.append(model_name)
+        return {"success": True, "message": f"已创建 {success_count}/{len(models)} 个软链接", "count": success_count, "failed": failed_models}
+    else:
+        count = mm.create_symlinks()
+        return {"success": True, "message": f"已创建 {count} 个软链接", "count": count}
 
 @router.get("/symlinks-list")
 async def list_symlinks():
