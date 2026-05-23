@@ -6,6 +6,7 @@ import sys
 import subprocess
 import os
 import time
+import threading
 
 
 # 动态获取 backend 目录路径，支持本地开发和服务器部署
@@ -21,6 +22,16 @@ installer = LlamaCppInstaller()
 # 创建全局单例 ModelManager 并设置到路由模块
 model_manager = ModelManager()
 set_model_manager(model_manager)
+
+# ==================== 启动后台任务 ====================
+@app.on_event("startup")
+async def startup():
+    """服务启动时，在后台线程中检查 llama.cpp 最新版本"""
+    def _bg_check():
+        time.sleep(3)  # 等待服务完全就绪
+        installer.refresh_latest_version()
+    t = threading.Thread(target=_bg_check, daemon=True)
+    t.start()
 
 # 注册路由
 app.include_router(download_router)
@@ -52,6 +63,23 @@ def update_llamapanel():
         git_check = subprocess.run(['which', 'git'], capture_output=True, text=True)
         log_msg(f"git 路径: {git_check.stdout.strip()}")
         
+        # 暂存本地修改，防止 git pull 因冲突失败
+        log_msg("暂存本地修改...")
+        stash_result = subprocess.run(
+            ['git', 'stash', 'push', '-m', 'llamapanel_update_auto_stash'],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        had_local_changes = (stash_result.returncode == 0 and 
+                            "No local changes" not in stash_result.stdout and 
+                            "No local changes" not in stash_result.stderr)
+        if stash_result.stdout:
+            log_msg(f"stash 输出: {stash_result.stdout.strip()}")
+        if had_local_changes:
+            log_msg("✅ 已暂存本地修改，pull 完成后将自动恢复")
+        
         log_msg("执行: git pull")
         result = subprocess.run(
             ['git', 'pull'],
@@ -67,7 +95,18 @@ def update_llamapanel():
             log_msg(f"错误: {result.stderr}")
         
         if result.returncode != 0:
-            log_msg("git pull 失败，尝试 git fetch")
+            log_msg("git pull 失败，尝试 git fetch + reset --hard 降级方案")
+            # 先获取当前分支名
+            branch_result = subprocess.run(
+                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            current_branch = branch_result.stdout.strip() or 'main'
+            log_msg(f"当前分支: {current_branch}")
+            
             fetch_result = subprocess.run(
                 ['git', 'fetch', 'origin'],
                 cwd=repo_path,
@@ -78,6 +117,37 @@ def update_llamapanel():
             log_msg(f"git fetch 返回码: {fetch_result.returncode}")
             if fetch_result.stdout:
                 log_msg(f"fetch 输出: {fetch_result.stdout}")
+            if fetch_result.returncode != 0:
+                log_msg("❌ git fetch 也失败了，网络可能不通")
+            else:
+                # fetch 成功后强制重置到远程分支
+                reset_result = subprocess.run(
+                    ['git', 'reset', '--hard', f'origin/{current_branch}'],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                log_msg(f"git reset 返回码: {reset_result.returncode}")
+                if reset_result.stdout:
+                    log_msg(f"reset 输出: {reset_result.stdout.strip()}")
+                if reset_result.returncode == 0:
+                    log_msg("✅ 已强制同步到远程最新代码")
+        
+        # 恢复之前暂存的本地修改
+        if had_local_changes:
+            log_msg("恢复本地暂存的修改...")
+            pop_result = subprocess.run(
+                ['git', 'stash', 'pop'],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if pop_result.returncode == 0:
+                log_msg("✅ 本地修改已恢复")
+            else:
+                log_msg("⚠️ 本地修改自动恢复失败，请手动执行: git stash pop")
         
         log_msg("代码更新完成")
         
@@ -94,15 +164,17 @@ def update_llamapanel():
             log_msg(f"pip 安装返回码: {pip_result.returncode}")
         
         log_msg("重启 LlamaPanel 服务...")
+        # 使用 sudo -n 非交互模式，避免因需要密码而挂起
         restart_result = subprocess.run(
-            ['sudo', 'systemctl', 'restart', 'llamapanel'],
+            ['sudo', '-n', 'systemctl', 'restart', 'llamapanel'],
             capture_output=True,
             text=True,
             timeout=30
         )
         log_msg(f"重启服务返回码: {restart_result.returncode}")
-        if restart_result.stderr:
-            log_msg(f"重启错误: {restart_result.stderr}")
+        if restart_result.returncode != 0:
+            log_msg("⚠️ 自动重启失败（可能需要手动输入密码）")
+            log_msg("请手动执行: sudo systemctl restart llamapanel")
         
         log_msg("========== 更新完成 ==========")
         return True
@@ -441,8 +513,18 @@ HTML_PAGE = '''
                 options.headers = { 'Content-Type': 'application/json' };
                 options.body = JSON.stringify(data);
             }
-            const response = await fetch(endpoint, options);
-            return await response.json();
+            // 添加15秒超时，避免请求卡死
+            const controller = new AbortController();
+            options.signal = controller.signal;
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            try {
+                const response = await fetch(endpoint, options);
+                clearTimeout(timeoutId);
+                return await response.json();
+            } catch(err) {
+                clearTimeout(timeoutId);
+                throw err;
+            }
         }
         
         async function refreshStatus() {
@@ -510,6 +592,15 @@ HTML_PAGE = '''
                 `;
             } catch(e) {
                 console.error('刷新状态失败:', e);
+                const info = document.getElementById('statusInfo');
+                if (info) {
+                    info.innerHTML = `<div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">状态</div>
+                            <div class="info-value" style="color: #e53e3e;">❌ 状态获取失败（${e.message || '网络错误'}）</div>
+                        </div>
+                    </div>`;
+                }
             }
         }
         
@@ -698,7 +789,7 @@ async def root():
     return HTMLResponse(content=HTML_PAGE)
 
 @app.get("/api/status")
-async def get_status():
+def get_status():
     return installer.get_status()
 
 @app.get("/api/log")
