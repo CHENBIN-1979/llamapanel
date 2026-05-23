@@ -11,7 +11,7 @@ import threading
 # 动态获取 backend 目录路径，支持本地开发和服务器部署
 sys.path.append(str(Path(__file__).parent))
 from installer import LlamaCppInstaller
-from routers import download_router, local_router, progress_router, set_model_manager
+from routers import download_router, local_router, progress_router, system_router, set_model_manager
 from model_manager import ModelManager
 
 app = FastAPI(title="LlamaPanel", description="llama.cpp 管理面板")
@@ -25,6 +25,7 @@ set_model_manager(model_manager)
 app.include_router(download_router)
 app.include_router(local_router)
 app.include_router(progress_router)
+app.include_router(system_router)
 
 # 更新 LlamaPanel 的函数
 def update_llamapanel():
@@ -288,6 +289,7 @@ HTML_PAGE = '''
             <a onclick="showPage('home')" id="navHome" class="active">🏠 主页</a>
             <a onclick="showPage('download')" id="navDownload">📥 模型下载</a>
             <a onclick="showPage('local')" id="navLocal">💾 本地模型</a>
+            <a onclick="showPage('system')" id="navSystem">📋 系统信息</a>
         </div>
         
         <!-- 主页内容 -->
@@ -336,6 +338,11 @@ HTML_PAGE = '''
         <div id="localPage" class="page-content hidden">
             <iframe src="/api/local/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
+        
+        <!-- 系统信息页面容器 -->
+        <div id="systemPage" class="page-content hidden">
+            <iframe src="/api/system/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
+        </div>
     </div>
     
     <script>
@@ -347,19 +354,23 @@ HTML_PAGE = '''
             const homePage = document.getElementById('homePage');
             const downloadPage = document.getElementById('downloadPage');
             const localPage = document.getElementById('localPage');
+            const systemPage = document.getElementById('systemPage');
             const navHome = document.getElementById('navHome');
             const navDownload = document.getElementById('navDownload');
             const navLocal = document.getElementById('navLocal');
+            const navSystem = document.getElementById('navSystem');
             
             // 隐藏所有页面
             homePage.classList.add('hidden');
             downloadPage.classList.add('hidden');
             localPage.classList.add('hidden');
+            systemPage.classList.add('hidden');
             
             // 移除所有 active 状态
             navHome.classList.remove('active');
             navDownload.classList.remove('active');
             navLocal.classList.remove('active');
+            navSystem.classList.remove('active');
             
             if (page === 'home') {
                 homePage.classList.remove('hidden');
@@ -377,6 +388,13 @@ HTML_PAGE = '''
                 localPage.classList.remove('hidden');
                 navLocal.classList.add('active');
                 const iframe = document.querySelector('#localPage iframe');
+                if (iframe) {
+                    iframe.contentWindow.location.reload();
+                }
+            } else if (page === 'system') {
+                systemPage.classList.remove('hidden');
+                navSystem.classList.add('active');
+                const iframe = document.querySelector('#systemPage iframe');
                 if (iframe) {
                     iframe.contentWindow.location.reload();
                 }

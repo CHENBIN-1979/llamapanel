@@ -1,0 +1,60 @@
+<div class="card">
+    <h1>📋 系统信息</h1>
+    <p class="subtitle">LlamaPanel 项目信息与使用指南</p>
+</div>
+
+<div class="card">
+    <h3>✨ 特性说明</h3>
+    <div class="info-text">
+        • 模型文件直接下载到模型目录，无需临时目录<br>
+        • 下载完成后自动创建软链接到独立目录<br>
+        • mmproj 文件自动存储到模型专属子目录，避免冲突<br>
+        • 支持暂停/继续下载（断点续传）<br>
+        • <span style="color: #e53e3e;">删除或更新 llama.cpp 目录不会影响已下载的模型和软链接</span>
+    </div>
+</div>
+
+<div class="card">
+    <h3>💡 使用提示</h3>
+    <div class="info-text">
+        如需在 llama.cpp 中使用模型，请使用软链接目录中的文件路径：<br>
+        <code>/opt/llamapanel/model_links/模型文件名.gguf</code><br>
+        <code>/opt/llamapanel/model_links/模型文件夹/mmproj文件.gguf</code>
+    </div>
+</div>
+
+<div class="card">
+    <h3>📋 项目信息</h3>
+    <div class="info-text">
+        <strong>项目版本:</strong> LlamaPanel v1.0<br>
+        <strong>GitHub:</strong> <a href="https://github.com/CHENBIN-1979/llamapanel" target="_blank">https://github.com/CHENBIN-1979/llamapanel</a><br>
+        <strong>作者:</strong> CHENBIN-1979
+    </div>
+</div>
+
+<style>
+    .info-text {
+        font-size: 12px;
+        color: #718096;
+        margin-top: 10px;
+        padding: 10px;
+        background: #f7fafc;
+        border-radius: 8px;
+        line-height: 1.6;
+    }
+    code {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+    }
+    a {
+        color: #667eea;
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+</style>
