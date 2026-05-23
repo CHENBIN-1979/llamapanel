@@ -67,29 +67,29 @@ async def create_symlinks(models: Optional[List[str]] = Body(None)):
     mm = get_model_manager()
     
     if models and len(models) > 0:
-        # 为指定模型创建软链接
+        # 为指定模型创建软链接（直接用 path 创建，避免 name 匹配问题）
         success_count = 0
         failed_models = []
-        all_local = mm.get_local_models()
-        for model_name in models:
-            found = False
-            for m in all_local:
-                if m['name'] == model_name:
-                    file_path = Path(m['path'])
-                    rel_path = file_path.relative_to(mm.models_dir)
-                    parts = rel_path.parts
-                    if len(parts) >= 2:
-                        model_id = parts[0].replace('_', '/')
-                        filename = parts[-1]
-                    else:
-                        model_id = "unknown"
-                        filename = parts[0]
-                    if mm.create_symlink_for_file(model_id, filename, file_path):
-                        success_count += 1
-                        found = True
-                        break
-            if not found:
-                failed_models.append(model_name)
+        for model_path_str in models:
+            try:
+                file_path = Path(model_path_str)
+                if not file_path.exists():
+                    failed_models.append(model_path_str)
+                    continue
+                rel_path = file_path.relative_to(mm.models_dir)
+                parts = rel_path.parts
+                if len(parts) >= 2:
+                    model_id = parts[0].replace('_', '/')
+                    filename = parts[-1]
+                else:
+                    model_id = "unknown"
+                    filename = parts[0]
+                if mm.create_symlink_for_file(model_id, filename, file_path):
+                    success_count += 1
+                else:
+                    failed_models.append(model_path_str)
+            except Exception as e:
+                failed_models.append(model_path_str)
         return {"success": True, "message": f"已创建 {success_count}/{len(models)} 个软链接", "count": success_count, "failed": failed_models}
     else:
         count = mm.create_symlinks()
