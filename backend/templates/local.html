@@ -107,6 +107,25 @@
     a:hover {
         text-decoration: underline;
     }
+    .symlink-name {
+        color: #e2e8f0;
+        background: transparent;
+        font-family: monospace;
+        font-size: 13px;
+    }
+    .link-del-btn {
+        background: #e53e3e;
+        color: white;
+        border: none;
+        padding: 4px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.3s;
+    }
+    .link-del-btn:hover {
+        background: #c53030;
+    }
 </style>
 
 <script>
@@ -234,16 +253,16 @@
             
             if (data.success && data.symlinks && data.symlinks.length > 0) {
                 let html = '<table class="models-table">';
-                html += '<thead><tr><th>文件名</th><th>大小</th><th>类型</th><th>修改时间</th></tr></thead><tbody>';
+                html += '<thead><tr><th>文件名</th><th>类型</th><th>操作</th></tr></thead><tbody>';
                 
                 for (const f of data.symlinks) {
                     const typeIcon = f.is_symlink ? '🔗 软链接' : '📄 文件';
+                    const encodedName = encodeURIComponent(f.name);
                     html += `
                         <tr>
-                            <td><code>${escapeHtml(f.name)}</code></td>
-                            <td>${f.size_str}</td>
+                            <td><span class="symlink-name">${escapeHtml(f.name)}</span></td>
                             <td>${typeIcon}</td>
-                            <td>${f.modified}</td>
+                            <td><button class="small link-del-btn" onclick="deleteSymlink('${escapeHtml(f.name)}')">🗑️ 删除</button></td>
                         </tr>
                     `;
                 }
@@ -269,6 +288,21 @@
         } catch(e) {
             console.error('创建软链接失败:', e);
             alert('创建失败: ' + e.message);
+        }
+    }
+
+    async function deleteSymlink(filename) {
+        if (!confirm(`确定删除软链接 ${filename}？`)) return;
+        try {
+            const response = await fetch(`/api/local/symlink-delete?filename=${encodeURIComponent(filename)}`, {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+            alert(data.message);
+            refreshSymlinks();
+        } catch(e) {
+            console.error('删除软链接失败:', e);
+            alert('删除失败: ' + e.message);
         }
     }
     

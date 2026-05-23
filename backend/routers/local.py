@@ -123,3 +123,15 @@ async def list_symlinks():
         print(f"[ERROR] list_symlinks 失败: {error_detail}")
         print(f"[ERROR] Traceback: {traceback.format_exc()}")
         return {"success": False, "error": error_detail, "symlinks": []}
+
+@router.delete("/symlink-delete")
+async def delete_symlink(filename: str):
+    """删除指定软链接文件"""
+    from . import get_model_manager
+    mm = get_model_manager()
+    link_path = mm.links_dir / filename
+    if link_path.exists() or os.path.lexists(str(link_path)):
+        link_path.unlink()
+        return {"success": True, "message": f"已删除软链接 {filename}"}
+    else:
+        return {"success": False, "message": f"软链接 {filename} 不存在"}
