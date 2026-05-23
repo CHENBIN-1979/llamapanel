@@ -133,12 +133,16 @@ async def delete_symlink(filename: str):
     from . import get_model_manager
     try:
         mm = get_model_manager()
-        link_path = mm.links_dir / filename
-        # 安全检查：防止路径遍历攻击
-        link_path = link_path.resolve()
-        links_dir_resolved = mm.links_dir.resolve()
-        if not str(link_path).startswith(str(links_dir_resolved) + os.sep) and link_path != links_dir_resolved:
+        # 安全检查：禁止路径遍历和绝对路径
+        if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
             return {"success": False, "message": f"非法路径: {filename}"}
+        link_path = mm.links_dir / filename
+        # 二次确认：确保拼接后的绝对路径仍在 links_dir 内（不跟随软链接）
+        link_path_abs = link_path.absolute()
+        links_dir_abs = mm.links_dir.absolute()
+        if not str(link_path_abs).startswith(str(links_dir_abs) + os.sep) and link_path_abs != links_dir_abs:
+            return {"success": False, "message": f"非法路径: {filename}"}
+        link_path = link_path_abs
         if not os.path.lexists(str(link_path)):
             return {"success": False, "message": f"软链接 {filename} 不存在"}
         if os.path.isdir(str(link_path)) and not os.path.islink(str(link_path)):
