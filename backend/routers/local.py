@@ -61,36 +61,54 @@ async def delete_model(filename: str):
         return {"success": False, "message": "删除失败"}
 
 @router.post("/symlinks")
-async def create_symlinks(models: Optional[List[str]] = Body(None)):
+async def create_symlinks(model_names: Optional[List[str]] = Body(None)):
     """创建所有或指定模型的软链接"""
+    import traceback
     from . import get_model_manager
     mm = get_model_manager()
     
-    if models and len(models) > 0:
-        # 为指定模型创建软链接（直接用 path 创建，避免 name 匹配问题）
+    if model_names and len(model_names) > 0:
+        # 为指定模型创建软链接（使用与 mm.create_symlinks() 完全一致的逻辑）
         success_count = 0
-        failed_models = []
-        for model_path_str in models:
+        failed_names = []
+        all_local = mm.get_local_models()
+        # 建立 name→model 的快速查找表
+        model_by_name = {m['name']: m for m in all_local}
+        
+        for model_name in model_names:
             try:
-                file_path = Path(model_path_str)
-                if not file_path.exists():
-                    failed_models.append(model_path_str)
+                if model_name not in model_by_name:
+                    failed_names.append(model_name)
                     continue
+                model = model_by_name[model_name]
+                file_path = Path(model['path'])
+                
+                # 以下逻辑与 mm.create_symlinks() 完全一致
                 rel_path = file_path.relative_to(mm.models_dir)
                 parts = rel_path.parts
-                if len(parts) >= 2:
+                
+                if len(parts) == 2:
                     model_id = parts[0].replace('_', '/')
-                    filename = parts[-1]
+                    filename = parts[1]
                 else:
-                    model_id = "unknown"
                     filename = parts[0]
+                    model_id = "unknown"
+                
                 if mm.create_symlink_for_file(model_id, filename, file_path):
                     success_count += 1
                 else:
-                    failed_models.append(model_path_str)
+                    failed_names.append(model_name)
             except Exception as e:
-                failed_models.append(model_path_str)
-        return {"success": True, "message": f"已创建 {success_count}/{len(models)} 个软链接", "count": success_count, "failed": failed_models}
+                print(f"[ERROR] create_symlinks 选中创建失败: {e}")
+                print(f"[ERROR] Traceback: {traceback.format_exc()}")
+                failed_names.append(model_name)
+        
+        msg = f"已创建 {success_count}/{len(model_names)} 个软链接"
+        if failed_names:
+            msg += f"，失败: {', '.join(failed_names[:5])}"
+            if len(failed_names) > 5:
+                msg += f" 等 {len(failed_names)} 个"
+        return {"success": True, "message": msg, "count": success_count, "failed": failed_names}
     else:
         count = mm.create_symlinks()
         return {"success": True, "message": f"已创建 {count} 个软链接", "count": count}

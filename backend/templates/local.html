@@ -156,10 +156,10 @@
                     let displayName = model.name;
                     let isPartial = displayName.endsWith('.partial') || displayName.includes('.partial');
                     let sizeClass = isPartial ? 'style="color: #e67e22;"' : '';
-                    const encodedPath = encodeURIComponent(model.path);
+                    const encodedName = encodeURIComponent(model.name);
                     html += `
                         <tr>
-                            <td><input type="checkbox" class="model-checkbox" value="${encodedPath}" onchange="updateSelectedCount()" ${isPartial ? 'disabled' : ''}></td>
+                            <td><input type="checkbox" class="model-checkbox" value="${encodedName}" onchange="updateSelectedCount()" ${isPartial ? 'disabled' : ''}></td>
                             <td ${sizeClass}>${escapeHtml(displayName)}${isPartial ? ' <span style="color:#e67e22;">(下载中)</span>' : ''}</td>
                             <td>${model.size_str}</td>
                             <td>${model.modified}</td>
@@ -233,7 +233,7 @@
             const response = await fetch('/api/local/symlinks', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({models: selected})
+                body: JSON.stringify({model_names: selected})
             });
             const data = await response.json();
             alert(data.message);
