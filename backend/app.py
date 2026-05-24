@@ -454,6 +454,113 @@ HTML_PAGE = '''
             gap: 10px;
             margin-top: 10px;
         }
+        /* ==================== 更新日志模态框 ==================== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-box {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 85vh;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            animation: modalIn 0.3s ease;
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-shrink: 0;
+        }
+        .modal-header h2 {
+            font-size: 18px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .modal-header .modal-status {
+            font-size: 13px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+        .modal-status-running {
+            background: #cce5ff;
+            color: #004085;
+        }
+        .modal-status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .modal-status-fail {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .modal-close-btn {
+            background: #e2e8f0;
+            color: #4a5568;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .modal-close-btn:hover {
+            background: #cbd5e0;
+            transform: none;
+        }
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 200px;
+        }
+        .modal-footer {
+            flex-shrink: 0;
+            padding-top: 12px;
+            margin-top: 12px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: #718096;
+        }
+        .modal-footer .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #e2e8f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -502,6 +609,28 @@ HTML_PAGE = '''
             </div>
         </div>
         
+        <!-- LlamaPanel 更新日志模态框 -->
+        <div id="updateModal" class="modal-overlay">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <h2>
+                        <span>🔄 LlamaPanel 更新</span>
+                        <span id="updateModalStatus" class="modal-status modal-status-running">更新中...</span>
+                    </h2>
+                    <button class="modal-close-btn" onclick="closeUpdateModal()" id="updateModalCloseBtn" disabled title="更新完成后可关闭">✕</button>
+                </div>
+                <div id="updateModalBody" class="modal-body log-viewer" style="height: auto; min-height: 300px; max-height: 55vh;">
+                    <div class="log-line">等待更新任务启动...</div>
+                </div>
+                <div class="modal-footer">
+                    <span id="updateModalFooter">
+                        <span class="spinner"></span> 更新执行中，请勿关闭此窗口...
+                    </span>
+                    <span id="updateModalTime">等待中</span>
+                </div>
+            </div>
+        </div>
+
         <!-- 模型下载页面容器 -->
         <div id="downloadPage" class="page-content hidden">
             <iframe src="/api/download/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
@@ -810,9 +939,10 @@ HTML_PAGE = '''
             }
         }
         
-        // ==================== LlamaPanel 更新相关 ====================
+        // ==================== LlamaPanel 更新相关（模态框版） ====================
         let updatePollInterval = null;
         let updateLogRefreshInterval = null;
+        let updateStartTime = null;
         
         async function updateLlamaPanel() {
             if (confirm('🔄 更新 LlamaPanel 面板？\\n\\n将从 GitHub 拉取最新代码并更新依赖。\\n如果系统配置了 NOPASSWD sudo，服务将自动重启。\\n继续吗？')) {
@@ -820,65 +950,107 @@ HTML_PAGE = '''
                 btn.disabled = true;
                 btn.innerHTML = '<span class="loading"></span> 更新中...';
                 
-                // 切换日志视图到更新日志
-                showUpdateLog();
+                // 打开模态框
+                openUpdateModal();
                 
                 try {
                     const result = await fetchAPI('/api/update_panel', 'POST');
                     if (result.success) {
-                        // 开始轮询更新日志
+                        // 开始轮询更新日志和状态
                         startUpdateLogPolling();
-                        // 开始轮询更新状态
                         startUpdateStatusPolling();
                     } else {
-                        alert('❌ ' + result.message);
+                        updateModalSetStatus('fail', '启动失败');
+                        updateModalSetFooter('❌ ' + result.message, true);
+                        enableModalCloseAfterDelay(3000);
                         btn.disabled = false;
                         btn.innerHTML = '🔄 更新 LlamaPanel';
-                        stopUpdatePolling();
                     }
                 } catch(e) {
-                    alert('❌ 请求失败: ' + e.message);
+                    updateModalSetStatus('fail', '请求失败');
+                    updateModalSetFooter('❌ 请求失败: ' + e.message, true);
+                    enableModalCloseAfterDelay(3000);
                     btn.disabled = false;
                     btn.innerHTML = '🔄 更新 LlamaPanel';
-                    stopUpdatePolling();
                 }
             }
         }
         
-        function showUpdateLog() {
-            // 在日志查看器上方添加提示
-            const logControls = document.querySelector('.log-controls');
-            if (logControls) {
-                // 移除旧的提示
-                const oldHint = document.getElementById('updateLogHint');
-                if (oldHint) oldHint.remove();
-                
-                const hint = document.createElement('div');
-                hint.id = 'updateLogHint';
-                hint.style.cssText = 'font-size: 12px; color: #667eea; padding: 4px 8px; background: #eef2ff; border-radius: 4px; margin-bottom: 8px;';
-                hint.innerHTML = '📋 当前显示：<strong>LlamaPanel 更新日志</strong>（更新完成后自动切回安装日志）';
-                logControls.parentNode.insertBefore(hint, logControls.nextSibling);
+        // ---- 模态框控制 ----
+        function openUpdateModal() {
+            const modal = document.getElementById('updateModal');
+            const body = document.getElementById('updateModalBody');
+            const closeBtn = document.getElementById('updateModalCloseBtn');
+            if (modal) modal.classList.add('active');
+            if (body) body.innerHTML = '<div class="log-line">正在启动更新任务...</div>';
+            if (closeBtn) closeBtn.disabled = true;
+            updateModalSetStatus('running', '更新中...');
+            updateModalSetFooter('<span class="spinner"></span> 更新执行中，请勿关闭此窗口...', false);
+            updateStartTime = Date.now();
+            updateModalUpdateTime();
+        }
+        
+        function closeUpdateModal() {
+            const modal = document.getElementById('updateModal');
+            if (modal) modal.classList.remove('active');
+            // 停止所有轮询
+            stopUpdatePolling();
+            // 恢复按钮
+            const btn = document.getElementById('updatePanelBtn');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 更新 LlamaPanel';
             }
         }
         
-        function hideUpdateLogHint() {
-            const hint = document.getElementById('updateLogHint');
-            if (hint) hint.remove();
+        function updateModalSetStatus(type, text) {
+            const badge = document.getElementById('updateModalStatus');
+            if (!badge) return;
+            badge.className = 'modal-status';
+            if (type === 'running') badge.classList.add('modal-status-running');
+            else if (type === 'success') badge.classList.add('modal-status-success');
+            else if (type === 'fail') badge.classList.add('modal-status-fail');
+            badge.textContent = text;
         }
         
+        function updateModalSetFooter(html, isFinal) {
+            const footer = document.getElementById('updateModalFooter');
+            if (!footer) return;
+            footer.innerHTML = html;
+            if (isFinal) {
+                // 不再显示 spinner
+            }
+        }
+        
+        function updateModalUpdateTime() {
+            const el = document.getElementById('updateModalTime');
+            if (!el || !updateStartTime) return;
+            const elapsed = Math.floor((Date.now() - updateStartTime) / 1000);
+            const m = Math.floor(elapsed / 60);
+            const s = elapsed % 60;
+            el.textContent = `⏱ ${m}:${s.toString().padStart(2, '0')}`;
+        }
+        
+        function enableModalCloseAfterDelay(delayMs) {
+            setTimeout(() => {
+                const closeBtn = document.getElementById('updateModalCloseBtn');
+                if (closeBtn) closeBtn.disabled = false;
+            }, delayMs);
+        }
+        
+        // ---- 更新日志轮询 ----
         async function refreshUpdateLog() {
             try {
                 const response = await fetch('/api/update_panel_log');
                 const data = await response.json();
-                const logDiv = document.getElementById('logContent');
+                const logDiv = document.getElementById('updateModalBody');
                 if (!logDiv) return;
                 
                 if (!data.success || !data.log || data.log.trim() === '') {
-                    logDiv.innerHTML = '<div class="log-line">等待更新任务启动...</div>';
+                    // 保留现有内容，不覆盖
                     return;
                 }
                 
-                // 处理日志内容，与 refreshLog 相同的渲染逻辑
                 let text = data.log;
                 text = text.replace(/\\\\n/g, '\\n');
                 text = text.replace(/\\\\r\\\\n/g, '\\n');
@@ -892,9 +1064,8 @@ HTML_PAGE = '''
                     let lineClass = 'log-line';
                     let displayLine = escapeHtml(line);
                     
-                    if (line.includes('[ERR]') || line.includes('error') || line.includes('Error') || line.includes('失败')) {
+                    if (line.includes('[ERR]') || line.includes('error') || line.includes('Error') || line.includes('失败') || line.includes('❌')) {
                         lineClass += ' log-error';
-                        displayLine = '❌ ' + displayLine;
                     } else if (line.includes('✅')) {
                         lineClass += ' log-success';
                     } else if (line.includes('⚠️')) {
@@ -912,54 +1083,81 @@ HTML_PAGE = '''
                     html += `<div class="${lineClass}">${displayLine}</div>`;
                 }
                 
-                if (html === '') {
-                    logDiv.innerHTML = '<div class="log-line">等待更新任务启动...</div>';
-                } else {
+                if (html) {
                     logDiv.innerHTML = html;
                     logDiv.scrollTop = logDiv.scrollHeight;
                 }
+                
+                // 更新时间显示
+                updateModalUpdateTime();
             } catch(e) {
                 console.error('刷新更新日志失败:', e);
             }
         }
         
+        // ---- 更新状态轮询 ----
         async function refreshUpdateStatus() {
             try {
                 const status = await fetchAPI('/api/update_panel_status');
                 const btn = document.getElementById('updatePanelBtn');
                 
                 if (!status.running) {
-                    // 更新已完成
-                    stopUpdatePolling();
+                    // 更新已完成，停止日志轮询（但保留状态轮询用于最终状态更新）
+                    if (updateLogRefreshInterval) {
+                        clearInterval(updateLogRefreshInterval);
+                        updateLogRefreshInterval = null;
+                    }
+                    
+                    // 最后再刷新一次日志确保看到完整内容
+                    await refreshUpdateLog();
                     
                     if (status.success === true) {
-                        // 更新成功
-                        if (btn) {
-                            btn.disabled = false;
-                            btn.innerHTML = '🔄 更新 LlamaPanel';
-                        }
                         const msg = status.message || '更新完成';
                         if (msg.includes('最新版本')) {
-                            // 已是最新，不刷新
+                            // 已是最新
+                            updateModalSetStatus('success', '已是最新版本 ✅');
+                            updateModalSetFooter('✅ 已经是最新版本，无需更新', true);
+                            enableModalCloseAfterDelay(2000);
+                            if (btn) {
+                                btn.disabled = false;
+                                btn.innerHTML = '🔄 更新 LlamaPanel';
+                            }
+                            // 停止状态轮询
+                            stopUpdateStatusPolling();
                         } else {
-                            // 更新成功，提示并刷新
+                            // 更新成功
+                            updateModalSetStatus('success', '更新完成 ✅');
+                            updateModalSetFooter('✅ 更新成功！点击确定重新加载页面以应用更新。', false);
+                            // 启用关闭按钮
+                            const closeBtn = document.getElementById('updateModalCloseBtn');
+                            if (closeBtn) closeBtn.disabled = false;
                             setTimeout(() => {
                                 if (confirm('✅ LlamaPanel 更新完成！\\n\\n系统需要重新加载页面以应用更新。\\n点击"确定"立即刷新。')) {
                                     location.reload();
+                                } else {
+                                    updateModalSetFooter('⏸ 已暂停，您可以稍后手动刷新页面', true);
+                                    if (btn) {
+                                        btn.disabled = false;
+                                        btn.innerHTML = '🔄 更新 LlamaPanel';
+                                    }
+                                    stopUpdateStatusPolling();
                                 }
-                            }, 1000);
+                            }, 1500);
                         }
                     } else if (status.success === false) {
                         // 更新失败
+                        updateModalSetStatus('fail', '更新失败 ❌');
+                        updateModalSetFooter('❌ ' + (status.message || '更新失败，请检查日志'), true);
+                        enableModalCloseAfterDelay(5000);
                         if (btn) {
                             btn.disabled = false;
                             btn.innerHTML = '🔄 更新 LlamaPanel';
                         }
-                        // 5秒后切回安装日志
+                        // 5秒后自动关闭模态框
                         setTimeout(() => {
-                            hideUpdateLogHint();
-                            refreshLog();
-                        }, 5000);
+                            closeUpdateModal();
+                        }, 8000);
+                        stopUpdateStatusPolling();
                     }
                 }
             } catch(e) {
@@ -969,7 +1167,6 @@ HTML_PAGE = '''
         
         function startUpdateLogPolling() {
             if (updateLogRefreshInterval) clearInterval(updateLogRefreshInterval);
-            // 立即刷新一次
             refreshUpdateLog();
             updateLogRefreshInterval = setInterval(refreshUpdateLog, 2000);
         }
@@ -977,6 +1174,13 @@ HTML_PAGE = '''
         function startUpdateStatusPolling() {
             if (updatePollInterval) clearInterval(updatePollInterval);
             updatePollInterval = setInterval(refreshUpdateStatus, 3000);
+        }
+        
+        function stopUpdateStatusPolling() {
+            if (updatePollInterval) {
+                clearInterval(updatePollInterval);
+                updatePollInterval = null;
+            }
         }
         
         function stopUpdatePolling() {
@@ -988,7 +1192,6 @@ HTML_PAGE = '''
                 clearInterval(updatePollInterval);
                 updatePollInterval = null;
             }
-            // 恢复按钮
             const btn = document.getElementById('updatePanelBtn');
             if (btn) {
                 btn.disabled = false;
