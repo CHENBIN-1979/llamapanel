@@ -273,7 +273,7 @@ SERVER_PARAMS_META = {
         "flag": "--temp",
         "type": "number",
         "label": "温度 (Temperature)",
-        'description': '🎲 控制回答的"创造力"大小。温度越高（如1.2~1.5），AI越爱"天马行空"，可能用你意想不到的词；温度越低（如0.1~0.3），AI越"循规蹈矩"，每次回答都差不多。💡 参考值：写诗/创意写作→0.9~1.2，写代码/事实问答→0.1~0.3，通用聊天→0.7~0.8',
+        "description": "🎲 控制回答的"创造力"大小。温度越高（如1.2~1.5），AI越爱"天马行空"，可能用你意想不到的词；温度越低（如0.1~0.3），AI越"循规蹈矩"，每次回答都差不多。💡 参考值：写诗/创意写作→0.9~1.2，写代码/事实问答→0.1~0.3，通用聊天→0.7~0.8",
         "default": "0.8",
         "placeholder": "0.8",
         "min": 0.0,
@@ -285,7 +285,7 @@ SERVER_PARAMS_META = {
         "flag": "--top-k",
         "type": "number",
         "label": "Top-K",
-        'description': '🎯 每次生成时，只让AI从"候选名单"前K个词里挑选。比如Top-K=40，AI就只能从排名前40的词语中选择，冷门词直接被排除。K越小回答越保守，K越大越有惊喜。💡 参考值：40~60（通用），10~20（严谨回答），0（禁用，让AI自由选择所有词）',
+        "description": "🎯 每次生成时，只让AI从"候选名单"前K个词里挑选。比如Top-K=40，AI就只能从排名前40的词语中选择，冷门词直接被排除。K越小回答越保守，K越大越有惊喜。💡 参考值：40~60（通用），10~20（严谨回答），0（禁用，让AI自由选择所有词）",
         "default": "40",
         "placeholder": "40",
         "min": 0,
@@ -296,7 +296,7 @@ SERVER_PARAMS_META = {
         "flag": "--top-p",
         "type": "number",
         "label": "Top-P (核采样)",
-        'description': '🎯 动态"淘汰制"——AI不断把最可能的词加起来，直到总概率达到Top-P值就停止。比如Top-P=0.9，只保留那些概率加起来占90%的词，剩下的10%冷门词全部淘汰。P越小候选词越少，回答越稳定。💡 参考值：0.9~0.95（通用），0.5~0.7（严谨回答），1.0（不限制，所有词都有机会）',
+        "description": "🎯 动态"淘汰制"——AI不断把最可能的词加起来，直到总概率达到Top-P值就停止。比如Top-P=0.9，只保留那些概率加起来占90%的词，剩下的10%冷门词全部淘汰。P越小候选词越少，回答越稳定。💡 参考值：0.9~0.95（通用），0.5~0.7（严谨回答），1.0（不限制，所有词都有机会）",
         "default": "0.95",
         "placeholder": "0.95",
         "min": 0.0,
@@ -308,7 +308,7 @@ SERVER_PARAMS_META = {
         "flag": "--min-p",
         "type": "number",
         "label": "Min-P",
-        'description': '🪝 强行"踢掉"冷门词。如果一个词的热门程度不到最热门词的min_p倍，就直接淘汰。比如min_p=0.05，最热门词概率30%，那概率低于1.5%的词全部出局。能有效防止AI突然"抽风"说出不着边际的话。💡 参考值：0.05~0.1（推荐，平衡安全与多样性），0.2（严格），0（不限制）',
+        "description": "🪝 强行"踢掉"冷门词。如果一个词的热门程度不到最热门词的min_p倍，就直接淘汰。比如min_p=0.05，最热门词概率30%，那概率低于1.5%的词全部出局。能有效防止AI突然"抽风"说出不着边际的话。💡 参考值：0.05~0.1（推荐，平衡安全与多样性），0.2（严格），0（不限制）",
         "default": "0.05",
         "placeholder": "0.05",
         "min": 0.0,
@@ -320,7 +320,7 @@ SERVER_PARAMS_META = {
         "flag": "--repeat-penalty",
         "type": "number",
         "label": "重复惩罚",
-        'description': '🔁 防止AI变"复读机"的力度。值越大，AI越不敢重复刚说过的话。1.0=随便重复，1.05=轻微提醒，1.1=适度避免，1.2+=坚决不重复（但可能导致话题跳跃）。💡 参考值：1.0~1.05（自由聊天），1.1~1.15（通用/写作，推荐），1.15~1.2（需要丰富词汇时）',
+        "description": "🔁 防止AI变"复读机"的力度。值越大，AI越不敢重复刚说过的话。1.0=随便重复，1.05=轻微提醒，1.1=适度避免，1.2+=坚决不重复（但可能导致话题跳跃）。💡 参考值：1.0~1.05（自由聊天），1.1~1.15（通用/写作，推荐），1.15~1.2（需要丰富词汇时）",
         "default": "1.1",
         "placeholder": "1.1",
         "min": 1.0,
@@ -332,7 +332,7 @@ SERVER_PARAMS_META = {
         "flag": "--repeat-last-n",
         "type": "number",
         "label": "重复惩罚窗口",
-        'description': '📏 在最近多少个字的范围内检查重复。比如设为64，AI在最近64个字内重复说某词就会被扣分。设太小查重范围窄，AI可能前后翻来覆去说同一套话；设太大会"记性太好"，AI可能因避免旧词而跑偏。💡 参考值：64~128（通用聊天），256+（长文创作），0（完全不查重），-1（全程检查）',
+        "description": "📏 在最近多少个字的范围内检查重复。比如设为64，AI在最近64个字内重复说某词就会被扣分。设太小查重范围窄，AI可能前后翻来覆去说同一套话；设太大会"记性太好"，AI可能因避免旧词而跑偏。💡 参考值：64~128（通用聊天），256+（长文创作），0（完全不查重），-1（全程检查）",
         "default": "64",
         "placeholder": "64",
         "min": -1,
@@ -343,7 +343,7 @@ SERVER_PARAMS_META = {
         "flag": "--presence-penalty",
         "type": "number",
         "label": "存在惩罚 (presence-penalty)",
-        'description': '💡 鼓励AI"聊点新东西"。只要一个概念出现过就会被扣分，AI就会转向没用过的新词。值越大，AI越爱引入新话题、新词汇，适合头脑风暴或创意写作。但太大可能导致回答散乱。💡 参考值：0.0（不干预，默认），0.1~0.3（适当鼓励话题多样性），0.4~0.6（强烈鼓励创新，创意模式）',
+        "description": "💡 鼓励AI"聊点新东西"。只要一个概念出现过就会被扣分，AI就会转向没用过的新词。值越大，AI越爱引入新话题、新词汇，适合头脑风暴或创意写作。但太大可能导致回答散乱。💡 参考值：0.0（不干预，默认），0.1~0.3（适当鼓励话题多样性），0.4~0.6（强烈鼓励创新，创意模式）",
         "default": "0.0",
         "placeholder": "0.0",
         "min": -2.0,
@@ -541,7 +541,7 @@ SERVER_PARAMS_SECTIONS = [
 def find_llama_server() -> Optional[str]:
     """查找 llama-server 可执行文件路径"""
     from config import BUILD_DIR, LLAMA_DIR
-    
+
     candidates = [
         BUILD_DIR / "bin" / "llama-server",
         BUILD_DIR / "llama-server",
@@ -556,7 +556,7 @@ def find_llama_server() -> Optional[str]:
             candidates.insert(0, Path(which_result.stdout.strip()))
     except:
         pass
-    
+
     for p in candidates:
         if p.exists() and os.access(str(p), os.X_OK):
             return str(p)
@@ -578,19 +578,19 @@ def _sanitize_config(config: Dict[str, Any]) -> Dict[str, Any]:
             continue
         val = config[key]
         param_type = meta.get("type", "text")
-        
+
         # 修复 1: select 类型如果存了 boolean 值，改成默认值
         if param_type == "select" and isinstance(val, bool):
             config[key] = meta["default"]
             continue
-        
+
         # 修复 2: select 类型的值不在可选列表中，改成默认值
         if param_type == "select" and "options" in meta:
             valid_values = [o["value"] if isinstance(o, dict) else o for o in meta["options"]]
             if str(val) not in valid_values:
                 config[key] = meta["default"]
                 continue
-        
+
         # 修复 3: checkbox 类型存了字符串，转成 boolean
         if param_type == "checkbox":
             if isinstance(val, str):
@@ -599,7 +599,7 @@ def _sanitize_config(config: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(val, int):
                 config[key] = val == 1
                 continue
-        
+
         # 修复 4: number 类型存了非数字，改成默认值
         if param_type == "number":
             if isinstance(val, bool):
@@ -614,7 +614,7 @@ def _sanitize_config(config: Dict[str, Any]) -> Dict[str, Any]:
                 except ValueError:
                     config[key] = meta["default"]
                     continue
-    
+
     return config
 
 
@@ -656,26 +656,26 @@ def build_command(config: Dict[str, Any]) -> list:
     server_path = find_llama_server()
     if not server_path:
         raise FileNotFoundError("未找到 llama-server 可执行文件，请先编译 llama.cpp")
-    
+
     cmd = [server_path]
-    
+
     for key, meta in SERVER_PARAMS_META.items():
         value = config.get(key, meta["default"])
-        
+
         # 跳过空值（非必填的文本字段）
         if value is None or value == "":
             continue
-        
+
         # 跳过假值（checkbox 未选中）
         if meta["type"] == "checkbox":
             if value is True or value == "true":
                 cmd.append(meta["flag"])
             continue
-        
+
         # select / 数字 / 文本值：添加参数名和值
         cmd.append(meta["flag"])
         cmd.append(str(value))
-    
+
     return cmd
 
 
@@ -696,9 +696,9 @@ def write_server_log(message: str):
 def server_process_runner(cmd: list):
     """在后台线程中运行 llama-server 进程"""
     global _server_process, _server_running, _server_start_time, _server_pid
-    
+
     write_server_log(f"🚀 启动命令: {' '.join(cmd)}")
-    
+
     try:
         process = subprocess.Popen(
             cmd,
@@ -707,33 +707,33 @@ def server_process_runner(cmd: list):
             text=True,
             bufsize=1,
         )
-        
+
         with _server_lock:
             _server_process = process
             _server_pid = process.pid
             _server_running = True
             _server_start_time = time.time()
-        
+
         write_server_log(f"✅ 服务器已启动，PID: {process.pid}")
-        
+
         # 实时读取输出
         for line in process.stdout:
             line = line.rstrip()
             if line:
                 write_server_log(line)
-        
+
         returncode = process.wait()
-        
+
         with _server_lock:
             _server_running = False
             _server_process = None
             _server_pid = None
-        
+
         if returncode == 0:
             write_server_log(f"✅ 服务器正常退出")
         else:
             write_server_log(f"⚠️ 服务器异常退出，返回码: {returncode}")
-    
+
     except Exception as e:
         write_server_log(f"❌ 服务器运行异常: {e}")
         with _server_lock:
@@ -773,7 +773,7 @@ async def set_config(payload: dict = Body(...)):
     config = payload.get("config", {})
     if not config:
         return {"success": False, "message": "配置数据为空"}
-    
+
     if save_config(config):
         return {"success": True, "message": "配置已保存"}
     else:
@@ -784,42 +784,42 @@ async def set_config(payload: dict = Body(...)):
 async def start_server():
     """启动 llama-server"""
     global _server_running
-    
+
     # 检查是否已在运行
     with _server_lock:
         if _server_running:
             return {"success": False, "message": "服务器已在运行中"}
-    
+
     # 查找 llama-server
     server_path = find_llama_server()
     if not server_path:
         return {"success": False, "message": "未找到 llama-server 可执行文件。请先在主页中编译 llama.cpp。"}
-    
+
     # 加载配置并构建命令
     config = load_config()
-    
+
     # 检查模型文件
     model_path = config.get("model", "")
     if not model_path:
         return {"success": False, "message": "请先配置模型文件路径 (-m)"}
-    
+
     if not os.path.exists(model_path):
         return {"success": False, "message": f"模型文件不存在: {model_path}"}
-    
+
     try:
         cmd = build_command(config)
     except FileNotFoundError as e:
         return {"success": False, "message": str(e)}
     except Exception as e:
         return {"success": False, "message": f"构建命令失败: {e}"}
-    
+
     # 清空旧日志
     try:
         if get_server_log_file().exists():
             get_server_log_file().unlink()
     except:
         pass
-    
+
     write_server_log("=" * 60)
     write_server_log("配置参数:")
     for key, meta in SERVER_PARAMS_META.items():
@@ -827,14 +827,14 @@ async def start_server():
         if val is not None and str(val).strip():
             write_server_log(f"  {meta['flag']} {meta['label']}: {val}")
     write_server_log("=" * 60)
-    
+
     # 在后台线程启动服务器
     thread = threading.Thread(target=server_process_runner, args=(cmd,), daemon=True)
     thread.start()
-    
+
     # 等待一小段时间检查是否启动成功
     time.sleep(1)
-    
+
     with _server_lock:
         if _server_running:
             return {
@@ -862,20 +862,20 @@ async def start_server():
 async def stop_server():
     """停止 llama-server 进程"""
     global _server_process, _server_running, _server_pid
-    
+
     with _server_lock:
         if not _server_running or _server_process is None:
             return {"success": False, "message": "服务器未在运行"}
-        
+
         pid = _server_pid
         process = _server_process
-    
+
     write_server_log(f"🛑 正在停止服务器 (PID: {pid})...")
-    
+
     try:
         # 先发 SIGTERM 信号优雅退出
         os.kill(pid, signal.SIGTERM)
-        
+
         # 等待最多 10 秒
         for _ in range(20):
             time.sleep(0.5)
@@ -900,12 +900,12 @@ async def stop_server():
     except Exception as e:
         write_server_log(f"❌ 停止服务器失败: {e}")
         return {"success": False, "message": f"停止失败: {e}"}
-    
+
     with _server_lock:
         _server_running = False
         _server_process = None
         _server_pid = None
-    
+
     write_server_log("✅ 服务器已停止")
     return {"success": True, "message": "服务器已停止"}
 
@@ -914,7 +914,7 @@ async def stop_server():
 async def get_server_status():
     """获取服务器运行状态"""
     global _server_running, _server_pid, _server_start_time
-    
+
     # 双重检查：如果标记为运行中但进程已不存在，修复状态
     with _server_lock:
         if _server_running and _server_pid:
@@ -925,11 +925,11 @@ async def get_server_status():
                 _server_process = None
                 _server_pid = None
                 _server_start_time = None
-    
+
     running = _server_running
     pid = _server_pid
     start_time = _server_start_time
-    
+
     # 读取最近的日志（最后 50 行）
     recent_log = ""
     if get_server_log_file().exists():
@@ -939,7 +939,7 @@ async def get_server_status():
             recent_log = "".join(lines[-50:])
         except:
             pass
-    
+
     elapsed = ""
     if running and start_time:
         seconds = int(time.time() - start_time)
@@ -952,9 +952,9 @@ async def get_server_status():
             elapsed = f"{minutes}分钟{secs}秒"
         else:
             elapsed = f"{secs}秒"
-    
+
     server_path = find_llama_server()
-    
+
     return {
         "success": True,
         "running": running,
@@ -983,9 +983,9 @@ async def get_process_log():
 async def list_available_models():
     """列出软链接目录中的可用模型文件（供前端选择器使用）"""
     from config import LINKS_DIR, MODELS_DIR
-    
+
     models = []
-    
+
     # 从软链接目录查找
     if LINKS_DIR.exists():
         for item in sorted(LINKS_DIR.rglob("*")):
@@ -997,7 +997,7 @@ async def list_available_models():
                     "is_symlink": item.is_symlink(),
                     "source": "软链接目录",
                 })
-    
+
     # 如果软链接目录为空，直接从模型目录查找
     if not models and MODELS_DIR.exists():
         for item in sorted(MODELS_DIR.rglob("*.gguf")):
@@ -1009,5 +1009,5 @@ async def list_available_models():
                     "is_symlink": False,
                     "source": "模型目录",
                 })
-    
+
     return {"success": True, "models": models}
