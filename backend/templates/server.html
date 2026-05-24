@@ -165,13 +165,19 @@
         margin-left: 4px;
     }
     .param-desc {
-        font-size: 13px;
-        color: #718096;
-        margin-top: 6px;
-        padding-left: 2px;
-        line-height: 1.5;
-        width: 100%;
-    }
+	        font-size: 13px;
+	        color: #718096;
+	        margin-top: 6px;
+	        padding-left: 2px;
+	        line-height: 1.5;
+	        width: 100%;
+	    }
+	    .param-ref {
+	        font-size: 11px;
+	        color: #a0aec0;
+	        margin-left: 8px;
+	        white-space: nowrap;
+	    }
     .param-input { flex: 1; min-width: 200px; }
     .param-input input[type="text"],
     .param-input input[type="number"],
@@ -549,7 +555,11 @@
                 const min = param.min !== undefined ? ` min="${param.min}"` : '';
                 const max = param.max !== undefined ? ` max="${param.max}"` : '';
                 const step = param.step !== undefined ? ` step="${param.step}"` : '';
-                inputHtml = `<input type="number" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onParamChange('${key}')">`;
+                const refVal = param.default !== undefined ? param.default : '';
+                inputHtml = `<input type="number" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange=\"onParamChange('${key}')\">`;
+                if (refVal !== '') {
+                    inputHtml += `<span class="param-ref">参考值: ${escapeHtml(String(refVal))}</span>`;
+                }
                 break;
 
             case 'checkbox':
