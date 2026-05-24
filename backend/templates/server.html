@@ -178,12 +178,12 @@
 	        margin-left: 8px;
 	        white-space: nowrap;
 	    }
-    .param-input { flex: 1; min-width: 200px; }
+    .param-input { flex: 1; min-width: 100px; }
     .param-input input[type="text"],
     .param-input input[type="number"],
     .param-input select {
         width: 100%;
-        max-width: 400px;
+        max-width: 160px;
         padding: 8px 12px;
         border: 1px solid #e2e8f0;
         border-radius: 6px;
@@ -556,8 +556,11 @@
                 const max = param.max !== undefined ? ` max="${param.max}"` : '';
                 const step = param.step !== undefined ? ` step="${param.step}"` : '';
                 const refVal = param.default !== undefined ? param.default : '';
-                inputHtml = `<input type="number" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange=\"onParamChange('${key}')\">`;
-                if (refVal !== '') {
+                const refScenario = param.ref_scenario || '';
+                inputHtml = `<input type="number" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onParamChange('${key}')">`;
+                if (refScenario) {
+                    inputHtml += `<span class="param-ref">💡 参考值：${escapeHtml(refScenario)}</span>`;
+                } else if (refVal !== '') {
                     inputHtml += `<span class="param-ref">参考值: ${escapeHtml(String(refVal))}</span>`;
                 }
                 break;
