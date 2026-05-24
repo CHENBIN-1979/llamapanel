@@ -463,13 +463,12 @@ SERVER_PARAMS_META = {
     },
     "mcp": {
         "section": "服务器设置",
-        "flag": "--mcp",
+        "flag": "--webui-mcp-proxy",
         "type": "checkbox",
-        "label": "启用 MCP Server",
-        "description": "🔧 开启 MCP 协议支持，让 AI 能调用外部工具（如查天气、算数学、读文件等）。\n • 勾选 = AI 可以「动手干活」而不只是动嘴说话\n • 不勾选 = AI 只能纯聊天\n这是一个高级功能，需要配合外部 MCP 服务器使用，普通用户不用勾选。",
+        "label": "启用 WebUI MCP Proxy",
+        "description": "🔌 启用 llama.cpp 内置的 WebUI MCP 代理功能，允许外部工具（如 IDE 插件）通过 MCP 协议与 AI 模型交互。\n⚠️ 注意：此功能需要较新版本的 llama.cpp 支持。如果您的 llama-server 启动报错，说明版本不支持，取消勾选即可。\n💡 建议：一般用户保持关闭。如果你在使用支持 MCP 的工具（如某些 IDE 插件），才需要开启。",
         "default": False,
     },
-
     # ===== 线程与性能 =====
     "threads": {
         "section": "线程与性能",
@@ -681,6 +680,24 @@ def save_config(config: Dict[str, Any]) -> bool:
         return False
 
 
+def _check_flag_supported(server_path: str, flag: str) -> bool:
+    """检查 llama-server 是否支持某个命令行参数"""
+    try:
+        result = subprocess.run(
+            [server_path, "--help"],
+            capture_output=True, text=True, timeout=10
+        )
+        help_text = result.stdout + result.stderr
+        # 在帮助信息中查找该参数
+        # 参数可能以 "--mcp" 或 "-mcp" 的形式出现
+        flag_clean = flag.lstrip("-")
+        return flag_clean in help_text or flag in help_text
+    except Exception as e:
+        print(f"[server] ⚠️ 检查参数 {flag} 支持情况时出错: {e}")
+        # 出错时保守返回 True（假设支持，让 llama-server 自身去报错）
+        return True
+
+
 def build_command(config: Dict[str, Any]) -> list:
     """根据配置构建 llama-server 命令行参数"""
     server_path = find_llama_server()
@@ -699,7 +716,13 @@ def build_command(config: Dict[str, Any]) -> list:
         # 跳过假值（checkbox 未选中）
         if meta["type"] == "checkbox":
             if value is True or value == "true":
-                cmd.append(meta["flag"])
+                flag = meta["flag"]
+                # 对 --webui-mcp-proxy 参数做可用性检测（防止旧版不支持导致启动失败）
+                if key == "mcp" and not _check_flag_supported(server_path, flag):
+                    print(f"[server] ⚠️ 当前 llama-server 不支持 {flag} 参数，已跳过 MCP 启用")
+                    print(f"[server] 💡 如需使用 MCP 功能，请升级 llama.cpp 到最新版本并重新编译")
+                    continue
+                cmd.append(flag)
             continue
 
         # select / 数字 / 文本值：添加参数名和值
