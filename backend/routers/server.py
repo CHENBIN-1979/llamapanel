@@ -26,117 +26,155 @@ _server_start_time = None
 _server_pid = None
 _server_lock = threading.Lock()
 
-# ==================== 配置存储路径 ====================
-CONFIG_DIR = Path("/data/llamapanel/server_configs")
-CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-CONFIG_FILE = CONFIG_DIR / "llama_server_config.json"
-SERVER_LOG_FILE = CONFIG_DIR / "server_process.log"
+# ==================== 配置存储路径（惰性初始化，避免导入时因权限崩溃） ====================
+_CONFIG_DIR = None
+_CONFIG_FILE = None
+_SERVER_LOG_FILE = None
 
-# ==================== 读取 HTML 模板 ====================
-def read_html_file(filename: str) -> str:
-    filepath = Path(__file__).parent.parent / "templates" / filename
-    if filepath.exists():
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return f.read()
-    return "<h1>页面加载失败</h1>"
 
-SERVER_HTML = read_html_file("server.html")
+def _ensure_config_dir():
+    """确保配置目录存在（惰性初始化，含错误包容）"""
+    global _CONFIG_DIR, _CONFIG_FILE, _SERVER_LOG_FILE
+    if _CONFIG_DIR is not None:
+        return
+    try:
+        from config import DATA_DIR
+        _CONFIG_DIR = DATA_DIR / "server_configs"
+    except Exception:
+        _CONFIG_DIR = Path("/data/llamapanel/server_configs")
+    try:
+        _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"[server] \u26a0\ufe0f \u521b\u5efa\u914d\u7f6e\u76ee\u5f55\u5931\u8d25: {e}\uff0c\u5c06\u4f7f\u7528\u4e34\u65f6\u76ee\u5f55")
+        import tempfile
+        _CONFIG_DIR = Path(tempfile.gettempdir()) / "llamapanel_server_config"
+        _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    _CONFIG_FILE = _CONFIG_DIR / "llama_server_config.json"
+    _SERVER_LOG_FILE = _CONFIG_DIR / "server_process.log"
+    print(f"[server] \u914d\u7f6e\u76ee\u5f55: {_CONFIG_DIR}")
 
-# ==================== llama-server 所有可用参数定义 ====================
-# 这些参数用于前端表单的自动生成和验证
+
+def get_config_dir() -> Path:
+    _ensure_config_dir()
+    return _CONFIG_DIR
+
+
+def get_config_file() -> Path:
+    _ensure_config_dir()
+    return _CONFIG_FILE
+
+
+def get_server_log_file() -> Path:
+    _ensure_config_dir()
+    return _SERVER_LOG_FILE
+
+
+# ==================== \u8bfb\u53d6 HTML \u6a21\u677f\uff08\u542b\u9519\u8bef\u5305\u5bb9\uff09 ====================
+SERVER_HTML = "<h1>\u9875\u9762\u52a0\u8f7d\u5931\u8d25</h1>"
+try:
+    html_path = Path(__file__).parent.parent / "templates" / "server.html"
+    if html_path.exists():
+        with open(html_path, 'r', encoding='utf-8') as f:
+            SERVER_HTML = f.read()
+except Exception as e:
+    print(f"[server] \u26a0\ufe0f \u8bfb\u53d6\u6a21\u677f\u5931\u8d25: {e}")
+    SERVER_HTML = "<h1>\u9875\u9762\u6a21\u677f\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u6a21\u677f\u6587\u4ef6</h1>"
+
+# ==================== llama-server \u6240\u6709\u53ef\u7528\u53c2\u6570\u5b9a\u4e49 ====================
+# \u8fd9\u4e9b\u53c2\u6570\u7528\u4e8e\u524d\u7aef\u8868\u5355\u7684\u81ea\u52a8\u751f\u6210\u548c\u9a8c\u8bc1
 SERVER_PARAMS_META = {
-    # ===== 模型与路径 =====
+    # ===== \u6a21\u578b\u4e0e\u8def\u5f84 =====
     "model": {
-        "section": "模型与路径",
+        "section": "\u6a21\u578b\u4e0e\u8def\u5f84",
         "flag": "-m",
         "type": "file_picker",
-        "label": "模型文件路径 (GGUF)",
-        "description": "要加载的 GGUF 模型文件路径。可使用软链接目录中的文件。",
+        "label": "\u6a21\u578b\u6587\u4ef6\u8def\u5f84 (GGUF)",
+        "description": "\u8981\u52a0\u8f7d\u7684 GGUF \u6a21\u578b\u6587\u4ef6\u8def\u5f84\u3002\u53ef\u4f7f\u7528\u8f6f\u94fe\u63a5\u76ee\u5f55\u4e2d\u7684\u6587\u4ef6\u3002",
         "default": "",
-        "placeholder": "/data/llamapanel/model_links/模型名称.gguf",
+        "placeholder": "/data/llamapanel/model_links/\u6a21\u578b\u540d\u79f0.gguf",
         "required": True,
     },
     "mmproj": {
-        "section": "模型与路径",
+        "section": "\u6a21\u578b\u4e0e\u8def\u5f84",
         "flag": "--mmproj",
         "type": "text",
-        "label": "多模态投影文件 (mmproj)",
-        "description": "多模态模型的投影器文件路径（如 LLaVA 等视觉模型）",
+        "label": "\u591a\u6a21\u6001\u6295\u5f71\u6587\u4ef6 (mmproj)",
+        "description": "\u591a\u6a21\u6001\u6a21\u578b\u7684\u6295\u5f71\u5668\u6587\u4ef6\u8def\u5f84\uff08\u5982 LLaVA \u7b49\u89c6\u89c9\u6a21\u578b\uff09",
         "default": "",
-        "placeholder": "/data/llamapanel/model_links/模型文件夹/mmproj-file.gguf",
+        "placeholder": "/data/llamapanel/model_links/\u6a21\u578b\u6587\u4ef6\u5939/mmproj-file.gguf",
     },
     "lora": {
-        "section": "模型与路径",
+        "section": "\u6a21\u578b\u4e0e\u8def\u5f84",
         "flag": "--lora",
         "type": "text",
-        "label": "LoRA 适配器",
-        "description": "LoRA 适配器文件路径（可多次指定，用逗号分隔）",
+        "label": "LoRA \u9002\u914d\u5668",
+        "description": "LoRA \u9002\u914d\u5668\u6587\u4ef6\u8def\u5f84\uff08\u53ef\u591a\u6b21\u6307\u5b9a\uff0c\u7528\u9017\u53f7\u5206\u9694\uff09",
         "default": "",
         "placeholder": "/path/to/lora-adapter.gguf",
     },
     "lora_base": {
-        "section": "模型与路径",
+        "section": "\u6a21\u578b\u4e0e\u8def\u5f84",
         "flag": "--lora-base",
         "type": "text",
-        "label": "LoRA 基座模型",
-        "description": "用于 LoRA 的可选基座模型路径",
+        "label": "LoRA \u57fa\u5ea7\u6a21\u578b",
+        "description": "\u7528\u4e8e LoRA \u7684\u53ef\u9009\u57fa\u5ea7\u6a21\u578b\u8def\u5f84",
         "default": "",
         "placeholder": "/path/to/base-model.gguf",
     },
 
-    # ===== GPU 与加速 =====
+    # ===== GPU \u4e0e\u52a0\u901f =====
     "n_gpu_layers": {
-        "section": "GPU 与加速",
+        "section": "GPU \u4e0e\u52a0\u901f",
         "flag": "-ngl",
         "type": "number",
-        "label": "GPU 层数 (-ngl)",
-        "description": "卸载到 GPU 的层数。设为 -1 表示全部层都使用 GPU。设为 0 表示纯 CPU。",
+        "label": "GPU \u5c42\u6570 (-ngl)",
+        "description": "\u5378\u8f7d\u5230 GPU \u7684\u5c42\u6570\u3002\u8bbe\u4e3a -1 \u8868\u793a\u5168\u90e8\u5c42\u90fd\u4f7f\u7528 GPU\u3002\u8bbe\u4e3a 0 \u8868\u793a\u7eaf CPU\u3002",
         "default": "0",
         "placeholder": "0",
         "min": -1,
         "max": 999,
     },
     "no_kv_offload": {
-        "section": "GPU 与加速",
+        "section": "GPU \u4e0e\u52a0\u901f",
         "flag": "--no-kv-offload",
         "type": "checkbox",
-        "label": "禁用 KV Cache GPU 卸载",
-        "description": "禁用 KV 缓存到 GPU 的卸载（实验性功能）",
+        "label": "\u7981\u7528 KV Cache GPU \u5378\u8f7d",
+        "description": "\u7981\u7528 KV \u7f13\u5b58\u5230 GPU \u7684\u5378\u8f7d\uff08\u5b9e\u9a8c\u6027\u529f\u80fd\uff09",
         "default": False,
     },
     "tensor_split": {
-        "section": "GPU 与加速",
+        "section": "GPU \u4e0e\u52a0\u901f",
         "flag": "-ts",
         "type": "text",
-        "label": "张量拆分比例",
-        "description": "多 GPU 时张量拆分比例，用逗号分隔（如: 2,1 表示 GPU0:GPU1=2:1）",
+        "label": "\u5f20\u91cf\u62c6\u5206\u6bd4\u4f8b",
+        "description": "\u591a GPU \u65f6\u5f20\u91cf\u62c6\u5206\u6bd4\u4f8b\uff0c\u7528\u9017\u53f7\u5206\u9694\uff08\u5982: 2,1 \u8868\u793a GPU0:GPU1=2:1\uff09",
         "default": "",
         "placeholder": "2,1",
     },
     "mlock": {
-        "section": "GPU 与加速",
+        "section": "GPU \u4e0e\u52a0\u901f",
         "flag": "--mlock",
         "type": "checkbox",
-        "label": "锁定模型到内存 (mlock)",
-        "description": "将模型锁定在物理内存中，防止被交换到磁盘。可提高性能但占用更多内存。",
+        "label": "\u9501\u5b9a\u6a21\u578b\u5230\u5185\u5b58 (mlock)",
+        "description": "\u5c06\u6a21\u578b\u9501\u5b9a\u5728\u7269\u7406\u5185\u5b58\u4e2d\uff0c\u9632\u6b62\u88ab\u4ea4\u6362\u5230\u78c1\u76d8\u3002\u53ef\u63d0\u9ad8\u6027\u80fd\u4f46\u5360\u7528\u66f4\u591a\u5185\u5b58\u3002",
         "default": False,
     },
     "no_mmap": {
-        "section": "GPU 与加速",
+        "section": "GPU \u4e0e\u52a0\u901f",
         "flag": "--no-mmap",
         "type": "checkbox",
-        "label": "禁用内存映射 (no-mmap)",
-        "description": "禁用 mmap() 加载模型。对于某些网络文件系统或特殊需求时使用。",
+        "label": "\u7981\u7528\u5185\u5b58\u6620\u5c04 (no-mmap)",
+        "description": "\u7981\u7528 mmap() \u52a0\u8f7d\u6a21\u578b\u3002\u5bf9\u4e8e\u67d0\u4e9b\u7f51\u7edc\u6587\u4ef6\u7cfb\u7edf\u6216\u7279\u6b8a\u9700\u6c42\u65f6\u4f7f\u7528\u3002",
         "default": False,
     },
 
-    # ===== 上下文与内存 =====
+    # ===== \u4e0a\u4e0b\u6587\u4e0e\u5185\u5b58 =====
     "ctx_size": {
-        "section": "上下文与内存",
+        "section": "\u4e0a\u4e0b\u6587\u4e0e\u5185\u5b58",
         "flag": "-c",
         "type": "number",
-        "label": "上下文大小 (ctx-size)",
-        "description": "Token 上下文窗口大小。越大可记住更多对话内容，但消耗更多显存/内存。",
+        "label": "\u4e0a\u4e0b\u6587\u5927\u5c0f (ctx-size)",
+        "description": "Token \u4e0a\u4e0b\u6587\u7a97\u53e3\u5927\u5c0f\u3002\u8d8a\u5927\u53ef\u8bb0\u4f4f\u66f4\u591a\u5bf9\u8bdd\u5185\u5bb9\uff0c\u4f46\u6d88\u8017\u66f4\u591a\u663e\u5b58/\u5185\u5b58\u3002",
         "default": "4096",
         "placeholder": "4096",
         "min": 128,
@@ -144,78 +182,72 @@ SERVER_PARAMS_META = {
         "step": 128,
     },
     "rope_freq_base": {
-        "section": "上下文与内存",
+        "section": "\u4e0a\u4e0b\u6587\u4e0e\u5185\u5b58",
         "flag": "--rope-freq-base",
         "type": "number",
-        "label": "RoPE 频率基数",
-        "description": "RoPE 频率基数，用于扩展上下文窗口（如 800000.0 可将 4K 模型扩展到 32K）",
+        "label": "RoPE \u9891\u7387\u57fa\u6570",
+        "description": "RoPE \u9891\u7387\u57fa\u6570\u3002\u9ed8\u8ba4 10000.0\uff0c\u8c03\u6574\u53ef\u5f71\u54cd\u8fdc\u8ddd\u79bb\u4f4d\u7f6e\u7f16\u7801\u6548\u679c\u3002",
         "default": "",
-        "placeholder": "如: 800000.0",
+        "placeholder": "10000.0",
+        "min": 1,
+        "max": 99999999,
         "step": 0.1,
     },
     "rope_freq_scale": {
-        "section": "上下文与内存",
+        "section": "\u4e0a\u4e0b\u6587\u4e0e\u5185\u5b58",
         "flag": "--rope-freq-scale",
         "type": "number",
-        "label": "RoPE 频率缩放",
-        "description": "RoPE 频率缩放因子。设为 0.25 可将 4K 模型扩展到 16K 上下文。",
+        "label": "RoPE \u9891\u7387\u7f29\u653e",
+        "description": "RoPE \u9891\u7387\u7f29\u653e\u56e0\u5b50\u3002NTK-aware \u7f29\u653e\uff0c\u9ed8\u8ba4 1.0\u3002",
         "default": "",
-        "placeholder": "如: 0.25",
+        "placeholder": "1.0",
+        "min": 0.01,
+        "max": 100,
         "step": 0.01,
     },
-    "rope_scaling": {
-        "section": "上下文与内存",
-        "flag": "--rope-scaling",
-        "type": "select",
-        "label": "RoPE 缩放类型",
-        "description": "上下文扩展时使用的 RoPE 缩放类型",
-        "default": "linear",
-        "options": [
-            {"value": "linear", "label": "linear (线性)"},
-            {"value": "yarn", "label": "yarn (YaRN)"},
-        ],
-    },
-    "rope_scale": {
-        "section": "上下文与内存",
-        "flag": "--rope-scale",
+    "yarn_ext_factor": {
+        "section": "\u4e0a\u4e0b\u6587\u4e0e\u5185\u5b58",
+        "flag": "--yarn-ext-factor",
         "type": "number",
-        "label": "RoPE 上下文缩放",
-        "description": "RoPE 上下文扩展的缩放因子（旧参数，建议使用 rope-freq-scale）",
+        "label": "YaRN \u7f29\u653e\u56e0\u5b50",
+        "description": "YaRN \u7f29\u653e\u56e0\u5b50\u3002\u5f53\u4f7f\u7528 YaRN \u65b9\u6cd5\u62d3\u5c55\u4e0a\u4e0b\u6587\u65f6\u8bbe\u7f6e\u6b64\u503c\u3002",
         "default": "",
-        "placeholder": "如: 4.0",
-        "step": 0.5,
+        "placeholder": "1.0",
+        "min": 0.01,
+        "max": 100,
+        "step": 0.01,
     },
 
-    # ===== 采样参数 =====
-    "temp": {
-        "section": "采样参数",
+    # ===== \u91c7\u6837\u53c2\u6570 =====
+    "temperature": {
+        "section": "\u91c7\u6837\u53c2\u6570",
         "flag": "--temp",
         "type": "number",
-        "label": "温度 (Temperature)",
-        "description": "生成温度。越高越随机（创新），越低越确定（保守）。范围 0.0 ~ 2.0",
+        "label": "Temperature",
+        "description": "\u751f\u6210\u7684\u6e29\u5ea6\u53c2\u6570\u3002\u503c\u8d8a\u9ad8\u8f93\u51fa\u8d8a\u968f\u673a\uff08\u521b\u610f\uff09\uff0c\u503c\u8d8a\u4f4e\u8f93\u51fa\u8d8a\u786e\u5b9a\uff08\u51c6\u786e\uff09\u3002",
         "default": "0.8",
         "placeholder": "0.8",
         "min": 0.0,
-        "max": 2.0,
+        "max": 5.0,
         "step": 0.01,
     },
     "top_k": {
-        "section": "采样参数",
+        "section": "\u91c7\u6837\u53c2\u6570",
         "flag": "--top-k",
         "type": "number",
         "label": "Top-K",
-        "description": "只从前 K 个最可能的 token 中采样。0=禁用。",
+        "description": "\u4ec5\u4ece\u6a82\u7387\u6700\u9ad8\u7684 K \u4e2a token \u4e2d\u9009\u62e9\u3002\u9ed8\u8ba4 40\u30020=\u7981\u7528\u3002",
         "default": "40",
         "placeholder": "40",
         "min": 0,
-        "max": 200,
+        "max": 1000,
     },
     "top_p": {
-        "section": "采样参数",
+        "section": "\u91c7\u6837\u53c2\u6570",
         "flag": "--top-p",
         "type": "number",
-        "label": "Top-P (核采样)",
-        "description": "累积概率阈值采样。0.0=禁用。",
+        "label": "Top-P (nucleus)",
+        "description": "Nucleus \u91c7\u6837\u3002\u7d2f\u79ef\u6a82\u7387\u8fbe\u5230 P \u65f6\u505c\u6b62\u9009\u62e9 token\u3002\u9ed8\u8ba4 0.95\u3002",
         "default": "0.95",
         "placeholder": "0.95",
         "min": 0.0,
@@ -223,11 +255,11 @@ SERVER_PARAMS_META = {
         "step": 0.01,
     },
     "min_p": {
-        "section": "采样参数",
+        "section": "\u91c7\u6837\u53c2\u6570",
         "flag": "--min-p",
         "type": "number",
         "label": "Min-P",
-        "description": "最小概率阈值。token 概率低于最可能 token 概率 × min-p 的将被过滤。",
+        "description": "\u6700\u5c0f\u6a82\u7387\u3002token \u6a82\u7387\u5c11\u4e8e (max_prob * min_p) \u7684\u88ab\u8fc7\u6ee4\u3002\u9ed8\u8ba4 0.05\u3002",
         "default": "0.05",
         "placeholder": "0.05",
         "min": 0.0,
@@ -235,194 +267,156 @@ SERVER_PARAMS_META = {
         "step": 0.01,
     },
     "repeat_penalty": {
-        "section": "采样参数",
+        "section": "\u91c7\u6837\u53c2\u6570",
         "flag": "--repeat-penalty",
         "type": "number",
-        "label": "重复惩罚",
-        "description": "重复惩罚系数。1.0=无惩罚，1.1=中等惩罚，1.2=强惩罚。",
+        "label": "\u91cd\u590d\u60e9\u7f5a",
+        "description": "\u91cd\u590d\u60e9\u7f5a\u7cfb\u6570\u3002>1.0 \u51cf\u5c11\u91cd\u590d\uff0c<1.0 \u589e\u52a0\u91cd\u590d\u3002\u9ed8\u8ba4 1.1\u3002",
         "default": "1.1",
         "placeholder": "1.1",
-        "min": 1.0,
-        "max": 2.0,
+        "min": 0.0,
+        "max": 10.0,
         "step": 0.01,
     },
-    "repeat_last_n": {
-        "section": "采样参数",
-        "flag": "--repeat-last-n",
-        "type": "number",
-        "label": "重复惩罚窗口",
-        "description": "最后 N 个 token 内应用重复惩罚。0=禁用，-1=ctx_size。",
-        "default": "64",
-        "placeholder": "64",
-        "min": -1,
-        "max": 99999,
-    },
 
-    # ===== 服务器设置 =====
+    # ===== \u670d\u52a1\u5668\u8bbe\u7f6e =====
     "host": {
-        "section": "服务器设置",
+        "section": "\u670d\u52a1\u5668\u8bbe\u7f6e",
         "flag": "--host",
         "type": "text",
-        "label": "监听地址 (Host)",
-        "description": "服务器监听地址。0.0.0.0=所有网卡，127.0.0.1=仅本机。",
+        "label": "\u670d\u52a1\u5668 Host",
+        "description": "\u670d\u52a1\u5668\u7ed1\u5b9a\u7684 IP \u5730\u5740\u3002\u9ed8\u8ba4 127.0.0.1\uff0c\u8bbe\u4e3a 0.0.0.0 \u53ef\u5f00\u653e\u5916\u7f51\u8bbf\u95ee\u3002",
         "default": "127.0.0.1",
         "placeholder": "127.0.0.1",
     },
     "port": {
-        "section": "服务器设置",
+        "section": "\u670d\u52a1\u5668\u8bbe\u7f6e",
         "flag": "--port",
         "type": "number",
-        "label": "监听端口 (Port)",
-        "description": "服务器 HTTP 监听端口。",
+        "label": "\u670d\u52a1\u5668\u7aef\u53e3",
+        "description": "llama-server OpenAI \u517c\u5bb9 API \u7aef\u53e3\u3002\u9ed8\u8ba4 8080\u3002",
         "default": "8080",
         "placeholder": "8080",
         "min": 1,
         "max": 65535,
     },
     "timeout": {
-        "section": "服务器设置",
+        "section": "\u670d\u52a1\u5668\u8bbe\u7f6e",
         "flag": "--timeout",
         "type": "number",
-        "label": "读写超时 (秒)",
-        "description": "服务器读取和写入操作的超时时间（秒）。",
-        "default": "600",
-        "placeholder": "600",
-        "min": 10,
-        "max": 86400,
+        "label": "\u8bf7\u6c42\u8d85\u65f6 (\u79d2)",
+        "description": "\u5ba2\u6237\u7aef\u8bf7\u6c42\u8d85\u65f6\u65f6\u95f4\uff0c\u5355\u4f4d\u79d2\u3002\u9ed8\u8ba4 0\uff08\u4e0d\u8d85\u65f6\uff09\u3002",
+        "default": "0",
+        "placeholder": "0",
+        "min": 0,
+        "max": 999999,
     },
-    "parallel": {
-        "section": "服务器设置",
+    "n_parallel": {
+        "section": "\u670d\u52a1\u5668\u8bbe\u7f6e",
         "flag": "-np",
         "type": "number",
-        "label": "并行序列数",
-        "description": "同时处理的序列数（并发请求数）。",
+        "label": "\u5e76\u53d1\u5e8f\u5217\u6570 (n-parallel)",
+        "description": "\u53ef\u540c\u65f6\u5904\u7406\u7684\u5e76\u53d1\u5e8f\u5217\u6570\u3002\u6bcf\u4e2a\u5e8f\u5217\u72ec\u7acb\u7ba1\u7406\u4e0a\u4e0b\u6587\u3002",
         "default": "1",
         "placeholder": "1",
         "min": 1,
         "max": 999,
     },
     "cont_batching": {
-        "section": "服务器设置",
-        "flag": "-cb",
+        "section": "\u670d\u52a1\u5668\u8bbe\u7f6e",
+        "flag": "--cont-batching",
         "type": "checkbox",
-        "label": "启用持续批处理",
-        "description": "启用持续批处理，同一批中动态添加/移除序列，提升吞吐量。",
-        "default": True,
-    },
-    "slots": {
-        "section": "服务器设置",
-        "flag": "--slots",
-        "type": "number",
-        "label": "最大 slots 数",
-        "description": "在持续批处理模式下，最大 slot 数量（每个 slot 处理一个请求）。",
-        "default": "",
-        "placeholder": "留空则等于 parallel",
-        "min": 1,
-        "max": 999,
-    },
-    "slot_save_path": {
-        "section": "服务器设置",
-        "flag": "--slot-save-path",
-        "type": "text",
-        "label": "Slot KV 缓存保存路径",
-        "description": "保存 slot KV 缓存的路径（用于持久化对话状态）",
-        "default": "",
-        "placeholder": "/data/llamapanel/slot_cache",
-    },
-    "embeddings": {
-        "section": "服务器设置",
-        "flag": "--embeddings",
-        "type": "checkbox",
-        "label": "启用嵌入模式",
-        "description": "启用嵌入向量提取模式（兼容 OpenAI embeddings API）。",
+        "label": "\u5f00\u542f\u6301\u7eed\u6279\u5904\u7406",
+        "description": "\u5f00\u542f\u6301\u7eed\u6279\u5904\u7406\uff0c\u63d0\u9ad8\u591a\u5e8f\u5217\u573a\u666f\u4e0b\u7684\u541e\u5410\u91cf\u3002",
         "default": False,
     },
-    "no_webui": {
-        "section": "服务器设置",
-        "flag": "--no-webui",
+    "embedding": {
+        "section": "\u670d\u52a1\u5668\u8bbe\u7f6e",
+        "flag": "--embedding",
         "type": "checkbox",
-        "label": "禁用 WebUI",
-        "description": "不启动内置的 Web 聊天界面。",
+        "label": "\u5f00\u542f Embedding \u6a21\u5f0f",
+        "description": "\u542f\u7528 Embedding \u63a5\u53e3\uff0c\u5141\u8bb8\u83b7\u53d6 token \u5d4c\u5165\u5411\u91cf\u3002",
         "default": False,
     },
 
-    # ===== 线程与性能 =====
+    # ===== \u7ebf\u7a0b\u4e0e\u6027\u80fd =====
     "threads": {
-        "section": "线程与性能",
+        "section": "\u7ebf\u7a0b\u4e0e\u6027\u80fd",
         "flag": "-t",
         "type": "number",
-        "label": "生成线程数",
-        "description": "Token 生成阶段使用的线程数。一般设为 CPU 物理核心数。",
+        "label": "\u751f\u6210\u7ebf\u7a0b\u6570",
+        "description": "Token \u751f\u6210\u9636\u6bb5\u4f7f\u7528\u7684\u7ebf\u7a0b\u6570\u3002\u4e00\u822c\u8bbe\u4e3a CPU \u7269\u7406\u6838\u5fc3\u6570\u3002",
         "default": "8",
         "placeholder": "8",
         "min": 1,
         "max": 256,
     },
     "threads_batch": {
-        "section": "线程与性能",
+        "section": "\u7ebf\u7a0b\u4e0e\u6027\u80fd",
         "flag": "--threads-batch",
         "type": "number",
-        "label": "批处理线程数",
-        "description": "Prompt 批处理阶段使用的线程数。留空则与生成线程数相同。",
+        "label": "\u6279\u5904\u7406\u7ebf\u7a0b\u6570",
+        "description": "Prompt \u6279\u5904\u7406\u9636\u6bb5\u4f7f\u7528\u7684\u7ebf\u7a0b\u6570\u3002\u7559\u7a7a\u5219\u4e0e\u751f\u6210\u7ebf\u7a0b\u6570\u76f8\u540c\u3002",
         "default": "",
-        "placeholder": "留空则等于生成线程数",
+        "placeholder": "\u7559\u7a7a\u5219\u7b49\u4e8e\u751f\u6210\u7ebf\u7a0b\u6570",
         "min": 1,
         "max": 256,
     },
     "batch_size": {
-        "section": "线程与性能",
+        "section": "\u7ebf\u7a0b\u4e0e\u6027\u80fd",
         "flag": "-b",
         "type": "number",
-        "label": "批处理大小 (batch-size)",
-        "description": "Prompt 处理的批处理 token 数。越大越快但消耗更多内存。",
+        "label": "\u6279\u5904\u7406\u5927\u5c0f (batch-size)",
+        "description": "Prompt \u5904\u7406\u7684\u6279\u5904\u7406 token \u6570\u3002\u8d8a\u5927\u8d8a\u5feb\u4f46\u6d88\u8017\u66f4\u591a\u5185\u5b58\u3002",
         "default": "2048",
         "placeholder": "2048",
         "min": 32,
         "max": 999999,
     },
     "ubatch_size": {
-        "section": "线程与性能",
+        "section": "\u7ebf\u7a0b\u4e0e\u6027\u80fd",
         "flag": "-ub",
         "type": "number",
-        "label": "物理批处理大小 (ubatch-size)",
-        "description": "物理批处理大小。影响计算效率。一般 ≤ batch-size。",
+        "label": "\u7269\u7406\u6279\u5904\u7406\u5927\u5c0f (ubatch-size)",
+        "description": "\u7269\u7406\u6279\u5904\u7406\u5927\u5c0f\u3002\u5f71\u54cd\u8ba1\u7b97\u6548\u7387\u3002\u4e00\u822c \u2264 batch-size\u3002",
         "default": "512",
         "placeholder": "512",
         "min": 32,
         "max": 999999,
     },
     "flash_attn": {
-        "section": "线程与性能",
+        "section": "\u7ebf\u7a0b\u4e0e\u6027\u80fd",
         "flag": "--flash-attn",
         "type": "checkbox",
-        "label": "启用 Flash Attention",
-        "description": "使用 Flash Attention 加速计算，减少显存占用。需要模型支持。",
+        "label": "\u542f\u7528 Flash Attention",
+        "description": "\u4f7f\u7528 Flash Attention \u52a0\u901f\u8ba1\u7b97\uff0c\u51cf\u5c11\u663e\u5b58\u5360\u7528\u3002\u9700\u8981\u6a21\u578b\u652f\u6301\u3002",
         "default": False,
     },
 }
 
-# 按分区排序的参数列表
+# \u6309\u5206\u533a\u6392\u5e8f\u7684\u53c2\u6570\u5217\u8868
 SERVER_PARAMS_SECTIONS = [
-    "模型与路径",
-    "GPU 与加速",
-    "上下文与内存",
-    "采样参数",
-    "服务器设置",
-    "线程与性能",
+    "\u6a21\u578b\u4e0e\u8def\u5f84",
+    "GPU \u4e0e\u52a0\u901f",
+    "\u4e0a\u4e0b\u6587\u4e0e\u5185\u5b58",
+    "\u91c7\u6837\u53c2\u6570",
+    "\u670d\u52a1\u5668\u8bbe\u7f6e",
+    "\u7ebf\u7a0b\u4e0e\u6027\u80fd",
 ]
 
-# ==================== 辅助函数 ====================
+# ==================== \u8f85\u52a9\u51fd\u6570 ====================
+
 
 def find_llama_server() -> Optional[str]:
-    """查找 llama-server 可执行文件路径"""
+    """\u67e5\u627e llama-server \u53ef\u6267\u884c\u6587\u4ef6\u8def\u5f84"""
     from config import BUILD_DIR, LLAMA_DIR
-    
+
     candidates = [
         BUILD_DIR / "bin" / "llama-server",
         BUILD_DIR / "llama-server",
         LLAMA_DIR / "llama-server",
     ]
-    # 也尝试在 PATH 中查找
+    # \u4e5f\u5c1d\u8bd5\u5728 PATH \u4e2d\u67e5\u627e
     try:
         which_result = subprocess.run(
             ["which", "llama-server"], capture_output=True, text=True, timeout=5
@@ -431,7 +425,7 @@ def find_llama_server() -> Optional[str]:
             candidates.insert(0, Path(which_result.stdout.strip()))
     except:
         pass
-    
+
     for p in candidates:
         if p.exists() and os.access(str(p), os.X_OK):
             return str(p)
@@ -439,7 +433,7 @@ def find_llama_server() -> Optional[str]:
 
 
 def get_default_config() -> Dict[str, Any]:
-    """获取默认配置"""
+    """\u83b7\u53d6\u9ed8\u8ba4\u914d\u7f6e"""
     config = {}
     for key, meta in SERVER_PARAMS_META.items():
         config[key] = meta["default"]
@@ -447,79 +441,82 @@ def get_default_config() -> Dict[str, Any]:
 
 
 def load_config() -> Dict[str, Any]:
-    """从文件加载已保存的配置"""
-    if CONFIG_FILE.exists():
+    """\u4ece\u6587\u4ef6\u52a0\u8f7d\u5df2\u4fdd\u5b58\u7684\u914d\u7f6e"""
+    config_file = get_config_file()
+    if config_file.exists():
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            with open(config_file, "r", encoding="utf-8") as f:
                 saved = json.load(f)
-            # 合并默认值，确保新增参数也有值
+            # \u5408\u5e76\u9ed8\u8ba4\u503c\uff0c\u786e\u4fdd\u65b0\u589e\u53c2\u6570\u4e5f\u6709\u503c
             defaults = get_default_config()
             defaults.update(saved)
             return defaults
         except Exception as e:
-            print(f"[server] 加载配置失败: {e}")
+            print(f"[server] \u52a0\u8f7d\u914d\u7f6e\u5931\u8d25: {e}")
     return get_default_config()
 
 
 def save_config(config: Dict[str, Any]) -> bool:
-    """保存配置到文件"""
+    """\u4fdd\u5b58\u914d\u7f6e\u5230\u6587\u4ef6"""
     try:
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        config_dir = get_config_dir()
+        config_dir.mkdir(parents=True, exist_ok=True)
+        with open(get_config_file(), "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        print(f"[server] 保存配置失败: {e}")
+        print(f"[server] \u4fdd\u5b58\u914d\u7f6e\u5931\u8d25: {e}")
         return False
 
 
 def build_command(config: Dict[str, Any]) -> list:
-    """根据配置构建 llama-server 命令行参数"""
+    """\u6839\u636e\u914d\u7f6e\u6784\u5efa llama-server \u547d\u4ee4\u884c\u53c2\u6570"""
     server_path = find_llama_server()
     if not server_path:
-        raise FileNotFoundError("未找到 llama-server 可执行文件，请先编译 llama.cpp")
-    
+        raise FileNotFoundError("\u672a\u627e\u5230 llama-server \u53ef\u6267\u884c\u6587\u4ef6\uff0c\u8bf7\u5148\u7f16\u8bd1 llama.cpp")
+
     cmd = [server_path]
-    
+
     for key, meta in SERVER_PARAMS_META.items():
         value = config.get(key, meta["default"])
-        
-        # 跳过空值（非必填的文本字段）
+
+        # \u8df3\u8fc7\u7a7a\u503c\uff08\u975e\u5fc5\u586b\u7684\u6587\u672c\u5b57\u6bb5\uff09
         if value is None or value == "":
             continue
-        
-        # 跳过假值（checkbox 未选中）
+
+        # \u8df3\u8fc7\u5047\u503c\uff08checkbox \u672a\u9009\u4e2d\uff09
         if meta["type"] == "checkbox":
-            if value is True or value == "true" or value is True:
+            if value is True or value == "true":
                 cmd.append(meta["flag"])
             continue
-        
-        # 数字和文本值
+
+        # \u6570\u5b57\u548c\u6587\u672c\u503c
         cmd.append(meta["flag"])
         cmd.append(str(value))
-    
+
     return cmd
 
 
 def write_server_log(message: str):
-    """写入服务器进程日志"""
+    """\u5199\u5165\u670d\u52a1\u5668\u8fdb\u7a0b\u65e5\u5fd7"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_msg = f"[{timestamp}] {message}"
     print(f"[server] {log_msg}")
     try:
-        SERVER_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(SERVER_LOG_FILE, "a", encoding="utf-8") as f:
+        log_file = get_server_log_file()
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_file, "a", encoding="utf-8") as f:
             f.write(log_msg + "\n")
     except Exception as e:
-        print(f"[server] 写入日志失败: {e}")
+        print(f"[server] \u5199\u5165\u65e5\u5fd7\u5931\u8d25: {e}")
 
 
 def server_process_runner(cmd: list):
-    """在后台线程中运行 llama-server 进程"""
+    """\u5728\u540e\u53f0\u7ebf\u7a0b\u4e2d\u8fd0\u884c llama-server \u8fdb\u7a0b"""
     global _server_process, _server_running, _server_start_time, _server_pid
-    
-    write_server_log(f"🚀 启动命令: {' '.join(cmd)}")
-    
+
+    write_server_log(f"\ud83d\ude80 \u542f\u52a8\u547d\u4ee4: {' '.join(cmd)}")
+
     try:
         process = subprocess.Popen(
             cmd,
@@ -528,52 +525,53 @@ def server_process_runner(cmd: list):
             text=True,
             bufsize=1,
         )
-        
+
         with _server_lock:
             _server_process = process
             _server_pid = process.pid
             _server_running = True
             _server_start_time = time.time()
-        
-        write_server_log(f"✅ 服务器已启动，PID: {process.pid}")
-        
-        # 实时读取输出
+
+        write_server_log(f"\u2705 \u670d\u52a1\u5668\u5df2\u542f\u52a8\uff0cPID: {process.pid}")
+
+        # \u5b9e\u65f6\u8bfb\u53d6\u8f93\u51fa
         for line in process.stdout:
             line = line.rstrip()
             if line:
                 write_server_log(line)
-        
+
         returncode = process.wait()
-        
+
         with _server_lock:
             _server_running = False
             _server_process = None
             _server_pid = None
-        
+
         if returncode == 0:
-            write_server_log(f"✅ 服务器正常退出")
+            write_server_log(f"\u2705 \u670d\u52a1\u5668\u6b63\u5e38\u9000\u51fa")
         else:
-            write_server_log(f"⚠️ 服务器异常退出，返回码: {returncode}")
-    
+            write_server_log(f"\u26a0\ufe0f \u670d\u52a1\u5668\u5f02\u5e38\u9000\u51fa\uff0c\u8fd4\u56de\u7801: {returncode}")
+
     except Exception as e:
-        write_server_log(f"❌ 服务器运行异常: {e}")
+        write_server_log(f"\u274c \u670d\u52a1\u5668\u8fd0\u884c\u5f02\u5e38: {e}")
         with _server_lock:
             _server_running = False
             _server_process = None
             _server_pid = None
 
 
-# ==================== API 端点 ====================
+# ==================== API \u7aef\u70b9 ====================
+
 
 @router.get("/page", response_class=HTMLResponse)
 async def server_page():
-    """服务器参数配置页面"""
+    """\u670d\u52a1\u5668\u53c2\u6570\u914d\u7f6e\u9875\u9762"""
     return HTMLResponse(content=SERVER_HTML)
 
 
 @router.get("/params-meta")
 async def get_params_meta():
-    """获取所有参数元数据（前端用于动态渲染表单）"""
+    """\u83b7\u53d6\u6240\u6709\u53c2\u6570\u5143\u6570\u636e\uff08\u524d\u7aef\u7528\u4e8e\u52a8\u6001\u6e32\u67d3\u8868\u5355\uff09"""
     return {
         "success": True,
         "params": SERVER_PARAMS_META,
@@ -583,128 +581,128 @@ async def get_params_meta():
 
 @router.get("/config")
 async def get_config():
-    """获取已保存的服务器配置"""
+    """\u83b7\u53d6\u5df2\u4fdd\u5b58\u7684\u670d\u52a1\u5668\u914d\u7f6e"""
     config = load_config()
     return {"success": True, "config": config}
 
 
 @router.post("/config")
 async def set_config(payload: dict = Body(...)):
-    """保存服务器配置"""
+    """\u4fdd\u5b58\u670d\u52a1\u5668\u914d\u7f6e"""
     config = payload.get("config", {})
     if not config:
-        return {"success": False, "message": "配置数据为空"}
-    
+        return {"success": False, "message": "\u914d\u7f6e\u6570\u636e\u4e3a\u7a7a"}
+
     if save_config(config):
-        return {"success": True, "message": "配置已保存"}
+        return {"success": True, "message": "\u914d\u7f6e\u5df2\u4fdd\u5b58"}
     else:
-        return {"success": False, "message": "配置保存失败"}
+        return {"success": False, "message": "\u914d\u7f6e\u4fdd\u5b58\u5931\u8d25"}
 
 
 @router.post("/start")
 async def start_server():
-    """启动 llama-server"""
+    """\u542f\u52a8 llama-server"""
     global _server_running
-    
-    # 检查是否已在运行
+
+    # \u68c0\u67e5\u662f\u5426\u5df2\u5728\u8fd0\u884c
     with _server_lock:
         if _server_running:
-            return {"success": False, "message": "服务器已在运行中"}
-    
-    # 查找 llama-server
+            return {"success": False, "message": "\u670d\u52a1\u5668\u5df2\u5728\u8fd0\u884c\u4e2d"}
+
+    # \u67e5\u627e llama-server
     server_path = find_llama_server()
     if not server_path:
-        return {"success": False, "message": "未找到 llama-server 可执行文件。请先在主页中编译 llama.cpp。"}
-    
-    # 加载配置并构建命令
+        return {"success": False, "message": "\u672a\u627e\u5230 llama-server \u53ef\u6267\u884c\u6587\u4ef6\u3002\u8bf7\u5148\u5728\u4e3b\u9875\u4e2d\u7f16\u8bd1 llama.cpp\u3002"}
+
+    # \u52a0\u8f7d\u914d\u7f6e\u5e76\u6784\u5efa\u547d\u4ee4
     config = load_config()
-    
-    # 检查模型文件
+
+    # \u68c0\u67e5\u6a21\u578b\u6587\u4ef6
     model_path = config.get("model", "")
     if not model_path:
-        return {"success": False, "message": "请先配置模型文件路径 (-m)"}
-    
+        return {"success": False, "message": "\u8bf7\u5148\u914d\u7f6e\u6a21\u578b\u6587\u4ef6\u8def\u5f84 (-m)"}
+
     if not os.path.exists(model_path):
-        return {"success": False, "message": f"模型文件不存在: {model_path}"}
-    
+        return {"success": False, "message": f"\u6a21\u578b\u6587\u4ef6\u4e0d\u5b58\u5728: {model_path}"}
+
     try:
         cmd = build_command(config)
     except FileNotFoundError as e:
         return {"success": False, "message": str(e)}
     except Exception as e:
-        return {"success": False, "message": f"构建命令失败: {e}"}
-    
-    # 清空旧日志
+        return {"success": False, "message": f"\u6784\u5efa\u547d\u4ee4\u5931\u8d25: {e}"}
+
+    # \u6e05\u7a7a\u65e7\u65e5\u5fd7
     try:
-        if SERVER_LOG_FILE.exists():
-            SERVER_LOG_FILE.unlink()
+        if get_server_log_file().exists():
+            get_server_log_file().unlink()
     except:
         pass
-    
+
     write_server_log("=" * 60)
-    write_server_log("配置参数:")
+    write_server_log("\u914d\u7f6e\u53c2\u6570:")
     for key, meta in SERVER_PARAMS_META.items():
         val = config.get(key, "")
         if val is not None and str(val).strip():
             write_server_log(f"  {meta['flag']} {meta['label']}: {val}")
     write_server_log("=" * 60)
-    
-    # 在后台线程启动服务器
+
+    # \u5728\u540e\u53f0\u7ebf\u7a0b\u542f\u52a8\u670d\u52a1\u5668
     thread = threading.Thread(target=server_process_runner, args=(cmd,), daemon=True)
     thread.start()
-    
-    # 等待一小段时间检查是否启动成功
+
+    # \u7b49\u5f85\u4e00\u5c0f\u6bb5\u65f6\u95f4\u68c0\u67e5\u662f\u5426\u542f\u52a8\u6210\u529f
     time.sleep(1)
-    
+
     with _server_lock:
         if _server_running:
             return {
                 "success": True,
-                "message": f"服务器已启动 (PID: {_server_pid})",
+                "message": f"\u670d\u52a1\u5668\u5df2\u542f\u52a8 (PID: {_server_pid})",
                 "pid": _server_pid,
             }
         else:
-            # 可能启动失败，读取日志
+            # \u53ef\u80fd\u542f\u52a8\u5931\u8d25\uff0c\u8bfb\u53d6\u65e5\u5fd7
             log_content = ""
             try:
-                if SERVER_LOG_FILE.exists():
-                    with open(SERVER_LOG_FILE, "r", encoding="utf-8") as f:
+                if get_server_log_file().exists():
+                    with open(get_server_log_file(), "r", encoding="utf-8") as f:
                         log_content = f.read()
             except:
                 pass
             return {
                 "success": False,
-                "message": "服务器启动失败，请查看日志了解详情",
+                "message": "\u670d\u52a1\u5668\u542f\u52a8\u5931\u8d25\uff0c\u8bf7\u67e5\u770b\u65e5\u5fd7\u4e86\u89e3\u8be6\u60c5",
                 "log": log_content[-1000:] if log_content else "",
             }
 
 
 @router.post("/stop")
 async def stop_server():
-    """停止 llama-server 进程"""
+    """\u505c\u6b62 llama-server \u8fdb\u7a0b"""
     global _server_process, _server_running, _server_pid
-    
+
     with _server_lock:
         if not _server_running or _server_process is None:
-            return {"success": False, "message": "服务器未在运行"}
-        
+            return {"success": False, "message": "\u670d\u52a1\u5668\u672a\u5728\u8fd0\u884c"}
+
         pid = _server_pid
         process = _server_process
-    
-    write_server_log(f"🛑 正在停止服务器 (PID: {pid})...")
-    
+
+    write_server_log(f"\ud83d\uded1 \u6b63\u5728\u505c\u6b62\u670d\u52a1\u5668 (PID: {pid})...")
+
     try:
-        # 先发 SIGTERM 信号优雅退出
+        # \u5148\u53d1 SIGTERM \u4fe1\u53f7\u4f18\u96c5\u9000\u51fa
         os.kill(pid, signal.SIGTERM)
-        
-        # 等待最多 10 秒
+
+        # \u7b49\u5f85\u6700\u591a 10 \u79d2
         for _ in range(20):
             time.sleep(0.5)
             if not _server_running:
                 break
-            # 检查进程是否还活着
+            # \u68c0\u67e5\u8fdb\u7a0b\u662f\u5426\u8fd8\u6d3b\u7740
             try:
-                os.kill(pid, 0)  # 信号 0 仅检查进程是否存在
+                os.kill(pid, 0)  # \u4fe1\u53f7 0 \u4ec5\u68c0\u67e5\u8fdb\u7a0b\u662f\u5426\u5b58\u5728
             except OSError:
                 with _server_lock:
                     _server_running = False
@@ -712,31 +710,31 @@ async def stop_server():
                     _server_pid = None
                 break
         else:
-            # 如果 10 秒后还没结束，强行杀死
-            write_server_log("⚠️ 进程未响应 SIGTERM，发送 SIGKILL...")
+            # \u5982\u679c 10 \u79d2\u540e\u8fd8\u6ca1\u7ed3\u675f\uff0c\u5f3a\u884c\u6740\u6b7b
+            write_server_log("\u26a0\ufe0f \u8fdb\u7a0b\u672a\u54cd\u5e94 SIGTERM\uff0c\u53d1\u9001 SIGKILL...")
             os.kill(pid, signal.SIGKILL)
             time.sleep(0.5)
     except ProcessLookupError:
         pass
     except Exception as e:
-        write_server_log(f"❌ 停止服务器失败: {e}")
-        return {"success": False, "message": f"停止失败: {e}"}
-    
+        write_server_log(f"\u274c \u505c\u6b62\u670d\u52a1\u5668\u5931\u8d25: {e}")
+        return {"success": False, "message": f"\u505c\u6b62\u5931\u8d25: {e}"}
+
     with _server_lock:
         _server_running = False
         _server_process = None
         _server_pid = None
-    
-    write_server_log("✅ 服务器已停止")
-    return {"success": True, "message": "服务器已停止"}
+
+    write_server_log("\u2705 \u670d\u52a1\u5668\u5df2\u505c\u6b62")
+    return {"success": True, "message": "\u670d\u52a1\u5668\u5df2\u505c\u6b62"}
 
 
 @router.get("/status")
 async def get_server_status():
-    """获取服务器运行状态"""
+    """\u83b7\u53d6\u670d\u52a1\u5668\u8fd0\u884c\u72b6\u6001"""
     global _server_running, _server_pid, _server_start_time
-    
-    # 双重检查：如果标记为运行中但进程已不存在，修复状态
+
+    # \u53cc\u91cd\u68c0\u67e5\uff1a\u5982\u679c\u6807\u8bb0\u4e3a\u8fd0\u884c\u4e2d\u4f46\u8fdb\u7a0b\u5df2\u4e0d\u5b58\u5728\uff0c\u4fee\u590d\u72b6\u6001
     with _server_lock:
         if _server_running and _server_pid:
             try:
@@ -746,21 +744,21 @@ async def get_server_status():
                 _server_process = None
                 _server_pid = None
                 _server_start_time = None
-    
+
     running = _server_running
     pid = _server_pid
     start_time = _server_start_time
-    
-    # 读取最近的日志（最后 50 行）
+
+    # \u8bfb\u53d6\u6700\u8fd1\u7684\u65e5\u5fd7\uff08\u6700\u540e 50 \u884c\uff09
     recent_log = ""
-    if SERVER_LOG_FILE.exists():
+    if get_server_log_file().exists():
         try:
-            with open(SERVER_LOG_FILE, "r", encoding="utf-8") as f:
+            with open(get_server_log_file(), "r", encoding="utf-8") as f:
                 lines = f.readlines()
             recent_log = "".join(lines[-50:])
         except:
             pass
-    
+
     elapsed = ""
     if running and start_time:
         seconds = int(time.time() - start_time)
@@ -768,14 +766,14 @@ async def get_server_status():
         minutes = (seconds % 3600) // 60
         secs = seconds % 60
         if hours > 0:
-            elapsed = f"{hours}小时{minutes}分钟"
+            elapsed = f"{hours}\u5c0f\u65f6{minutes}\u5206\u949f"
         elif minutes > 0:
-            elapsed = f"{minutes}分钟{secs}秒"
+            elapsed = f"{minutes}\u5206\u949f{secs}\u79d2"
         else:
-            elapsed = f"{secs}秒"
-    
+            elapsed = f"{secs}\u79d2"
+
     server_path = find_llama_server()
-    
+
     return {
         "success": True,
         "running": running,
@@ -789,25 +787,25 @@ async def get_server_status():
 
 @router.get("/process-log")
 async def get_process_log():
-    """获取服务器进程日志"""
-    if SERVER_LOG_FILE.exists():
+    """\u83b7\u53d6\u670d\u52a1\u5668\u8fdb\u7a0b\u65e5\u5fd7"""
+    if get_server_log_file().exists():
         try:
-            with open(SERVER_LOG_FILE, "r", encoding="utf-8") as f:
+            with open(get_server_log_file(), "r", encoding="utf-8") as f:
                 content = f.read()
             return {"success": True, "log": content}
         except Exception as e:
             return {"success": False, "log": "", "message": str(e)}
-    return {"success": True, "log": "", "message": "暂无日志"}
+    return {"success": True, "log": "", "message": "\u6682\u65e0\u65e5\u5fd7"}
 
 
 @router.get("/list-models")
 async def list_available_models():
-    """列出软链接目录中的可用模型文件（供前端选择器使用）"""
+    """\u5217\u51fa\u8f6f\u94fe\u63a5\u76ee\u5f55\u4e2d\u7684\u53ef\u7528\u6a21\u578b\u6587\u4ef6\uff08\u4f9b\u524d\u7aef\u9009\u62e9\u5668\u4f7f\u7528\uff09"""
     from config import LINKS_DIR, MODELS_DIR
-    
+
     models = []
-    
-    # 从软链接目录查找
+
+    # \u4ece\u8f6f\u94fe\u63a5\u76ee\u5f55\u67e5\u627e
     if LINKS_DIR.exists():
         for item in sorted(LINKS_DIR.rglob("*")):
             if item.is_file() and not item.name.startswith("."):
@@ -816,10 +814,10 @@ async def list_available_models():
                     "name": str(item.relative_to(LINKS_DIR)),
                     "size": item.stat().st_size,
                     "is_symlink": item.is_symlink(),
-                    "source": "软链接目录",
+                    "source": "\u8f6f\u94fe\u63a5\u76ee\u5f55",
                 })
-    
-    # 如果软链接目录为空，直接从模型目录查找
+
+    # \u5982\u679c\u8f6f\u94fe\u63a5\u76ee\u5f55\u4e3a\u7a7a\uff0c\u76f4\u63a5\u4ece\u6a21\u578b\u76ee\u5f55\u67e5\u627e
     if not models and MODELS_DIR.exists():
         for item in sorted(MODELS_DIR.rglob("*.gguf")):
             if item.is_file():
@@ -828,7 +826,7 @@ async def list_available_models():
                     "name": str(item.relative_to(MODELS_DIR)),
                     "size": item.stat().st_size,
                     "is_symlink": False,
-                    "source": "模型目录",
+                    "source": "\u6a21\u578b\u76ee\u5f55",
                 })
-    
+
     return {"success": True, "models": models}
