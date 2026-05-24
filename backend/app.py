@@ -28,9 +28,29 @@ app.include_router(local_router)
 app.include_router(progress_router)
 app.include_router(system_router)
 
+# ==================== LlamaPanel 更新状态跟踪 ====================
+_update_panel_status = {
+    "running": False,
+    "success": None,
+    "message": "",
+    "started_at": None,
+    "finished_at": None,
+}
+_update_panel_lock = threading.Lock()
+
+def _set_update_status(running=None, success=None, message=None):
+    """线程安全地更新面板状态"""
+    with _update_panel_lock:
+        if running is not None:
+            _update_panel_status["running"] = running
+        if success is not None:
+            _update_panel_status["success"] = success
+        if message is not None:
+            _update_panel_status["message"] = message
+
 # 更新 LlamaPanel 的函数
 def update_llamapanel():
-    """更新 LlamaPanel 自身"""
+    """更新 LlamaPanel 自身（增强版：状态跟踪 + 更好错误处理）"""
     log_file = LOGS_DIR / "update.log"
     log_file.parent.mkdir(exist_ok=True)
     
@@ -42,6 +62,7 @@ def update_llamapanel():
             f.write(log_msg + '\n')
     
     try:
+        _set_update_status(running=True, success=None, message="正在更新...")
         log_msg("========== 开始更新 LlamaPanel ==========")
         
         repo_path = str(PROJECT_DIR)
@@ -49,10 +70,39 @@ def update_llamapanel():
         log_msg(f"当前工作目录: {os.getcwd()}")
         log_msg(f"项目目录: {repo_path}")
         
-        git_check = subprocess.run(['which', 'git'], capture_output=True, text=True)
-        log_msg(f"git 路径: {git_check.stdout.strip()}")
+        # 检查 git 是否可用
+        try:
+            git_check = subprocess.run(['git', '--version'], capture_output=True, text=True, timeout=10)
+            if git_check.returncode != 0:
+                log_msg("❌ git 命令不可用，请先安装 git")
+                _set_update_status(running=False, success=False, message="git 命令不可用")
+                return False
+            log_msg(f"git 版本: {git_check.stdout.strip()}")
+        except FileNotFoundError:
+            log_msg("❌ git 未安装，无法更新")
+            _set_update_status(running=False, success=False, message="git 未安装，请先安装 git")
+            return False
         
-        # === 修复1: 先暂存本地修改，防止 git pull 因冲突失败 ===
+        # 检查是否为 git 仓库
+        git_check_dir = subprocess.run(
+            ['git', 'rev-parse', '--git-dir'],
+            cwd=repo_path, capture_output=True, text=True, timeout=10
+        )
+        if git_check_dir.returncode != 0:
+            log_msg("❌ 项目目录不是一个 git 仓库，无法通过 git 更新")
+            log_msg("请手动从 GitHub 克隆: git clone https://github.com/CHENBIN-1979/llamapanel.git")
+            _set_update_status(running=False, success=False, message="不是 git 仓库，请手动克隆")
+            return False
+        
+        # 获取远程仓库地址
+        remote_result = subprocess.run(
+            ['git', 'remote', 'get-url', 'origin'],
+            cwd=repo_path, capture_output=True, text=True, timeout=10
+        )
+        if remote_result.returncode == 0:
+            log_msg(f"远程仓库: {remote_result.stdout.strip()}")
+        
+        # === 步骤1: 先暂存本地修改，防止 git pull 因冲突失败 ===
         log_msg("暂存本地修改...")
         stash_result = subprocess.run(
             ['git', 'stash', 'push', '-m', 'llamapanel_update_auto_stash'],
@@ -64,6 +114,7 @@ def update_llamapanel():
         if had_local_changes:
             log_msg("✅ 已暂存本地修改，pull 完成后将自动恢复")
         
+        # === 步骤2: 尝试 git pull ===
         log_msg("执行: git pull")
         result = subprocess.run(
             ['git', 'pull'],
@@ -78,8 +129,14 @@ def update_llamapanel():
         if result.stderr:
             log_msg(f"错误: {result.stderr}")
         
-        if result.returncode != 0:
-            # === 修复2: pull 失败时，使用 fetch + reset --hard 降级 ===
+        # 检查是否有实际更新
+        already_uptodate = False
+        if result.stdout and "Already up to date" in result.stdout:
+            already_uptodate = True
+            log_msg("✅ 已是最新版本")
+        
+        if result.returncode != 0 and not already_uptodate:
+            # === 步骤3: pull 失败时，使用 fetch + reset --hard 降级 ===
             log_msg("git pull 失败，尝试 git fetch + reset --hard 降级方案")
             
             # 获取当前分支名
@@ -90,6 +147,7 @@ def update_llamapanel():
             current_branch = branch_result.stdout.strip() or 'main'
             log_msg(f"当前分支: {current_branch}")
             
+            log_msg("执行: git fetch origin")
             fetch_result = subprocess.run(
                 ['git', 'fetch', 'origin'],
                 cwd=repo_path,
@@ -102,17 +160,35 @@ def update_llamapanel():
                 log_msg(f"fetch 输出: {fetch_result.stdout}")
             if fetch_result.returncode != 0:
                 log_msg("❌ git fetch 也失败了，网络可能不通")
+                _set_update_status(running=False, success=False, message="网络连接失败，无法获取更新")
+                return False
             else:
-                # fetch 成功后强制重置到远程分支
-                reset_result = subprocess.run(
-                    ['git', 'reset', '--hard', f'origin/{current_branch}'],
-                    cwd=repo_path, capture_output=True, text=True, timeout=30
+                # fetch 成功后先检查是否有新提交
+                log_msg("检查远程是否有新提交...")
+                log_result = subprocess.run(
+                    ['git', 'log', f'HEAD..origin/{current_branch}', '--oneline'],
+                    cwd=repo_path, capture_output=True, text=True, timeout=10
                 )
-                log_msg(f"git reset 返回码: {reset_result.returncode}")
-                if reset_result.stdout:
-                    log_msg(f"reset 输出: {reset_result.stdout.strip()}")
-                if reset_result.returncode == 0:
-                    log_msg("✅ 已强制同步到远程最新代码")
+                if log_result.stdout.strip():
+                    new_commits = len(log_result.stdout.strip().split('\n'))
+                    log_msg(f"发现 {new_commits} 个新提交")
+                    # 强制重置到远程分支
+                    reset_result = subprocess.run(
+                        ['git', 'reset', '--hard', f'origin/{current_branch}'],
+                        cwd=repo_path, capture_output=True, text=True, timeout=30
+                    )
+                    log_msg(f"git reset 返回码: {reset_result.returncode}")
+                    if reset_result.stdout:
+                        log_msg(f"reset 输出: {reset_result.stdout.strip()}")
+                    if reset_result.returncode == 0:
+                        log_msg("✅ 已强制同步到远程最新代码")
+                    else:
+                        log_msg("❌ git reset 失败")
+                        _set_update_status(running=False, success=False, message="git reset 失败")
+                        return False
+                else:
+                    already_uptodate = True
+                    log_msg("✅ 远程无新提交，已是最新版本")
         
         # 恢复之前暂存的本地修改
         if had_local_changes:
@@ -126,39 +202,85 @@ def update_llamapanel():
             else:
                 log_msg("⚠️ 本地修改自动恢复失败，请手动执行: git stash pop")
         
-        log_msg("代码更新完成")
+        if already_uptodate:
+            log_msg("✅ LlamaPanel 已经是最新版本，无需更新")
+            _set_update_status(running=False, success=True, message="已经是最新版本")
+            return True
         
+        log_msg("✅ 代码更新完成")
+        
+        # === 步骤4: 安装 Python 依赖 ===
         requirements_file = PROJECT_DIR / "requirements.txt"
         if requirements_file.exists():
             log_msg("检查 Python 依赖...")
-            pip_result = subprocess.run(
-                [str(PROJECT_DIR / "venv/bin/pip"), 'install', '-r', 'requirements.txt'],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-            log_msg(f"pip 安装返回码: {pip_result.returncode}")
+            # 尝试多个可能的 pip 路径
+            pip_candidates = [
+                str(PROJECT_DIR / "venv/bin/pip"),
+                str(PROJECT_DIR / ".venv/bin/pip"),
+                'pip3',
+                'pip',
+            ]
+            pip_cmd = None
+            for candidate in pip_candidates:
+                try:
+                    test = subprocess.run([candidate, '--version'], capture_output=True, text=True, timeout=10)
+                    if test.returncode == 0:
+                        pip_cmd = candidate
+                        log_msg(f"使用 pip: {candidate} ({test.stdout.strip()})")
+                        break
+                except:
+                    continue
+            
+            if pip_cmd:
+                pip_result = subprocess.run(
+                    [pip_cmd, 'install', '-r', 'requirements.txt'],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                log_msg(f"pip 安装返回码: {pip_result.returncode}")
+                if pip_result.returncode != 0:
+                    log_msg(f"pip 安装输出: {pip_result.stdout[:500] if pip_result.stdout else ''}")
+                    log_msg(f"pip 安装错误: {pip_result.stderr[:500] if pip_result.stderr else ''}")
+                    log_msg("⚠️ Python 依赖安装有警告，但不影响核心功能")
+            else:
+                log_msg("⚠️ 未找到 pip，跳过 Python 依赖安装")
         
-        # === 修复3: 使用 sudo -n 非交互模式，避免因需要密码而挂起 ===
-        log_msg("重启 LlamaPanel 服务...")
-        restart_result = subprocess.run(
-            ['sudo', '-n', 'systemctl', 'restart', 'llamapanel'],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        log_msg(f"重启服务返回码: {restart_result.returncode}")
-        if restart_result.returncode != 0:
-            log_msg("⚠️ 自动重启失败（可能需要手动输入密码）")
-            log_msg("请手动执行: sudo systemctl restart llamapanel")
+        # === 步骤5: 尝试重启服务 ===
+        log_msg("尝试重启 LlamaPanel 服务...")
+        restart_methods = [
+            (['sudo', '-n', 'systemctl', 'restart', 'llamapanel'], "systemctl"),
+            (['sudo', '-n', 'supervisorctl', 'restart', 'llamapanel'], "supervisorctl"),
+        ]
+        
+        restart_success = False
+        for cmd, method in restart_methods:
+            try:
+                restart_result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=30
+                )
+                log_msg(f"{method} 重启返回码: {restart_result.returncode}")
+                if restart_result.returncode == 0:
+                    log_msg(f"✅ 服务已通过 {method} 重启")
+                    restart_success = True
+                    break
+            except:
+                continue
+        
+        if not restart_success:
+            log_msg("⚠️ 自动重启服务失败，可能需要手动操作")
+            log_msg("请在 SSH 中执行: sudo systemctl restart llamapanel")
+            log_msg("或等待下次服务自动重启时生效")
         
         log_msg("========== 更新完成 ==========")
+        _set_update_status(running=False, success=True, message="更新完成，请稍后刷新页面")
         return True
     except Exception as e:
         log_msg(f"更新失败: {e}")
         import traceback
         log_msg(traceback.format_exc())
+        _set_update_status(running=False, success=False, message=f"更新失败: {str(e)}")
         return False
 
 HTML_PAGE = '''
@@ -688,30 +810,189 @@ HTML_PAGE = '''
             }
         }
         
+        // ==================== LlamaPanel 更新相关 ====================
+        let updatePollInterval = null;
+        let updateLogRefreshInterval = null;
+        
         async function updateLlamaPanel() {
-            if (confirm('🔄 更新 LlamaPanel 面板？\\n\\n将从 GitHub 拉取最新代码并更新依赖。\\n如果配置了 NOPASSWD sudo，服务将自动重启。\\n继续吗？')) {
+            if (confirm('🔄 更新 LlamaPanel 面板？\\n\\n将从 GitHub 拉取最新代码并更新依赖。\\n如果系统配置了 NOPASSWD sudo，服务将自动重启。\\n继续吗？')) {
                 const btn = document.getElementById('updatePanelBtn');
                 btn.disabled = true;
                 btn.innerHTML = '<span class="loading"></span> 更新中...';
+                
+                // 切换日志视图到更新日志
+                showUpdateLog();
+                
                 try {
                     const result = await fetchAPI('/api/update_panel', 'POST');
-                    alert(result.message);
                     if (result.success) {
-                        // 如果提示需要手动重启，让用户自己决定
-                        if (result.message && result.message.includes('手动')) {
-                            // 不自动刷新
-                        } else {
-                            setTimeout(() => {
-                                location.reload();
-                            }, 3000);
-                        }
+                        // 开始轮询更新日志
+                        startUpdateLogPolling();
+                        // 开始轮询更新状态
+                        startUpdateStatusPolling();
+                    } else {
+                        alert('❌ ' + result.message);
+                        btn.disabled = false;
+                        btn.innerHTML = '🔄 更新 LlamaPanel';
+                        stopUpdatePolling();
                     }
                 } catch(e) {
-                    alert('更新失败: ' + e.message);
-                } finally {
+                    alert('❌ 请求失败: ' + e.message);
                     btn.disabled = false;
                     btn.innerHTML = '🔄 更新 LlamaPanel';
+                    stopUpdatePolling();
                 }
+            }
+        }
+        
+        function showUpdateLog() {
+            // 在日志查看器上方添加提示
+            const logControls = document.querySelector('.log-controls');
+            if (logControls) {
+                // 移除旧的提示
+                const oldHint = document.getElementById('updateLogHint');
+                if (oldHint) oldHint.remove();
+                
+                const hint = document.createElement('div');
+                hint.id = 'updateLogHint';
+                hint.style.cssText = 'font-size: 12px; color: #667eea; padding: 4px 8px; background: #eef2ff; border-radius: 4px; margin-bottom: 8px;';
+                hint.innerHTML = '📋 当前显示：<strong>LlamaPanel 更新日志</strong>（更新完成后自动切回安装日志）';
+                logControls.parentNode.insertBefore(hint, logControls.nextSibling);
+            }
+        }
+        
+        function hideUpdateLogHint() {
+            const hint = document.getElementById('updateLogHint');
+            if (hint) hint.remove();
+        }
+        
+        async function refreshUpdateLog() {
+            try {
+                const response = await fetch('/api/update_panel_log');
+                const data = await response.json();
+                const logDiv = document.getElementById('logContent');
+                if (!logDiv) return;
+                
+                if (!data.success || !data.log || data.log.trim() === '') {
+                    logDiv.innerHTML = '<div class="log-line">等待更新任务启动...</div>';
+                    return;
+                }
+                
+                // 处理日志内容，与 refreshLog 相同的渲染逻辑
+                let text = data.log;
+                text = text.replace(/\\\\n/g, '\\n');
+                text = text.replace(/\\\\r\\\\n/g, '\\n');
+                const lines = text.split('\\n');
+                
+                let html = '';
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i];
+                    if (line.trim() === '') continue;
+                    
+                    let lineClass = 'log-line';
+                    let displayLine = escapeHtml(line);
+                    
+                    if (line.includes('[ERR]') || line.includes('error') || line.includes('Error') || line.includes('失败')) {
+                        lineClass += ' log-error';
+                        displayLine = '❌ ' + displayLine;
+                    } else if (line.includes('✅')) {
+                        lineClass += ' log-success';
+                    } else if (line.includes('⚠️')) {
+                        lineClass += ' log-warning';
+                        displayLine = '⚠️ ' + displayLine;
+                    } else if (line.includes('执行:')) {
+                        lineClass += ' log-command';
+                        displayLine = '🔧 ' + displayLine;
+                    } else if (line.includes('==========')) {
+                        lineClass += ' log-separator';
+                    } else if (line.includes('完成') || line.includes('成功')) {
+                        lineClass += ' log-success';
+                    }
+                    
+                    html += `<div class="${lineClass}">${displayLine}</div>`;
+                }
+                
+                if (html === '') {
+                    logDiv.innerHTML = '<div class="log-line">等待更新任务启动...</div>';
+                } else {
+                    logDiv.innerHTML = html;
+                    logDiv.scrollTop = logDiv.scrollHeight;
+                }
+            } catch(e) {
+                console.error('刷新更新日志失败:', e);
+            }
+        }
+        
+        async function refreshUpdateStatus() {
+            try {
+                const status = await fetchAPI('/api/update_panel_status');
+                const btn = document.getElementById('updatePanelBtn');
+                
+                if (!status.running) {
+                    // 更新已完成
+                    stopUpdatePolling();
+                    
+                    if (status.success === true) {
+                        // 更新成功
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '🔄 更新 LlamaPanel';
+                        }
+                        const msg = status.message || '更新完成';
+                        if (msg.includes('最新版本')) {
+                            // 已是最新，不刷新
+                        } else {
+                            // 更新成功，提示并刷新
+                            setTimeout(() => {
+                                if (confirm('✅ LlamaPanel 更新完成！\\n\\n系统需要重新加载页面以应用更新。\\n点击"确定"立即刷新。')) {
+                                    location.reload();
+                                }
+                            }, 1000);
+                        }
+                    } else if (status.success === false) {
+                        // 更新失败
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '🔄 更新 LlamaPanel';
+                        }
+                        // 5秒后切回安装日志
+                        setTimeout(() => {
+                            hideUpdateLogHint();
+                            refreshLog();
+                        }, 5000);
+                    }
+                }
+            } catch(e) {
+                console.error('刷新更新状态失败:', e);
+            }
+        }
+        
+        function startUpdateLogPolling() {
+            if (updateLogRefreshInterval) clearInterval(updateLogRefreshInterval);
+            // 立即刷新一次
+            refreshUpdateLog();
+            updateLogRefreshInterval = setInterval(refreshUpdateLog, 2000);
+        }
+        
+        function startUpdateStatusPolling() {
+            if (updatePollInterval) clearInterval(updatePollInterval);
+            updatePollInterval = setInterval(refreshUpdateStatus, 3000);
+        }
+        
+        function stopUpdatePolling() {
+            if (updateLogRefreshInterval) {
+                clearInterval(updateLogRefreshInterval);
+                updateLogRefreshInterval = null;
+            }
+            if (updatePollInterval) {
+                clearInterval(updatePollInterval);
+                updatePollInterval = null;
+            }
+            // 恢复按钮
+            const btn = document.getElementById('updatePanelBtn');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 更新 LlamaPanel';
             }
         }
         
@@ -845,7 +1126,44 @@ async def update_panel(background_tasks: BackgroundTasks):
                 update_panel._running = False
     
     background_tasks.add_task(run_update)
-    return {"success": True, "message": f"LlamaPanel 更新任务已启动，请查看更新日志"}
+    return {"success": True, "message": "LlamaPanel 更新任务已启动，请查看更新日志"}
+
+@app.get("/api/update_panel_log")
+async def get_update_panel_log():
+    """读取 LlamaPanel 更新日志"""
+    log_file = LOGS_DIR / "update.log"
+    if not log_file.exists():
+        return {"success": True, "log": "", "message": "暂无更新日志"}
+    
+    try:
+        with open(log_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        if not content.strip():
+            return {"success": True, "log": "", "message": "暂无更新日志"}
+        return {"success": True, "log": content}
+    except Exception as e:
+        return {"success": False, "log": "", "message": f"读取日志失败: {e}"}
+
+@app.get("/api/update_panel_status")
+async def get_update_panel_status():
+    """查询 LlamaPanel 更新状态（前端轮询用）"""
+    with _update_panel_lock:
+        status = dict(_update_panel_status)
+    # 如果更新日志有内容，获取最后几行作为摘要
+    summary = ""
+    log_file = LOGS_DIR / "update.log"
+    if log_file.exists():
+        try:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            if lines:
+                # 取最后5行非空行
+                recent = [l.strip() for l in lines if l.strip()][-5:]
+                summary = "\n".join(recent)
+        except:
+            pass
+    status["summary"] = summary
+    return status
 
 if __name__ == "__main__":
     import uvicorn
