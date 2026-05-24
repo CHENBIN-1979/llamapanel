@@ -136,12 +136,16 @@
 
     .param-row {
         display: flex;
-        align-items: flex-start;
+        flex-direction: column;
         padding: 12px 0;
         border-bottom: 1px solid #f0f0f0;
-        gap: 16px;
     }
     .param-row:last-child { border-bottom: none; }
+    .param-top-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+    }
     .param-label {
         flex: 0 0 240px;
         min-width: 180px;
@@ -160,11 +164,13 @@
         border-radius: 4px;
         margin-left: 4px;
     }
-    .param-label .param-desc {
-        font-size: 11px;
+    .param-desc {
+        font-size: 13px;
         color: #718096;
-        margin-top: 3px;
-        line-height: 1.4;
+        margin-top: 6px;
+        padding-left: 2px;
+        line-height: 1.5;
+        width: 100%;
     }
     .param-input { flex: 1; min-width: 200px; }
     .param-input input[type="text"],
@@ -576,26 +582,30 @@
 
         const flagHtml = param.flag ? `<span class="param-flag">${escapeHtml(param.flag)}</span>` : '';
 
-        // checkbox 类型只需 label+desc（input 已包含 label）
+        // checkbox 类型
         if (param.type === 'checkbox') {
             return `<div class="param-row">
-                <div class="param-label">
-                    <label>${requiredMark} ${flagHtml}</label>
-                    <div class="param-desc">${escapeHtml(param.description || '')}</div>
+                <div class="param-top-row">
+                    <div class="param-label">
+                        <label>${requiredMark} ${flagHtml}</label>
+                    </div>
+                    <div class="param-input">
+                        <input type="checkbox" id="param-${key}" ${currentVal === true || currentVal === 'true' || currentVal === true ? 'checked' : ''} onchange="onParamChange('${key}')">
+                        <label class="checkbox-label" for="param-${key}">${escapeHtml(param.label)}</label>
+                    </div>
                 </div>
-                <div class="param-input">
-                    <input type="checkbox" id="param-${key}" ${currentVal === true || currentVal === 'true' || currentVal === true ? 'checked' : ''} onchange="onParamChange('${key}')">
-                    <label class="checkbox-label" for="param-${key}">${escapeHtml(param.label)}</label>
-                </div>
+                <div class="param-desc">${escapeHtml(param.description || '')}</div>
             </div>`;
         }
 
         return `<div class="param-row">
-            <div class="param-label">
-                <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
-                <div class="param-desc">${escapeHtml(param.description || '')}</div>
+            <div class="param-top-row">
+                <div class="param-label">
+                    <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
+                </div>
+                <div class="param-input">${inputHtml}</div>
             </div>
-            <div class="param-input">${inputHtml}</div>
+            <div class="param-desc">${escapeHtml(param.description || '')}</div>
         </div>`;
     }
 
