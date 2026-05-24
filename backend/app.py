@@ -58,8 +58,17 @@ def update_llamapanel():
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         log_msg = f"[{timestamp}] {msg}"
         print(log_msg)
-        with open(log_file, 'a', encoding='utf-8') as f:
-            f.write(log_msg + '\n')
+        try:
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(log_msg + '\n')
+        except PermissionError:
+            # 如果日志文件权限不足，尝试修复目录权限
+            try:
+                os.chmod(log_file.parent, 0o755)
+                with open(log_file, 'a', encoding='utf-8') as f:
+                    f.write(log_msg + '\n')
+            except:
+                print(f"[{timestamp}] ⚠️ 无法写入日志文件（权限不足），但更新仍会继续")
     
     try:
         _set_update_status(running=True, success=None, message="正在更新...")
@@ -93,6 +102,77 @@ def update_llamapanel():
             log_msg("请手动从 GitHub 克隆: git clone https://github.com/CHENBIN-1979/llamapanel.git")
             _set_update_status(running=False, success=False, message="不是 git 仓库，请手动克隆")
             return False
+        
+        # 获取 git 目录的实际路径
+        git_dir_raw = git_check_dir.stdout.strip()
+        if not os.path.isabs(git_dir_raw):
+            git_dir_real = os.path.normpath(os.path.join(repo_path, git_dir_raw))
+        else:
+            git_dir_real = git_dir_raw
+        log_msg(f"git 目录: {git_dir_real}")
+        
+        # === 关键修复：检查和修复 .git 目录权限 ===
+        # Web 服务（如 www-data）可能没有 .git 目录的写权限，
+        # 这会导致 git pull / git fetch 失败（Permission denied）
+        # 方案一：os.chmod（Python 原生，需要文件所有者身份）
+        # 方案二：sudo chmod（通过 subprocess，需要 NOPASSWD）
+        try:
+            if os.path.isdir(git_dir_real):
+                git_writable = os.access(git_dir_real, os.W_OK)
+                if not git_writable:
+                    log_msg("⚠️ 检测到 .git 目录权限不足（Web 用户无写入权限）")
+                    log_msg("正在自动修复权限...")
+                    
+                    # 方案一：尝试 os.chmod（需要文件所有者身份）
+                    perm_fixed = False
+                    try:
+                        for root_dir, dirs, files in os.walk(git_dir_real):
+                            try:
+                                os.chmod(root_dir, 0o755)
+                            except:
+                                pass
+                            for d in dirs:
+                                try:
+                                    os.chmod(os.path.join(root_dir, d), 0o755)
+                                except:
+                                    pass
+                            for f in files:
+                                try:
+                                    os.chmod(os.path.join(root_dir, f), 0o644)
+                                except:
+                                    pass
+                        if os.access(git_dir_real, os.W_OK):
+                            perm_fixed = True
+                    except:
+                        pass
+                    
+                    # 方案二：如果 os.chmod 失败，尝试 sudo chmod
+                    if not perm_fixed:
+                        log_msg("尝试通过 sudo 修复权限...")
+                        try:
+                            sudo_result = subprocess.run(
+                                ['sudo', '-n', 'chmod', '-R', '755', git_dir_real],
+                                capture_output=True, text=True, timeout=30
+                            )
+                            if sudo_result.returncode == 0:
+                                log_msg("✅ 通过 sudo chmod 修复权限成功")
+                                perm_fixed = True
+                            else:
+                                log_msg(f"sudo chmod 失败（{sudo_result.stderr.strip()}），非 NOPASSWD 配置")
+                        except:
+                            log_msg("sudo chmod 不可用（无 sudo 权限或未配置 NOPASSWD）")
+                    
+                    if perm_fixed:
+                        log_msg("✅ .git 目录权限修复成功")
+                    else:
+                        log_msg("⚠️ .git 目录权限修复失败，尝试继续更新...")
+                        log_msg("💡 如需手动修复，请在服务器执行：")
+                        log_msg(f"   sudo chown -R $(whoami):$(whoami) {git_dir_real}")
+                        log_msg(f"   或: sudo chmod -R 755 {git_dir_real}")
+                else:
+                    log_msg("✅ .git 目录权限正常，可写入")
+        except Exception as perm_e:
+            log_msg(f"⚠️ 检查和修复 .git 权限时出现异常（不影响更新）: {perm_e}")
         
         # 获取远程仓库地址
         remote_result = subprocess.run(
