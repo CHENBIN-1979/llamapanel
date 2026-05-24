@@ -49,6 +49,81 @@ def _set_update_status(running=None, success=None, message=None):
         if message is not None:
             _update_panel_status["message"] = message
 
+def _fix_git_permissions_writable(log_func, git_dir_path):
+    """
+    修复 .git 目录权限，确保 Web 用户可写入。
+    使用实际写文件测试验证修复是否生效，避免 chmod 被非所有者调用时静默失败。
+    返回 True/False 表示修复是否成功。
+    """
+    test_file = os.path.join(git_dir_path, ".write_test_llamapanel")
+    
+    # 1️⃣ 先用实际写测试验证当前状态
+    def _can_write():
+        try:
+            with open(test_file, 'w', encoding='utf-8') as f:
+                f.write("test")
+            os.remove(test_file)
+            return True
+        except (PermissionError, OSError):
+            return False
+    
+    if _can_write():
+        return True  # 已经可写，无需修复
+    
+    log_func("⚠️ .git 目录权限不足，正在尝试修复...")
+    
+    # 2️⃣ 方案一：尝试 chmod -R a+w（所有用户可写）+ 写测试验证
+    strategies = [
+        # (命令, 描述)
+        (['chmod', '-R', 'a+w', git_dir_path], "chmod -R a+w"),
+        (['chmod', '-R', '777', git_dir_path], "chmod -R 777"),
+        (['sudo', '-n', 'chmod', '-R', '777', git_dir_path], "sudo chmod -R 777"),
+        (['sudo', '-n', 'chmod', '-R', 'a+w', git_dir_path], "sudo chmod -R a+w"),
+    ]
+    
+    for cmd, desc in strategies:
+        try:
+            chmod_result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=30
+            )
+            if chmod_result.returncode == 0:
+                # 关键：用写测试验证是否真正生效
+                if _can_write():
+                    log_func(f"✅ 通过 {desc} 修复权限成功（已验证可写入）")
+                    return True
+                else:
+                    log_func(f"⚠️ {desc} 命令成功但未生效（非所有者调用 chmod 静默失败），继续尝试其他方案...")
+            else:
+                log_func(f"  {desc} 失败（{chmod_result.stderr.strip()}）")
+        except subprocess.TimeoutExpired:
+            log_func(f"  {desc} 超时")
+        except Exception as e:
+            log_func(f"  {desc} 异常: {e}")
+    
+    # 3️⃣ 方案五：尝试 Python os.chmod 系统调用（如果 Web 用户有 CAP_FOWNER 能力也有效）
+    log_func("尝试通过 Python os.chmod 递归修复...")
+    try:
+        for root_dir, dirs, files in os.walk(git_dir_path):
+            for name in dirs + files:
+                try:
+                    os.chmod(os.path.join(root_dir, name), 0o777)
+                except:
+                    pass
+        if _can_write():
+            log_func("✅ 通过 Python os.chmod 修复权限成功")
+            return True
+    except Exception as e:
+        log_func(f"  os.chmod 异常: {e}")
+    
+    # 4️⃣ 所有方案均失败，给出手动修复提示
+    log_func("⚠️ 所有自动修复方案均失败")
+    log_func("💡 请在服务器上执行以下任一命令修复：")
+    log_func(f"   1. sudo chown -R $(whoami):$(whoami) {git_dir_path}")
+    log_func(f"   2. sudo chmod -R 777 {git_dir_path}")
+    log_func(f"   3. sudo -u $(stat -c '%U' {git_dir_path}) chmod -R 777 {git_dir_path}")
+    return False
+
+
 # 更新 LlamaPanel 的函数
 def update_llamapanel():
     """更新 LlamaPanel 自身（增强版：状态跟踪 + 更好错误处理）"""
@@ -112,94 +187,16 @@ def update_llamapanel():
             git_dir_real = git_dir_raw
         log_msg(f"git 目录: {git_dir_real}")
         
-        # === 关键修复：用实际写文件测试检查和修复 .git 目录权限 ===
-        # os.access() 在某些系统上可能返回假阳性（说可写但实际写不了），
-        # 所以这里用实际创建临时文件来验证，确保 git 操作不会卡在 Permission denied
+        # === 用实际写文件测试检查和修复 .git 目录权限 ===
+        # 避免 os.access() 假阳性（说可写但实际写不了），
+        # 使用实际创建临时文件来验证，确保 git 操作不会因 Permission denied 失败
         try:
             if os.path.isdir(git_dir_real):
-                test_file = os.path.join(git_dir_real, ".write_test_llamapanel")
-                git_writable = True
-                try:
-                    with open(test_file, 'w', encoding='utf-8') as f:
-                        f.write("test")
-                    os.remove(test_file)
-                except (PermissionError, OSError):
-                    git_writable = False
-                
-                if git_writable:
-                    log_msg("✅ .git 目录可正常写入")
+                git_fixed = _fix_git_permissions_writable(log_msg, git_dir_real)
+                if git_fixed:
+                    log_msg("✅ .git 目录权限正常，可以继续更新")
                 else:
-                    log_msg("⚠️ 检测到 .git 目录权限不足（Web 用户无法写入文件）")
-                    log_msg("正在自动修复权限...")
-                    
-                    perm_fixed = False
-                    
-                    # 方案一：chmod -R u+w .git（最可靠的方式，从外部修改权限）
-                    for fix_cmd in [
-                        ['chmod', '-R', 'u+w', git_dir_real],
-                        ['chmod', '-R', '755', git_dir_real],
-                    ]:
-                        try:
-                            fix_result = subprocess.run(
-                                fix_cmd,
-                                capture_output=True, text=True, timeout=30
-                            )
-                            if fix_result.returncode == 0:
-                                log_msg(f"✅ 通过 chmod 修复权限成功")
-                                perm_fixed = True
-                                break
-                        except:
-                            pass
-                    
-                    # 方案二：如果直接 chmod 不行，尝试 sudo -n chmod
-                    if not perm_fixed:
-                        log_msg("尝试通过 sudo 修复权限...")
-                        for fix_cmd in [
-                            ['sudo', '-n', 'chmod', '-R', 'u+w', git_dir_real],
-                            ['sudo', '-n', 'chmod', '-R', '777', git_dir_real],
-                        ]:
-                            try:
-                                sudo_result = subprocess.run(
-                                    fix_cmd,
-                                    capture_output=True, text=True, timeout=30
-                                )
-                                if sudo_result.returncode == 0:
-                                    log_msg("✅ 通过 sudo chmod 修复权限成功")
-                                    perm_fixed = True
-                                    break
-                                else:
-                                    log_msg(f"sudo 修复失败（{sudo_result.stderr.strip()}），可能未配置 NOPASSWD")
-                            except:
-                                log_msg("sudo 不可用")
-                    
-                    # 方案三：尝试 Python os.chmod 递归修复
-                    if not perm_fixed:
-                        log_msg("尝试通过 Python os.chmod 递归修复...")
-                        try:
-                            for root_dir, dirs, files in os.walk(git_dir_real):
-                                for name in dirs + files:
-                                    try:
-                                        os.chmod(os.path.join(root_dir, name), 0o777)
-                                    except:
-                                        pass
-                            # 再次验证
-                            try:
-                                with open(test_file, 'w', encoding='utf-8') as f:
-                                    f.write("test")
-                                os.remove(test_file)
-                                perm_fixed = True
-                            except:
-                                pass
-                        except:
-                            pass
-                    
-                    if perm_fixed:
-                        log_msg("✅ .git 目录权限修复成功")
-                    else:
-                        log_msg("⚠️ .git 目录权限修复失败，尝试继续更新...")
-                        log_msg("💡 如需手动修复，请在服务器执行：")
-                        log_msg(f"   sudo chown -R $(whoami):$(whoami) {git_dir_real}")
-                        log_msg(f"   或: sudo chmod -R 777 {git_dir_real}")
+                    log_msg("⚠️ .git 目录权限可能不足，但仍将尝试继续更新")
         except Exception as perm_e:
             log_msg(f"⚠️ 检查和修复 .git 权限时出现异常（不影响更新）: {perm_e}")
         
@@ -251,22 +248,12 @@ def update_llamapanel():
         if result.returncode != 0 and not already_uptodate:
             if "Permission denied" in (result.stderr or ""):
                 log_msg("🔧 git pull 因权限问题失败，尝试修复权限后重试...")
-                # 尝试修复 .git 下的所有文件和目录权限
-                try:
-                    subprocess.run(
-                        ['chmod', '-R', 'u+w', git_dir_real],
-                        capture_output=True, text=True, timeout=30
-                    )
-                    log_msg("已执行 chmod -R u+w .git，准备重试 git pull")
-                except:
-                    try:
-                        subprocess.run(
-                            ['sudo', '-n', 'chmod', '-R', '777', git_dir_real],
-                            capture_output=True, text=True, timeout=30
-                        )
-                        log_msg("已执行 sudo chmod -R 777 .git，准备重试 git pull")
-                    except:
-                        log_msg("权限修复失败，继续尝试 fetch + reset 降级方案")
+                # 尝试修复 .git 下的所有文件和目录权限，并用写测试验证
+                perm_fixed = _fix_git_permissions_writable(log_msg, git_dir_real)
+                if perm_fixed:
+                    log_msg("✅ 权限修复成功，准备重试 git pull")
+                else:
+                    log_msg("⚠️ 权限修复可能未完全生效，仍将尝试重试 git pull")
                 
                 # 重试 pull
                 result, already_uptodate = _run_git_pull()
@@ -300,21 +287,11 @@ def update_llamapanel():
                 # 如果 fetch 因权限问题失败，修复权限后重试一次
                 if "Permission denied" in (fetch_result.stderr or ""):
                     log_msg("🔧 git fetch 因权限问题失败，尝试修复权限后重试...")
-                    try:
-                        subprocess.run(
-                            ['chmod', '-R', 'u+w', git_dir_real],
-                            capture_output=True, text=True, timeout=30
-                        )
-                        log_msg("已执行 chmod -R u+w .git，准备重试 git fetch")
-                    except:
-                        try:
-                            subprocess.run(
-                                ['sudo', '-n', 'chmod', '-R', '777', git_dir_real],
-                                capture_output=True, text=True, timeout=30
-                            )
-                            log_msg("已执行 sudo chmod -R 777 .git，准备重试 git fetch")
-                        except:
-                            log_msg("权限修复失败")
+                    perm_fixed = _fix_git_permissions_writable(log_msg, git_dir_real)
+                    if perm_fixed:
+                        log_msg("✅ 权限修复成功，准备重试 git fetch")
+                    else:
+                        log_msg("⚠️ 权限修复可能未完全生效，仍将尝试重试 git fetch")
                     
                     # 重试 fetch
                     log_msg("重试: git fetch origin")
