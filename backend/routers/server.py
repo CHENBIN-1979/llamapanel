@@ -222,6 +222,7 @@ SERVER_PARAMS_META = {
         "default": "",
         "placeholder": "如: 800000.0",
         "step": 0.1,
+        "needs_checkbox": true,
     },
     "rope_freq_scale": {
         "section": "上下文与内存",
@@ -232,6 +233,7 @@ SERVER_PARAMS_META = {
         "default": "",
         "placeholder": "如: 0.25",
         "step": 0.01,
+        "needs_checkbox": true,
     },
     "rope_scaling": {
         "section": "上下文与内存",
@@ -244,6 +246,7 @@ SERVER_PARAMS_META = {
             {"value": "linear", "label": "linear (线性)"},
             {"value": "yarn", "label": "yarn (YaRN)"},
         ],
+        "needs_checkbox": true,
     },
     "rope_scale": {
         "section": "上下文与内存",
@@ -268,6 +271,7 @@ SERVER_PARAMS_META = {
         "min": 128,
         "step": 128,
         "ref_scenario": "32768（标准32K模型），4096（标准4K模型），8192（标准8K模型）",
+        "needs_checkbox": true,
     },
 
     # ===== 采样参数 =====

@@ -203,6 +203,20 @@
         cursor: pointer;
         accent-color: #667eea;
     }
+    .param-input .param-checkbox {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #667eea;
+        margin-right: 6px;
+        vertical-align: middle;
+    }
+    .param-input input:disabled,
+    .param-input select:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background: #f7fafc;
+    }
     .param-input .checkbox-label {
         font-size: 13px;
         color: #4a5568;
@@ -552,16 +566,21 @@
                 break;
 
             case 'number':
+                {
                 const min = param.min !== undefined ? ` min="${param.min}"` : '';
                 const max = param.max !== undefined ? ` max="${param.max}"` : '';
                 const step = param.step !== undefined ? ` step="${param.step}"` : '';
                 const refVal = param.default !== undefined ? param.default : '';
                 const refScenario = param.ref_scenario || '';
-                inputHtml = `<input type="number" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onParamChange('${key}')">`;
+                const needsChk = param.needs_checkbox === true;
+                const chkHtml = needsChk ? `<input type="checkbox" class="param-checkbox" id="chk-${key}" onchange="onCheckboxParamToggle('${key}')" title="勾选以启用此参数">` : '';
+                const disAttr = needsChk ? ' disabled' : '';
+                inputHtml = chkHtml + `<input type="number" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onParamChange('${key}')"${disAttr}>`;
                 if (refScenario) {
                     inputHtml += `<span class="param-ref">💡 参考值：${escapeHtml(refScenario)}</span>`;
                 } else if (refVal !== '') {
                     inputHtml += `<span class="param-ref">参考值: ${escapeHtml(String(refVal))}</span>`;
+                }
                 }
                 break;
 
@@ -572,6 +591,7 @@
                 break;
 
             case 'select':
+                {
                 let options = '';
                 if (param.options) {
                     for (const opt of param.options) {
@@ -579,7 +599,11 @@
                         options += `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label)}</option>`;
                     }
                 }
-                inputHtml = `<select id="param-${key}" onchange="onParamChange('${key}')">${options}</select>`;
+                const needsChkSel = param.needs_checkbox === true;
+                const chkHtmlSel = needsChkSel ? `<input type="checkbox" class="param-checkbox" id="chk-${key}" onchange="onCheckboxParamToggle('${key}')" title="勾选以启用此参数">` : '';
+                const disAttrSel = needsChkSel ? ' disabled' : '';
+                inputHtml = chkHtmlSel + `<select id="param-${key}" onchange="onParamChange('${key}')"${disAttrSel}>${options}</select>`;
+                }
                 break;
 
             case 'file_picker':
@@ -627,6 +651,17 @@
             const param = paramsMeta[key];
             const el = document.getElementById('param-' + key);
             if (!el) continue;
+
+            // 处理带复选框的参数：根据 currentConfig 中是否存在该键决定勾选状态
+            if (param.needs_checkbox) {
+                const chk = document.getElementById('chk-' + key);
+                if (chk) {
+                    const hasValue = currentConfig[key] !== undefined && currentConfig[key] !== null && currentConfig[key] !== '';
+                    chk.checked = hasValue;
+                    el.disabled = !hasValue;
+                }
+            }
+
             const val = currentConfig[key] !== undefined ? currentConfig[key] : param.default;
 
             if (param.type === 'checkbox') {
@@ -646,6 +681,15 @@
             const el = document.getElementById('param-' + key);
             if (!el) continue;
 
+            // 跳过带复选框但未勾选的参数
+            if (param.needs_checkbox) {
+                const chk = document.getElementById('chk-' + key);
+                if (chk && !chk.checked) {
+                    delete currentConfig[key];
+                    continue;
+                }
+            }
+
             if (param.type === 'checkbox') {
                 currentConfig[key] = el.checked;
             } else if (param.type === 'number') {
@@ -659,6 +703,15 @@
                 currentConfig[key] = el.value.trim();
             }
         }
+    }
+
+    function onCheckboxParamToggle(key) {
+        const chk = document.getElementById('chk-' + key);
+        const input = document.getElementById('param-' + key);
+        if (chk && input) {
+            input.disabled = !chk.checked;
+        }
+        onParamChange(key);
     }
 
     function onParamChange(key) {
