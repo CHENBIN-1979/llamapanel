@@ -633,12 +633,17 @@ def _sanitize_config(config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def load_config() -> Dict[str, Any]:
-    """从文件加载已保存的配置"""
+    """从文件加载已保存的配置（含自动备份损坏文件）"""
     config_file = get_config_file()
     if config_file.exists():
         try:
             with open(config_file, "r", encoding="utf-8") as f:
-                saved = json.load(f)
+                content = f.read()
+            if not content or not content.strip():
+                raise ValueError("配置文件为空")
+            saved = json.loads(content)
+            if not isinstance(saved, dict):
+                raise ValueError("配置文件格式错误：不是 JSON 对象")
             # 合并默认值，确保新增参数也有值
             defaults = get_default_config()
             defaults.update(saved)
@@ -646,7 +651,15 @@ def load_config() -> Dict[str, Any]:
             defaults = _sanitize_config(defaults)
             return defaults
         except Exception as e:
-            print(f"[server] 加载配置失败: {e}")
+            print(f"[server] ⚠️ 加载配置失败: {e}")
+            # 备份损坏的配置文件
+            try:
+                backup_file = config_file.with_suffix(".json.bak")
+                import shutil
+                shutil.copy2(str(config_file), str(backup_file))
+                print(f"[server] 已备份损坏的配置文件到: {backup_file}")
+            except Exception as be:
+                print(f"[server] 备份配置文件失败: {be}")
     return get_default_config()
 
 
@@ -792,6 +805,60 @@ async def set_config(payload: dict = Body(...)):
         return {"success": True, "message": "配置已保存"}
     else:
         return {"success": False, "message": "配置保存失败"}
+
+
+@router.delete("/config")
+async def reset_config():
+    """删除已保存的配置文件，重置为默认配置"""
+    config_file = get_config_file()
+    backup_file = config_file.with_suffix(".json.bak")
+    deleted = []
+    try:
+        if config_file.exists():
+            config_file.unlink()
+            deleted.append(str(config_file))
+        if backup_file.exists():
+            backup_file.unlink()
+            deleted.append(str(backup_file))
+        if deleted:
+            return {"success": True, "message": f"已删除 {len(deleted)} 个配置文件，配置已重置为默认值"}
+        else:
+            return {"success": True, "message": "配置文件不存在，已是默认配置"}
+    except Exception as e:
+        print(f"[server] 重置配置失败: {e}")
+        return {"success": False, "message": f"重置配置失败: {e}"}
+
+
+@router.get("/config-check")
+async def check_config():
+    """检查配置文件状态，帮助诊断配置问题"""
+    config_file = get_config_file()
+    backup_file = config_file.with_suffix(".json.bak")
+    result = {
+        "config_exists": config_file.exists(),
+        "backup_exists": backup_file.exists(),
+        "config_size": 0,
+        "backup_size": 0,
+        "config_valid": False,
+        "backup_valid": False,
+    }
+    try:
+        if config_file.exists():
+            result["config_size"] = config_file.stat().st_size
+            with open(config_file, "r", encoding="utf-8") as f:
+                json.load(f)
+            result["config_valid"] = True
+    except Exception as e:
+        result["config_error"] = str(e)
+    try:
+        if backup_file.exists():
+            result["backup_size"] = backup_file.stat().st_size
+            with open(backup_file, "r", encoding="utf-8") as f:
+                json.load(f)
+            result["backup_valid"] = True
+    except Exception as e:
+        result["backup_error"] = str(e)
+    return {"success": True, **result}
 
 
 @router.post("/start")

@@ -22,6 +22,7 @@
         <button id="btnSaveConfig" class="btn btn-primary" onclick="saveConfig()">💾 保存配置</button>
         <button id="btnLoadConfig" class="btn btn-secondary" onclick="loadConfig()">📂 加载配置</button>
         <button id="btnResetConfig" class="btn btn-secondary" onclick="resetConfig()">🔄 恢复默认</button>
+        <button id="btnDiagnose" class="btn btn-secondary" onclick="diagnoseConfig()">🔍 配置诊断</button>
         <button id="btnRefreshStatus" class="btn btn-secondary" onclick="refreshServerStatus()">🔄 刷新状态</button>
     </div>
 </div>
@@ -494,14 +495,58 @@
     }
 
     function resetConfig() {
-        if (!confirm('确定恢复所有参数为默认值？')) return;
+        if (!confirm('确定恢复所有参数为默认值？\n这将删除已保存的配置文件，无法恢复！')) return;
+
+        // 先尝试调用后端 API 删除配置文件
+        (async () => {
+            try {
+                const resp = await fetch('/api/server/config', { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('✅ ' + data.message, 'success');
+                } else {
+                    showToast('⚠️ ' + data.message, 'warning');
+                }
+            } catch(e) {
+                console.warn('调用后端重置 API 失败，仅前端重置:', e);
+            }
+        })();
+
+        // 前端重置所有参数为默认值
         const meta = paramsMeta;
         for (const key in meta) {
             currentConfig[key] = meta[key].default;
         }
         fillForm();
-        showToast('🔄 已恢复默认值', 'info');
+        showToast('🔄 已恢复默认值，请点击「保存配置」以持久化', 'info');
         updateCommandPreview();
+    }
+
+    async function diagnoseConfig() {
+        try {
+            const resp = await fetch('/api/server/config-check');
+            const data = await resp.json();
+            if (data.success) {
+                let msg = '📋 配置诊断结果：\n';
+                msg += `配置文件存在: ${data.config_exists ? '✅ 是' : '❌ 否'}`;
+                if (data.config_exists) {
+                    msg += ` (${(data.config_size || 0)} 字节)`;
+                    msg += `\n配置文件有效: ${data.config_valid ? '✅ 是' : '❌ 否'}`;
+                    if (data.config_error) msg += `\n错误: ${data.config_error}`;
+                }
+                msg += `\n备份文件存在: ${data.backup_exists ? '✅ 是' : '❌ 否'}`;
+                if (data.backup_exists) {
+                    msg += `\n备份文件有效: ${data.backup_valid ? '✅ 是' : '❌ 否'}`;
+                    if (data.backup_error) msg += `\n错误: ${data.backup_error}`;
+                }
+                msg += '\n\n💡 如果配置文件损坏，请点击「恢复默认」按钮重置。';
+                alert(msg);
+            } else {
+                showToast('❌ 诊断失败: ' + (data.message || '未知错误'), 'error');
+            }
+        } catch(e) {
+            showToast('❌ 诊断请求失败: ' + e.message, 'error');
+        }
     }
 
     // ==================== 表单渲染 ====================
@@ -584,11 +629,12 @@
                 }
                 break;
 
-            case 'checkbox':
-                const checked = currentVal === true || currentVal === 'true' || currentVal === true ? 'checked' : '';
-                inputHtml = `<input type="checkbox" id="param-${key}" ${checked} onchange="onParamChange('${key}')">
+            case 'checkbox': {
+                const chkChecked = currentVal === true || currentVal === 'true' ? 'checked' : '';
+                inputHtml = `<input type="checkbox" id="param-${key}" ${chkChecked} onchange="onParamChange('${key}')">
                              <label class="checkbox-label" for="param-${key}" onclick="">${escapeHtml(param.label)}</label>`;
                 break;
+            }
 
             case 'select':
                 {
@@ -621,13 +667,14 @@
 
         // checkbox 类型
         if (param.type === 'checkbox') {
+            const chkChecked = currentVal === true || currentVal === 'true' ? 'checked' : '';
             return `<div class="param-row">
                 <div class="param-top-row">
                     <div class="param-label">
                         <label>${requiredMark} ${flagHtml}</label>
                     </div>
                     <div class="param-input">
-                        <input type="checkbox" id="param-${key}" ${currentVal === true || currentVal === 'true' || currentVal === true ? 'checked' : ''} onchange="onParamChange('${key}')">
+                        <input type="checkbox" id="param-${key}" ${chkChecked} onchange="onParamChange('${key}')">
                         <label class="checkbox-label" for="param-${key}">${escapeHtml(param.label)}</label>
                     </div>
                 </div>
