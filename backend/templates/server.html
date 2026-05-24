@@ -412,7 +412,8 @@
     // ==================== 工具函数 ====================
     function escapeHtml(text) {
         const div = document.createElement('div');
-        div.textContent = text || '';
+        if (text === 0 || text === false) text = String(text);
+        div.textContent = text ?? '';
         return div.innerHTML;
     }
 
@@ -712,7 +713,7 @@
             const val = currentConfig[key] !== undefined ? currentConfig[key] : param.default;
 
             if (param.type === 'checkbox') {
-                el.checked = (val === true || val === 'true' || val === true);
+                el.checked = (val === true || val === 'true');
             } else if (param.type === 'select') {
                 el.value = val;
             } else {
@@ -792,7 +793,7 @@
             if (val === null || val === undefined || val === '') continue;
 
             if (param.type === 'checkbox') {
-                if (val === true || val === 'true' || val === true) {
+                if (val === true || val === 'true') {
                     cmd += ' \\\n    ' + param.flag;
                 }
                 continue;
