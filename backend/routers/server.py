@@ -508,10 +508,15 @@ SERVER_PARAMS_META = {
     "flash_attn": {
         "section": "线程与性能",
         "flag": "--flash-attn",
-        "type": "checkbox",
-        "label": "启用 Flash Attention",
+        "type": "select",
+        "label": "Flash Attention",
         "description": "使用 Flash Attention 加速计算，减少显存占用。需要模型支持。",
-        "default": True,
+        "default": "on",
+        "options": [
+            {"value": "on", "label": "启用 (on)"},
+            {"value": "off", "label": "禁用 (off)"},
+            {"value": "auto", "label": "自动 (auto)"},
+        ],
     },
     "n_cpu_moe": {
         "section": "线程与性能",
@@ -542,7 +547,7 @@ SERVER_PARAMS_SECTIONS = [
 def find_llama_server() -> Optional[str]:
     """查找 llama-server 可执行文件路径"""
     from config import BUILD_DIR, LLAMA_DIR
-
+    
     candidates = [
         BUILD_DIR / "bin" / "llama-server",
         BUILD_DIR / "llama-server",
@@ -557,7 +562,7 @@ def find_llama_server() -> Optional[str]:
             candidates.insert(0, Path(which_result.stdout.strip()))
     except:
         pass
-
+    
     for p in candidates:
         if p.exists() and os.access(str(p), os.X_OK):
             return str(p)
@@ -606,26 +611,26 @@ def build_command(config: Dict[str, Any]) -> list:
     server_path = find_llama_server()
     if not server_path:
         raise FileNotFoundError("未找到 llama-server 可执行文件，请先编译 llama.cpp")
-
+    
     cmd = [server_path]
-
+    
     for key, meta in SERVER_PARAMS_META.items():
         value = config.get(key, meta["default"])
-
+        
         # 跳过空值（非必填的文本字段）
         if value is None or value == "":
             continue
-
+        
         # 跳过假值（checkbox 未选中）
         if meta["type"] == "checkbox":
             if value is True or value == "true":
                 cmd.append(meta["flag"])
             continue
-
-        # 数字和文本值
+        
+        # select / 数字 / 文本值：添加参数名和值
         cmd.append(meta["flag"])
         cmd.append(str(value))
-
+    
     return cmd
 
 
@@ -646,9 +651,9 @@ def write_server_log(message: str):
 def server_process_runner(cmd: list):
     """在后台线程中运行 llama-server 进程"""
     global _server_process, _server_running, _server_start_time, _server_pid
-
+    
     write_server_log(f"🚀 启动命令: {' '.join(cmd)}")
-
+    
     try:
         process = subprocess.Popen(
             cmd,
@@ -657,33 +662,33 @@ def server_process_runner(cmd: list):
             text=True,
             bufsize=1,
         )
-
+        
         with _server_lock:
             _server_process = process
             _server_pid = process.pid
             _server_running = True
             _server_start_time = time.time()
-
+        
         write_server_log(f"✅ 服务器已启动，PID: {process.pid}")
-
+        
         # 实时读取输出
         for line in process.stdout:
             line = line.rstrip()
             if line:
                 write_server_log(line)
-
+        
         returncode = process.wait()
-
+        
         with _server_lock:
             _server_running = False
             _server_process = None
             _server_pid = None
-
+        
         if returncode == 0:
             write_server_log(f"✅ 服务器正常退出")
         else:
             write_server_log(f"⚠️ 服务器异常退出，返回码: {returncode}")
-
+    
     except Exception as e:
         write_server_log(f"❌ 服务器运行异常: {e}")
         with _server_lock:
@@ -724,7 +729,7 @@ async def set_config(payload: dict = Body(...)):
     config = payload.get("config", {})
     if not config:
         return {"success": False, "message": "配置数据为空"}
-
+    
     if save_config(config):
         return {"success": True, "message": "配置已保存"}
     else:
@@ -735,42 +740,42 @@ async def set_config(payload: dict = Body(...)):
 async def start_server():
     """启动 llama-server"""
     global _server_running
-
+    
     # 检查是否已在运行
     with _server_lock:
         if _server_running:
             return {"success": False, "message": "服务器已在运行中"}
-
+    
     # 查找 llama-server
     server_path = find_llama_server()
     if not server_path:
         return {"success": False, "message": "未找到 llama-server 可执行文件。请先在主页中编译 llama.cpp。"}
-
+    
     # 加载配置并构建命令
     config = load_config()
-
+    
     # 检查模型文件
     model_path = config.get("model", "")
     if not model_path:
         return {"success": False, "message": "请先配置模型文件路径 (-m)"}
-
+    
     if not os.path.exists(model_path):
         return {"success": False, "message": f"模型文件不存在: {model_path}"}
-
+    
     try:
         cmd = build_command(config)
     except FileNotFoundError as e:
         return {"success": False, "message": str(e)}
     except Exception as e:
         return {"success": False, "message": f"构建命令失败: {e}"}
-
+    
     # 清空旧日志
     try:
         if get_server_log_file().exists():
             get_server_log_file().unlink()
     except:
         pass
-
+    
     write_server_log("=" * 60)
     write_server_log("配置参数:")
     for key, meta in SERVER_PARAMS_META.items():
@@ -778,14 +783,14 @@ async def start_server():
         if val is not None and str(val).strip():
             write_server_log(f"  {meta['flag']} {meta['label']}: {val}")
     write_server_log("=" * 60)
-
+    
     # 在后台线程启动服务器
     thread = threading.Thread(target=server_process_runner, args=(cmd,), daemon=True)
     thread.start()
-
+    
     # 等待一小段时间检查是否启动成功
     time.sleep(1)
-
+    
     with _server_lock:
         if _server_running:
             return {
@@ -813,20 +818,20 @@ async def start_server():
 async def stop_server():
     """停止 llama-server 进程"""
     global _server_process, _server_running, _server_pid
-
+    
     with _server_lock:
         if not _server_running or _server_process is None:
             return {"success": False, "message": "服务器未在运行"}
-
+        
         pid = _server_pid
         process = _server_process
-
+    
     write_server_log(f"🛑 正在停止服务器 (PID: {pid})...")
-
+    
     try:
         # 先发 SIGTERM 信号优雅退出
         os.kill(pid, signal.SIGTERM)
-
+        
         # 等待最多 10 秒
         for _ in range(20):
             time.sleep(0.5)
@@ -851,12 +856,12 @@ async def stop_server():
     except Exception as e:
         write_server_log(f"❌ 停止服务器失败: {e}")
         return {"success": False, "message": f"停止失败: {e}"}
-
+    
     with _server_lock:
         _server_running = False
         _server_process = None
         _server_pid = None
-
+    
     write_server_log("✅ 服务器已停止")
     return {"success": True, "message": "服务器已停止"}
 
@@ -865,7 +870,7 @@ async def stop_server():
 async def get_server_status():
     """获取服务器运行状态"""
     global _server_running, _server_pid, _server_start_time
-
+    
     # 双重检查：如果标记为运行中但进程已不存在，修复状态
     with _server_lock:
         if _server_running and _server_pid:
@@ -876,11 +881,11 @@ async def get_server_status():
                 _server_process = None
                 _server_pid = None
                 _server_start_time = None
-
+    
     running = _server_running
     pid = _server_pid
     start_time = _server_start_time
-
+    
     # 读取最近的日志（最后 50 行）
     recent_log = ""
     if get_server_log_file().exists():
@@ -890,7 +895,7 @@ async def get_server_status():
             recent_log = "".join(lines[-50:])
         except:
             pass
-
+    
     elapsed = ""
     if running and start_time:
         seconds = int(time.time() - start_time)
@@ -903,9 +908,9 @@ async def get_server_status():
             elapsed = f"{minutes}分钟{secs}秒"
         else:
             elapsed = f"{secs}秒"
-
+    
     server_path = find_llama_server()
-
+    
     return {
         "success": True,
         "running": running,
@@ -934,9 +939,9 @@ async def get_process_log():
 async def list_available_models():
     """列出软链接目录中的可用模型文件（供前端选择器使用）"""
     from config import LINKS_DIR, MODELS_DIR
-
+    
     models = []
-
+    
     # 从软链接目录查找
     if LINKS_DIR.exists():
         for item in sorted(LINKS_DIR.rglob("*")):
@@ -948,7 +953,7 @@ async def list_available_models():
                     "is_symlink": item.is_symlink(),
                     "source": "软链接目录",
                 })
-
+    
     # 如果软链接目录为空，直接从模型目录查找
     if not models and MODELS_DIR.exists():
         for item in sorted(MODELS_DIR.rglob("*.gguf")):
@@ -960,5 +965,5 @@ async def list_available_models():
                     "is_symlink": False,
                     "source": "模型目录",
                 })
-
+    
     return {"success": True, "models": models}
