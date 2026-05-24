@@ -92,7 +92,7 @@ SERVER_PARAMS_META = {
     "mmproj": {
         "section": "模型与路径",
         "flag": "--mmproj",
-        "type": "text",
+        "type": "file_picker",
         "label": "多模态投影文件 (mmproj)",
         "description": "多模态模型的投影器文件路径（如 LLaVA 等视觉模型）",
         "default": "",
