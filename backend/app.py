@@ -720,9 +720,8 @@ HTML_PAGE = '''
             <a onclick="showPage('download')" id="navDownload">📥 模型下载</a>
             <a onclick="showPage('local')" id="navLocal">💾 本地模型</a>
             <a onclick="showPage('system')" id="navSystem">📋 系统信息</a>
-            <a onclick="showPage('server')" id="navServer">🚀 服务器配置</a>
             <a onclick="showPage('params')" id="navParams">⚙️ 参数配置</a>
-            <a onclick="showPage('settings')" id="navSettings">🌐 服务器设置</a>
+            <a onclick="showPage('settings')" id="navSettings">🦙 llama.cpp Server</a>
         </div>
         
         <!-- 主页内容 -->
@@ -799,11 +798,6 @@ HTML_PAGE = '''
             <iframe src="/api/system/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
         
-        <!-- 服务器配置页面容器 -->
-        <div id="serverPage" class="page-content hidden">
-            <iframe src="/api/server/page" style="width: 100%; min-height: 800px; border: none; border-radius: 16px; background: white;"></iframe>
-        </div>
-
         <!-- 参数配置页面容器 -->
         <div id="paramsPage" class="page-content hidden">
             <iframe src="/api/server/params-page" style="width: 100%; min-height: 800px; border: none; border-radius: 16px; background: white;"></iframe>
@@ -825,14 +819,12 @@ HTML_PAGE = '''
             const downloadPage = document.getElementById('downloadPage');
             const localPage = document.getElementById('localPage');
             const systemPage = document.getElementById('systemPage');
-            const serverPage = document.getElementById('serverPage');
             const paramsPage = document.getElementById('paramsPage');
             const settingsPage = document.getElementById('settingsPage');
             const navHome = document.getElementById('navHome');
             const navDownload = document.getElementById('navDownload');
             const navLocal = document.getElementById('navLocal');
             const navSystem = document.getElementById('navSystem');
-            const navServer = document.getElementById('navServer');
             const navParams = document.getElementById('navParams');
             const navSettings = document.getElementById('navSettings');
             
@@ -841,7 +833,6 @@ HTML_PAGE = '''
             downloadPage.classList.add('hidden');
             localPage.classList.add('hidden');
             systemPage.classList.add('hidden');
-            serverPage.classList.add('hidden');
             paramsPage.classList.add('hidden');
             settingsPage.classList.add('hidden');
             
@@ -850,7 +841,6 @@ HTML_PAGE = '''
             navDownload.classList.remove('active');
             navLocal.classList.remove('active');
             navSystem.classList.remove('active');
-            navServer.classList.remove('active');
             navParams.classList.remove('active');
             navSettings.classList.remove('active');
             
@@ -877,13 +867,6 @@ HTML_PAGE = '''
                 systemPage.classList.remove('hidden');
                 navSystem.classList.add('active');
                 const iframe = document.querySelector('#systemPage iframe');
-                if (iframe) {
-                    iframe.contentWindow.location.reload();
-                }
-            } else if (page === 'server') {
-                serverPage.classList.remove('hidden');
-                navServer.classList.add('active');
-                const iframe = document.querySelector('#serverPage iframe');
                 if (iframe) {
                     iframe.contentWindow.location.reload();
                 }
