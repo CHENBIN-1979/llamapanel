@@ -64,6 +64,16 @@ def get_server_log_file() -> Path:
     _ensure_config_dir()
     return _SERVER_LOG_FILE
 
+def get_models_ini_path() -> Path:
+    """获取 models.ini 多模型配置文件路径"""
+    _ensure_config_dir()
+    return _CONFIG_DIR / "models.ini"
+
+def get_config_ini_path() -> Path:
+    """获取 config.ini 总配置文件路径"""
+    _ensure_config_dir()
+    return _CONFIG_DIR / "config.ini"
+
 # ==================== 读取 HTML 模板（含错误包容） ====================
 PARAMS_HTML = "<h1>页面加载失败</h1>"
 SERVER_SETTINGS_HTML = "<h1>页面加载失败</h1>"
@@ -739,6 +749,32 @@ def build_command(config: Dict[str, Any]) -> list:
     return cmd
 
 
+def generate_default_models_ini() -> str:
+    """生成默认的 models.ini 内容（含一个示例模型和所有参数）"""
+    lines = []
+    lines.append("[model_1]")
+    lines.append("# 模型显示名称")
+    lines.append("name = Qwen2.5-7B-Q4_K_M")
+
+    # 遍历所有参数生成默认值
+    for key, meta in SERVER_PARAMS_META.items():
+        default_val = meta["default"]
+        # 跳过布尔值，勾选框不写入（未勾选时不传参）
+        if meta["type"] == "checkbox" and not default_val:
+            continue
+        # 将值转为字符串
+        if isinstance(default_val, bool):
+            val_str = "true" if default_val else "false"
+        elif default_val == "":
+            val_str = ""
+        else:
+            val_str = str(default_val)
+        lines.append(f"{key} = {val_str}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def write_server_log(message: str):
     """写入服务器进程日志"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1131,3 +1167,138 @@ async def list_available_models():
                 })
 
     return {"success": True, "models": models}
+
+
+# ==================== INI 多模型配置管理 ====================
+
+@router.get("/models-config")
+async def get_models_config():
+    """读取 models.ini 多模型配置内容"""
+    ini_path = get_models_ini_path()
+    if not ini_path.exists():
+        # 首次使用，创建默认配置
+        content = generate_default_models_ini()
+        try:
+            with open(ini_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        except Exception as e:
+            return {"success": False, "content": "", "message": f"创建默认配置失败: {e}"}
+        return {"success": True, "content": content}
+
+    try:
+        with open(ini_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {"success": True, "content": content}
+    except Exception as e:
+        return {"success": False, "content": "", "message": f"读取配置失败: {e}"}
+
+
+@router.post("/models-config")
+async def save_models_config(data: dict = Body(...)):
+    """保存 models.ini 多模型配置"""
+    ini_path = get_models_ini_path()
+    content = data.get("content", "")
+    if not content:
+        return {"success": False, "message": "配置内容为空"}
+    try:
+        with open(ini_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return {"success": True, "message": "✅ 模型配置已保存到 models.ini"}
+    except Exception as e:
+        return {"success": False, "message": f"保存失败: {e}"}
+
+
+@router.post("/save-config-ini")
+async def save_config_ini(data: dict = Body(...)):
+    """保存 config.ini 总配置文件"""
+    ini_path = get_config_ini_path()
+    content = data.get("content", "")
+    if not content:
+        return {"success": False, "message": "配置内容为空"}
+    try:
+        with open(ini_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return {"success": True, "message": f"✅ config.ini 已保存"}
+    except Exception as e:
+        return {"success": False, "message": f"保存失败: {e}"}
+
+
+@router.get("/start-command")
+async def get_start_command():
+    """生成带 --models-preset 的完整 llama-server 启动命令（多模型模式）"""
+    server_path = find_llama_server()
+    if not server_path:
+        return {"success": False, "command": "", "message": "未找到 llama-server 可执行文件"}
+
+    # 检查 models.ini 是否存在且有内容
+    models_ini = get_models_ini_path()
+    if not models_ini.exists():
+        return {"success": False, "command": "", "message": "请先在「参数配置」页面添加模型并保存配置"}
+
+    import configparser
+    parser = configparser.ConfigParser()
+    try:
+        parser.read(models_ini, encoding="utf-8")
+    except Exception:
+        return {"success": False, "command": "", "message": "models.ini 格式错误，请先在参数配置页面检查配置"}
+    if len(parser.sections()) == 0:
+        return {"success": False, "command": "", "message": "models.ini 中没有配置任何模型，请先在参数配置页面添加模型"}
+
+    # 读取 JSON 配置（服务器级别参数）
+    json_config = load_config()
+
+    # 构建命令
+    cmd_parts = [server_path]
+
+    # --- models-dir: 使用 LINKS_DIR (模型软链接目录) ---
+    from config import LINKS_DIR, MODELS_DIR
+    models_dir = str(LINKS_DIR) if LINKS_DIR.exists() else str(MODELS_DIR)
+    cmd_parts.extend(["--models-dir", models_dir])
+
+    # --- models-max: 从 JSON 配置或默认 10 ---
+    models_max = json_config.get("models_max", "10")
+    cmd_parts.extend(["--models-max", str(models_max)])
+
+    # --- models-preset: 指向 models.ini ---
+    cmd_parts.extend(["--models-preset", str(models_ini)])
+
+    # --- host ---
+    host = json_config.get("host", "127.0.0.1")
+    cmd_parts.extend(["--host", host])
+
+    # --- port ---
+    port = json_config.get("port", "8080")
+    cmd_parts.extend(["--port", str(port)])
+
+    # --- parallel (-np) ---
+    parallel = json_config.get("parallel", "1")
+    cmd_parts.extend(["-np", str(parallel)])
+
+    # --- cont-batching (-cb) ---
+    if json_config.get("cont_batching", True) == True or json_config.get("cont_batching") == "true":
+        cmd_parts.append("-cb")
+
+    # --- webui-mcp-proxy ---
+    if json_config.get("mcp", False) == True or json_config.get("mcp") == "true":
+        if _check_flag_supported(server_path, "--webui-mcp-proxy"):
+            cmd_parts.append("--webui-mcp-proxy")
+        else:
+            print("[server] ⚠️ 当前 llama-server 不支持 --webui-mcp-proxy 参数，已跳过")
+
+    # --- timeout ---
+    timeout = json_config.get("timeout", "600")
+    if timeout:
+        cmd_parts.extend(["--timeout", str(timeout)])
+
+    # 格式化为多行命令（便于阅读）
+    cmd_str = " \\\n  ".join(cmd_parts)
+    cmd_single = " ".join(cmd_parts)
+
+    return {
+        "success": True,
+        "command": cmd_str,
+        "command_single": cmd_single,
+        "cmd_list": cmd_parts,
+        "models_ini_path": str(models_ini),
+        "models_count": len(parser.sections()),
+    }
