@@ -155,6 +155,7 @@ SERVER_PARAMS_META = {
         "type": "checkbox",
         "label": "禁用 KV 缓存 GPU 加速",
         "description": "🧠 KV 缓存是AI的「短期记忆」。默认情况下这部分记忆也放在显卡上加速访问。开启此选项后，短期记忆改用CPU内存，能省下一些显存，但速度会变慢。\n💡 建议：只有当你显存不够用（报显存不足错误）时才考虑开启。正常情况下保持关闭就好。",
+        "ref_scenario": "显存不够用时开启，正常情况下保持关闭",
         "default": False,
     },
     "cache_type_k": {
@@ -170,6 +171,7 @@ SERVER_PARAMS_META = {
             {"value": "q8_0", "label": "q8_0 (8位压缩，均衡推荐)"},
             {"value": "q4_1", "label": "q4_1 (4位压缩+v，略好于q4_0)"},
         ],
+        "ref_scenario": "显存充裕选 f16，显存紧张选 q8_0，非常紧张选 q4_0",
     },
     "cache_type_v": {
         "section": "GPU 与加速",
@@ -184,6 +186,7 @@ SERVER_PARAMS_META = {
             {"value": "q8_0", "label": "q8_0 (8位压缩，均衡推荐)"},
             {"value": "q4_1", "label": "q4_1 (4位压缩+v，略好于q4_0)"},
         ],
+        "ref_scenario": "一般和K缓存选一样的类型，想最大限度省显存都选 q4_0",
     },
     "no_unload": {
         "section": "GPU 与加速",
@@ -191,6 +194,7 @@ SERVER_PARAMS_META = {
         "type": "checkbox",
         "label": "模型常驻 GPU 显存",
         "description": "💾 开启后AI模型推理完也不从显卡上「搬走」，一直留在显存里。下次聊天就能秒回，不用重新加载。\n💡 建议：如果你频繁使用AI（几分钟就聊一次），开启能大幅提升响应速度。如果很久才用一次，关闭能释放显存给其他程序用。",
+        "ref_scenario": "频繁使用AI时开启提升响应速度，偶尔使用时关闭释放显存",
         "default": False,
     },
     "tensor_split": {
@@ -199,6 +203,7 @@ SERVER_PARAMS_META = {
         "type": "text",
         "label": "多显卡分工比例",
         "description": "🖥️🖥️ 如果你装了多张显卡，这个参数告诉系统「每张卡干多少活」。比如填 2,1 表示让第一张卡干2份活，第二张卡干1份活。\n💡 建议：只有多张显卡时才需要用。两张相同显卡填 1,1（平均分工），一张好一张差按性能比例填（如性能2:1就填2,1）。只用一张卡留空就好。",
+        "ref_scenario": "多张显卡才需填写，相同显卡填 1,1，按性能比例填写",
         "default": "",
         "placeholder": "如: 2,1（GPU0:GPU1=2:1）",
     },
@@ -208,6 +213,7 @@ SERVER_PARAMS_META = {
         "type": "checkbox",
         "label": "锁定到物理内存",
         "description": "🔒 把AI模型「钉」在物理内存里，不让系统把它挪到硬盘上的虚拟内存（虚拟内存比物理内存慢很多倍）。可以保证AI响应速度稳定。\n💡 建议：如果你内存够大（比模型大至少2GB），开启能让AI运行更流畅。如果内存紧张（快满了），关闭让系统灵活调度。",
+        "ref_scenario": "内存比模型大至少2GB时开启，内存紧张时关闭",
         "default": False,
     },
     "no_mmap": {
@@ -216,6 +222,7 @@ SERVER_PARAMS_META = {
         "type": "checkbox",
         "label": "禁用内存映射加载",
         "description": "🚫 换一种方式加载模型文件。正常情况下AI直接从文件「映射」到内存，省内存且启动快。但某些特殊系统（如网络硬盘、NAS）可能不支持这种方式，开启此选项改用传统方式加载。\n💡 建议：正常情况下不要开启。只有当你把模型放在网络硬盘（NFS、SMB等）上加载失败时才开启试试。",
+        "ref_scenario": "正常情况下不要开启，网络硬盘加载失败时尝试开启",
         "default": False,
     },
 
