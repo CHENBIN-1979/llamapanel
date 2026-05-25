@@ -1,756 +1,973 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>ini 文件预览</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<div class="card">
+    <h1>⚙️ 参数配置</h1>
+    <p class="subtitle">多模型 INI 配置管理 — 每个模型独立配置，保存为 models.ini 格式</p>
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f0f2f5;
-            color: #1a1a2e;
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .header-section {
-            background: #fff;
-            border-radius: 16px;
-            padding: 24px 32px;
-            margin-bottom: 24px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header-section h1 {
-            font-size: 22px;
-            font-weight: 600;
-            color: #1a1a2e;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .header-section h1 i {
-            color: #4f46e5;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn {
-            padding: 8px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s;
-        }
-
-        .btn-primary {
-            background: #4f46e5;
-            color: #fff;
-        }
-
-        .btn-primary:hover {
-            background: #4338ca;
-            transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-            background: #f3f4f6;
-            color: #374151;
-        }
-
-        .btn-secondary:hover {
-            background: #e5e7eb;
-        }
-
-        .btn-danger {
-            background: #fee2e2;
-            color: #dc2626;
-        }
-
-        .btn-danger:hover {
-            background: #fecaca;
-        }
-
-        .models-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .model-card {
-            background: #fff;
-            border-radius: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            overflow: hidden;
-            transition: box-shadow 0.2s;
-            border: 1px solid #e5e7eb;
-        }
-
-        .model-card:hover {
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-        }
-
-        .model-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px 24px;
-            background: #f8fafc;
-            border-bottom: 1px solid #e5e7eb;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .model-header-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .model-name {
-            font-size: 15px;
-            font-weight: 600;
-            color: #1a1a2e;
-        }
-
-        .section-badge {
-            display: inline-block;
-            padding: 2px 10px;
-            border-radius: 12px;
-            background: #e0e7ff;
-            color: #4f46e5;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .model-header-right {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .params-grid {
-            padding: 20px 24px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-            gap: 16px;
-        }
-
-        .param-item {
-            position: relative;
-        }
-
-        .param-item label {
-            display: block;
-            font-size: 13px;
-            font-weight: 500;
-            color: #374151;
-            margin-bottom: 4px;
-        }
-
-        .param-item label .param-key {
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 12px;
-            color: #6b7280;
-            font-weight: 400;
-        }
-
-        .param-item .value-hint {
-            font-size: 12px;
-            color: #6b7280;
-            margin-left: 6px;
-        }
-
-        .param-item input {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 14px;
-            font-family: 'Consolas', 'Monaco', monospace;
-            background: #fff;
-            transition: border-color 0.2s;
-            outline: none;
-        }
-
-        .param-item input:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
-        }
-
-        .param-item .param-suggestion {
-            margin-top: 4px;
-            font-size: 12px;
-            color: #6b7280;
-        }
-
-        .param-item.select-wrapper {
-            position: relative;
-        }
-
-        .param-item select {
-            width: 100%;
-            padding: 8px 32px 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 14px;
-            font-family: 'Consolas', 'Monaco', monospace;
-            background: #fff;
-            appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            cursor: pointer;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .param-item select:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
-        }
-
-        .param-item .select-arrow {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            pointer-events: none;
-            color: #6b7280;
-            font-size: 12px;
-        }
-
-        .param-item.checkbox-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .param-item.checkbox-item input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            accent-color: #4f46e5;
-        }
-
-        .param-item.checkbox-item label {
-            margin-bottom: 0;
-            cursor: pointer;
-        }
-
-        .param-section {
-            margin-bottom: 20px;
-        }
-
-        .param-section:last-child {
-            margin-bottom: 0;
-        }
-
-        .param-section-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1a1a2e;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #e5e7eb;
-        }
-
-        .param-section-title .section-count {
-            font-size: 12px;
-            color: #6b7280;
-            font-weight: 400;
-        }
-
-        .context-params {
-            background: #f8fafc;
-            border-radius: 8px;
-            padding: 16px;
-            margin-top: 8px;
-        }
-
-        .context-params-title {
-            font-size: 14px;
-            font-weight: 500;
-            color: #4f46e5;
-            margin-bottom: 12px;
-        }
-
-        .flash-messages {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .flash-message {
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .flash-message.success {
-            background: #10b981;
-            color: #fff;
-        }
-
-        .flash-message.error {
-            background: #ef4444;
-            color: #fff;
-        }
-
-        .flash-message.info {
-            background: #3b82f6;
-            color: #fff;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #6b7280;
-        }
-
-        .empty-state i {
-            font-size: 48px;
-            color: #d1d5db;
-            margin-bottom: 16px;
-        }
-
-        .empty-state h3 {
-            font-size: 18px;
-            margin-bottom: 8px;
-            color: #374151;
-        }
-
-        .empty-state p {
-            font-size: 14px;
-            margin-bottom: 20px;
-        }
-
-        .model-save-btn {
-            position: sticky;
-            bottom: 20px;
-            display: flex;
-            justify-content: center;
-            padding: 16px;
-            background: linear-gradient(transparent, #f0f2f5 30%);
-        }
-
-        .model-save-btn .btn {
-            padding: 12px 40px;
-            font-size: 16px;
-            box-shadow: 0 4px 16px rgba(79,70,229,0.3);
-        }
-    </style>
-</head>
-<body>
-    <div class="flash-messages" id="flashMessages"></div>
-
-    <div class="container">
-        <div class="header-section">
-            <h1><i class="fas fa-file-alt"></i> ini 文件预览</h1>
-            <div class="header-actions">
-                <button class="btn btn-secondary" onclick="toggleAll()">
-                    <i class="fas fa-chevron-down" id="toggleIcon"></i> 全部展开/收起
-                </button>
-            </div>
-        </div>
-
-        <div id="modelsContainer">
-            <div class="empty-state">
-                <i class="fas fa-cube"></i>
-                <h3>暂无模型配置</h3>
-                <p>请先在「模型管理」页面添加模型，或点击下方按钮添加。</p>
-            </div>
-        </div>
+    <!-- 操作按钮栏 -->
+    <div class="action-bar">
+        <button class="btn btn-primary" onclick="saveConfig()">💾 保存配置</button>
+        <button class="btn btn-secondary" onclick="saveConfigIni()">📄 config.ini 保存</button>
+        <button class="btn btn-success" onclick="addModel()">➕ 添加模型</button>
+        <button class="btn btn-secondary" onclick="reloadConfig()">🔄 重新加载</button>
     </div>
 
-    <script>
-        let modelsData = [];
-        let allCollapsed = false;
+    <!-- 模型卡片容器 -->
+    <div id="modelsContainer">
+        <div id="formLoading"><div class="loading"></div> 加载多模型配置...</div>
+    </div>
+</div>
 
-        function showFlash(message, type = 'info') {
-            const container = document.getElementById('flashMessages');
-            const div = document.createElement('div');
-            div.className = `flash-message ${type}`;
-            div.textContent = message;
-            container.appendChild(div);
-            setTimeout(() => div.remove(), 3000);
-        }
+<style>
+    /* ===== 通用 ===== */
+    .btn {
+        padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
+        font-size: 14px; transition: all 0.3s;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-success { background: #38a169; color: white; }
+    .btn-success:hover { background: #2f855a; }
+    .btn-danger { background: #e53e3e; color: white; }
+    .btn-danger:hover { background: #c53030; }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #5a67d8; }
+    .btn-secondary { background: #718096; color: white; }
+    .btn-secondary:hover { background: #4a5568; }
 
-        function toggleAll() {
-            allCollapsed = !allCollapsed;
-            document.getElementById('toggleIcon').className = allCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-down';
-            document.querySelectorAll('.params-grid').forEach(grid => {
-                grid.style.display = allCollapsed ? 'none' : 'grid';
-            });
-            document.querySelectorAll('.model-header .collapse-icon').forEach(icon => {
-                icon.className = allCollapsed ? 'fas fa-chevron-right collapse-icon' : 'fas fa-chevron-down collapse-icon';
-            });
-        }
+    /* ===== 操作按钮栏 ===== */
+    .action-bar {
+        display: flex;
+        gap: 10px;
+        margin: 16px 0;
+        flex-wrap: wrap;
+    }
 
-        function toggleModel(header) {
-            const card = header.closest('.model-card');
-            const grid = card.querySelector('.params-grid');
-            const icon = header.querySelector('.collapse-icon');
-            if (grid.style.display === 'none') {
-                grid.style.display = 'grid';
-                icon.className = 'fas fa-chevron-down collapse-icon';
-            } else {
-                grid.style.display = 'none';
-                icon.className = 'fas fa-chevron-right collapse-icon';
+    /* ===== 模型卡片 ===== */
+    .model-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        margin-bottom: 20px;
+        overflow: hidden;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: box-shadow 0.3s;
+    }
+    .model-card:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    .model-card-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 14px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .model-card-header .model-name-input {
+        background: rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.3);
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 15px;
+        font-weight: 600;
+        color: white;
+        width: 300px;
+        outline: none;
+        transition: all 0.3s;
+    }
+    .model-card-header .model-name-input:focus {
+        background: rgba(255,255,255,0.3);
+        border-color: white;
+    }
+    .model-card-header .model-name-input::placeholder {
+        color: rgba(255,255,255,0.6);
+    }
+    .model-card-header .model-card-actions {
+        display: flex;
+        gap: 8px;
+    }
+    .model-card-header .btn-sm {
+        padding: 5px 12px;
+        font-size: 12px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .btn-sm-danger {
+        background: rgba(255,255,255,0.2);
+        color: white;
+    }
+    .btn-sm-danger:hover {
+        background: #e53e3e;
+    }
+    .btn-sm-expand {
+        background: rgba(255,255,255,0.2);
+        color: white;
+    }
+    .btn-sm-expand:hover {
+        background: rgba(255,255,255,0.35);
+    }
+    .model-card-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.2);
+        color: white;
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        margin-left: 10px;
+        font-weight: normal;
+    }
+
+    /* ===== 参数分区（在卡片内） ===== */
+    .params-section {
+        margin: 0;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .params-section:last-child {
+        border-bottom: none;
+    }
+    .params-section-header {
+        background: #f7fafc;
+        padding: 10px 18px;
+        font-weight: 600;
+        font-size: 14px;
+        color: #2d3748;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        user-select: none;
+        transition: background 0.2s;
+    }
+    .params-section-header:hover { background: #edf2f7; }
+    .params-section-header .section-toggle {
+        font-size: 11px;
+        color: #a0aec0;
+        transition: transform 0.2s;
+    }
+    .params-section-body { padding: 8px 18px 12px; display: none; }
+    .params-section.expanded .params-section-body { display: block; }
+    .params-section.expanded .section-toggle { transform: rotate(0deg); }
+    .params-section:not(.expanded) .section-toggle { transform: rotate(-90deg); }
+
+    .param-row {
+        display: flex;
+        flex-direction: column;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .param-row:last-child { border-bottom: none; }
+    .param-top-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    .param-label {
+        flex: 0 0 240px;
+        min-width: 180px;
+    }
+    .param-label label {
+        font-weight: 600;
+        font-size: 13px;
+        color: #2d3748;
+    }
+    .param-label .param-flag {
+        font-family: monospace;
+        font-size: 11px;
+        color: #667eea;
+        background: #ebf4ff;
+        padding: 1px 5px;
+        border-radius: 3px;
+        margin-left: 4px;
+    }
+    .param-desc {
+        font-size: 13px;
+        color: #718096;
+        margin-top: 6px;
+        padding-left: 2px;
+        line-height: 1.5;
+        width: 100%;
+    }
+    .param-input { flex: 1; min-width: 80px; }
+    .param-input input[type="text"],
+    .param-input input[type="number"],
+    .param-input select {
+        width: 100%;
+        max-width: 140px;
+        padding: 6px 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        font-size: 12px;
+        font-family: monospace;
+        transition: border-color 0.2s;
+    }
+    .param-input input:focus,
+    .param-input select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+    }
+    .param-input input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        accent-color: #667eea;
+    }
+    .param-input .checkbox-label {
+        font-size: 12px;
+        color: #4a5568;
+        cursor: pointer;
+        margin-left: 4px;
+    }
+    .param-required {
+        color: #e53e3e;
+        font-weight: bold;
+    }
+    .param-ref {
+	        font-size: 11px;
+	        color: #000000;
+	        margin-left: 8px;
+	        white-space: nowrap;
+	    }
+
+    /* ===== 参数建议提示 ===== */
+    .param-tip {
+        font-size: 12px;
+        color: #856404;
+        background: #fff8e1;
+        border-left: 3px solid #ffc107;
+        padding: 4px 10px;
+        margin-top: 6px;
+        border-radius: 0 4px 4px 0;
+        line-height: 1.5;
+    }
+
+    /* ===== 文件选择按钮 ===== */
+    .btn-file-select {
+        padding: 4px 12px !important;
+        background: #667eea !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 5px !important;
+        cursor: pointer !important;
+        font-size: 12px !important;
+        white-space: nowrap !important;
+        transition: background 0.2s !important;
+    }
+    .btn-file-select:hover {
+        background: #5a67d8 !important;
+    }
+
+    /* ===== 加载动画 ===== */
+    .loading {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #e2e8f0;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== 服务端文件选择模态框 ===== */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        gap: 12px;
+    }
+    .modal-header h3 { font-size: 16px; margin: 0; white-space: nowrap; }
+    .modal-close {
+        background: #e2e8f0;
+        border: none;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .modal-close:hover { background: #d1d5db; }
+    .modal-search { margin-bottom: 12px; }
+    .modal-search input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 13px;
+        box-sizing: border-box;
+    }
+    .modal-search input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+    }
+    .modal-list {
+        flex: 1;
+        overflow-y: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        max-height: 50vh;
+    }
+    .modal-list-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+        font-family: monospace;
+        font-size: 12px;
+        transition: background 0.2s;
+    }
+    .modal-list-item:hover { background: #ebf4ff; }
+    .modal-list-item .item-size {
+        float: right;
+        color: #718096;
+        font-size: 11px;
+    }
+    .modal-list-folder {
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #667eea;
+        background: #f7fafc;
+        border-bottom: 1px solid #e2e8f0;
+        position: sticky;
+        top: 0;
+    }
+    .modal-list-empty {
+        padding: 30px 20px;
+        text-align: center;
+        color: #718096;
+        font-size: 13px;
+        line-height: 1.8;
+    }
+    .modal-list-empty code {
+        background: #edf2f7;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+    }
+</style>
+
+<script>
+    // ==================== 全局状态 ====================
+    let paramsMeta = {};
+    let sections = [];
+    let models = [];      // 模型配置数组 [{_section: 'model_1', name: '...', model: '...', ...}]
+    let modelCounter = 0; // 用于生成唯一 section 名称
+
+    // ==================== 工具函数 ====================
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        if (text === 0 || text === false) text = String(text);
+        div.textContent = text ?? '';
+        return div.innerHTML;
+    }
+
+    function getSectionIcon(name) {
+        const icons = {
+            '模型与路径': '📁',
+            'GPU 与加速': '🎮',
+            '上下文与内存': '🧠',
+            '采样参数': '🎯',
+            '服务器设置': '🌐',
+            '线程与性能': '⚡',
+        };
+        return icons[name] || '📋';
+    }
+
+    // ==================== INI 解析器 ====================
+    function parseIni(text) {
+        const lines = text.split('\n');
+        const result = [];
+        let currentModel = null;
+
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line || line.startsWith(';') || line.startsWith('#')) continue;
+
+            // 匹配 section 标题 [model_1]
+            const sectionMatch = line.match(/^\[(.+)\]$/);
+            if (sectionMatch) {
+                if (currentModel) result.push(currentModel);
+                currentModel = { _section: sectionMatch[1] };
+                continue;
+            }
+
+            // 匹配 key=value
+            const kvMatch = line.match(/^([^=]+)=(.*)$/);
+            if (kvMatch && currentModel) {
+                const key = kvMatch[1].trim();
+                const value = kvMatch[2].trim();
+                if (key) currentModel[key] = value;
             }
         }
+        if (currentModel) result.push(currentModel);
+        return result;
+    }
 
-        function renderModels(models) {
-            const container = document.getElementById('modelsContainer');
-            if (!models || models.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-cube"></i>
-                        <h3>暂无模型配置</h3>
-                        <p>请先在「模型管理」页面添加模型，或点击下方按钮添加。</p>
+    function serializeIni(modelsArray) {
+        const lines = [];
+        for (let i = 0; i < modelsArray.length; i++) {
+            const model = modelsArray[i];
+            const section = model._section || `model_${i + 1}`;
+            lines.push(`[${section}]`);
+            // 先写 name
+            if (model.name !== undefined) {
+                lines.push(`name = ${model.name}`);
+            }
+            // 写其他参数（按 SERVER_PARAMS_META 的顺序）
+            for (const key of Object.keys(paramsMeta)) {
+                if (key === 'name') continue;
+                if (model[key] === undefined || model[key] === null) continue;
+                const val = String(model[key]).trim();
+                // 跳过空值和未勾选的 checkbox
+                if (val === '' && paramsMeta[key].type !== 'number') continue;
+                if (paramsMeta[key].type === 'checkbox' && val === 'false') continue;
+                lines.push(`${key} = ${val}`);
+            }
+            // 写自定义键（不在 meta 中的额外字段）
+            for (const key in model) {
+                if (key === '_section' || key === 'name') continue;
+                if (key in paramsMeta) continue;
+                lines.push(`${key} = ${model[key]}`);
+            }
+            lines.push('');
+        }
+        return lines.join('\n');
+    }
+
+    // ==================== 渲染 ====================
+    function renderAllCards() {
+        const container = document.getElementById('modelsContainer');
+        const loading = document.getElementById('formLoading');
+        if (!container) return;
+
+        if (models.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#718096;">📭 暂无模型配置，点击「添加模型」开始配置</div>';
+            return;
+        }
+
+        let html = '';
+        for (let i = 0; i < models.length; i++) {
+            html += renderModelCard(i);
+        }
+
+        container.innerHTML = html;
+        if (loading) loading.style.display = 'none';
+    }
+
+    function renderModelCard(index) {
+        const model = models[index];
+        const sectionName = model._section || `model_${index + 1}`;
+        const displayName = model.name || `模型 ${index + 1}`;
+
+        let html = '';
+        html += `<div class="model-card" id="modelCard-${index}">`;
+        html += `    <div class="model-card-header">`;
+        html += `        <div>`;
+        html += `            <input type="text" class="model-name-input" id="modelName-${index}"`;
+        html += `                   value="${escapeHtml(displayName)}" placeholder="模型名称"`;
+        html += `                   onchange="onModelNameChange(${index})">`;
+        html += `            <span class="model-card-badge">${escapeHtml(sectionName)}</span>`;
+        html += `        </div>`;
+        html += `        <div class="model-card-actions">`;
+        html += `            <button class="btn-sm btn-sm-expand" onclick="toggleAllSections(${index})">📂 全部展开/收起</button>`;
+        html += `            <button class="btn-sm btn-sm-danger" onclick="deleteModel(${index})">🗑️ 删除</button>`;
+        html += `        </div>`;
+        html += `    </div>`;
+        html += `    <div class="model-card-body">`;
+
+        // 渲染每个分区
+        for (const sectionName of sections) {
+            const sectionParams = Object.entries(paramsMeta).filter(([key, p]) => p.section === sectionName);
+            if (sectionParams.length === 0) continue;
+
+            const sectionId = `section-${index}-${sectionName.replace(/\s+/g, '-')}`;
+            html += `        <div class="params-section expanded" id="${escapeHtml(sectionId)}">`;
+            html += `            <div class="params-section-header" onclick="toggleSection('${escapeHtml(sectionId)}')">`;
+            html += `                <span>${getSectionIcon(sectionName)} ${escapeHtml(sectionName)}</span>`;
+            html += `                <span class="section-toggle">▼</span>`;
+            html += `            </div>`;
+            html += `            <div class="params-section-body">`;
+
+            for (const [key, param] of sectionParams) {
+                html += renderParamField(index, key, param);
+            }
+
+            html += `            </div></div>`;
+        }
+
+        html += `    </div>`;
+        html += `</div>`;
+        return html;
+    }
+
+    function renderParamField(modelIndex, key, param) {
+        const model = models[modelIndex];
+        const requiredMark = param.required ? '<span class="param-required">*</span>' : '';
+        const currentVal = model[key] !== undefined && model[key] !== null ? model[key] : param.default;
+        const refScenario = param.ref_scenario || '';
+        let inputHtml = '';
+
+        switch (param.type) {
+            case 'text':
+                inputHtml = `<input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}" onchange="onParamChange(${modelIndex}, '${key}')">`;
+                break;
+
+            case 'number': {
+                const min = param.min !== undefined ? ` min="${param.min}"` : '';
+                const max = param.max !== undefined ? ` max="${param.max}"` : '';
+                const step = param.step !== undefined ? ` step="${param.step}"` : '';
+                inputHtml = `<input type="number" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onParamChange(${modelIndex}, '${key}')">`;
+                break;
+            }
+
+            case 'checkbox': {
+                const chkChecked = (currentVal === true || currentVal === 'true' || currentVal === '1') ? 'checked' : '';
+                inputHtml = `<input type="checkbox" id="param-${modelIndex}-${key}" ${chkChecked} onchange="onParamChange(${modelIndex}, '${key}')">
+                             <label class="checkbox-label" for="param-${modelIndex}-${key}">${escapeHtml(param.label)}</label>`;
+                break;
+            }
+
+            case 'select': {
+                let options = '';
+                if (param.options) {
+                    for (const opt of param.options) {
+                        const selected = String(currentVal) === String(opt.value) ? 'selected' : '';
+                        options += `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label)}</option>`;
+                    }
+                }
+                inputHtml = `<select id="param-${modelIndex}-${key}" onchange="onParamChange(${modelIndex}, '${key}')">${options}</select>`;
+                break;
+            }
+
+            case 'file_picker': {
+                const btnId = `btn-${modelIndex}-${key}`;
+                const refText = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
+                inputHtml = `<div class="input-group" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                    <input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}"
+                        placeholder="${escapeHtml(param.placeholder || '')}"
+                        onchange="onParamChange(${modelIndex}, '${key}')"
+                        style="flex:1;min-width:120px;">
+                    <button type="button" class="btn-file-select" id="${btnId}"
+                        onclick="fileSelect('param-${modelIndex}-${key}')"
+                        style="padding:4px 12px;background:#667eea;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;white-space:nowrap;">
+                        📁 选择文件
+                    </button>
+                    ${refText}
+                </div>`;
+                break;
+            }
+
+            default:
+                inputHtml = `<input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" onchange="onParamChange(${modelIndex}, '${key}')">`;
+        }
+
+        const flagHtml = param.flag ? `<span class="param-flag">${escapeHtml(param.flag)}</span>` : '';
+        // file_picker 类型的 ref 已在 case 内部处理，此处跳过
+        const refHtml = (param.type !== 'file_picker' && refScenario)
+            ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
+
+        if (param.type === 'checkbox') {
+            const chkChecked = (currentVal === true || currentVal === 'true' || currentVal === '1') ? 'checked' : '';
+            const chkRefHtml = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
+            return `<div class="param-row">
+                <div class="param-top-row">
+                    <div class="param-label">
+                        <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
                     </div>
-                `;
-                return;
-            }
-
-            let html = '<div class="models-grid">';
-            models.forEach((model, index) => {
-                html += `
-                    <div class="model-card">
-                        <div class="model-header" onclick="toggleModel(this)">
-                            <div class="model-header-left">
-                                <i class="fas fa-chevron-down collapse-icon" style="font-size:12px;color:#9ca3af"></i>
-                                <span class="model-name">${model.name}</span>
-                                <span class="section-badge">${model.section}</span>
-                            </div>
-                            <div class="model-header-right">
-                                <button class="btn btn-danger" onclick="event.stopPropagation();deleteModel(${index})">
-                                    <i class="fas fa-trash"></i> 删除
-                                </button>
-                            </div>
-                        </div>
-                        <div class="params-grid">
-                            ${renderParams(model.params)}
-                        </div>
+                    <div class="param-input">
+                        <input type="checkbox" id="param-${modelIndex}-${key}" ${chkChecked} onchange="onParamChange(${modelIndex}, '${key}')"> ${chkRefHtml}
                     </div>
-                `;
+                </div>
+                <div class="param-desc">${escapeHtml(param.description || '')}</div>
+            </div>`;
+        }
+
+        return `<div class="param-row">
+            <div class="param-top-row">
+                <div class="param-label">
+                    <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
+                </div>
+                <div class="param-input">${inputHtml} ${refHtml}</div>
+            </div>
+            <div class="param-desc">${escapeHtml(param.description || '')}</div>
+        </div>`;
+    }
+
+    // ==================== 交互事件 ====================
+    function onModelNameChange(index) {
+        const el = document.getElementById('modelName-' + index);
+        if (el) models[index].name = el.value.trim();
+    }
+
+    function onParamChange(modelIndex, key) {
+        const param = paramsMeta[key];
+        const el = document.getElementById(`param-${modelIndex}-${key}`);
+        if (!el) return;
+
+        if (param.type === 'checkbox') {
+            models[modelIndex][key] = el.checked;
+        } else if (param.type === 'number') {
+            const rawVal = el.value.trim();
+            models[modelIndex][key] = rawVal === '' ? '' : rawVal;
+        } else {
+            models[modelIndex][key] = el.value.trim();
+        }
+    }
+
+    function toggleSection(sectionId) {
+        const el = document.getElementById(sectionId);
+        if (el) el.classList.toggle('expanded');
+    }
+
+    function toggleAllSections(modelIndex) {
+        const card = document.getElementById('modelCard-' + modelIndex);
+        if (!card) return;
+        const sections = card.querySelectorAll('.params-section');
+        // 判断当前状态：如果所有都是展开的，则全部收起；否则全部展开
+        let allExpanded = true;
+        sections.forEach(s => { if (!s.classList.contains('expanded')) allExpanded = false; });
+        sections.forEach(s => {
+            if (allExpanded) s.classList.remove('expanded');
+            else s.classList.add('expanded');
+        });
+    }
+
+    // ==================== 服务端文件选择器 ====================
+    // 浏览 llamapanel 服务器上的 /data/llamapanel/model_links/ 目录
+    function fileSelect(inputId) {
+        // 获取或创建模态框
+        let modal = document.getElementById('serverFileModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'serverFileModal';
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-box">
+                    <div class="modal-header">
+                        <h3>📂 选择服务器文件</h3>
+                        <span style="font-size:12px;color:#718096;">/data/llamapanel/model_links/</span>
+                        <button class="modal-close" onclick="closeFileModal()">✕</button>
+                    </div>
+                    <div class="modal-search">
+                        <input type="text" id="serverFileSearch" placeholder="搜索文件..." oninput="filterServerFileList()">
+                    </div>
+                    <div class="modal-list" id="serverFileList">
+                        <div class="modal-list-empty"><div class="loading"></div> 加载服务器文件列表中...</div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) closeFileModal();
             });
-            html += '</div>';
-            container.innerHTML = html;
         }
 
-        function renderParams(params) {
-            if (!params || Object.keys(params).length === 0) return '<div class="empty-state" style="padding:20px"><p>暂无参数</p></div>';
+        // 保存当前输入框ID
+        modal.dataset.inputId = inputId;
+        modal.classList.add('active');
+        document.getElementById('serverFileSearch').value = '';
+        document.getElementById('serverFileList').innerHTML = '<div class="modal-list-empty"><div class="loading"></div> 加载服务器文件列表中...</div>';
 
-            const sections = groupParamsBySection(params);
-            let html = '';
-            for (const [section, sectionParams] of Object.entries(sections)) {
-                html += `<div class="param-section">`;
-                html += `<div class="param-section-title">${section} <span class="section-count">(${sectionParams.length} 项)</span></div>`;
-                html += `<div class="param-items" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px">`;
-                sectionParams.forEach(param => {
-                    html += renderParamInput(param);
-                });
-                html += `</div>`;
-                html += `</div>`;
-            }
-            return html;
-        }
-
-        function groupParamsBySection(params) {
-            const sections = {};
-            const sectionOrder = [];
-
-            // Define section mapping based on common llama.cpp parameter categories
-            const paramSectionMap = {
-                // Model loading
-                'model': '模型加载',
-                'model-url': '模型加载',
-                'mmproj': '模型加载',
-                'hf-repo': '模型加载',
-                'hf-file': '模型加载',
-                'alias': '模型加载',
-                'lora': '模型加载',
-                'lora-base': '模型加载',
-                'num- Experts': '模型加载',
-                'grp-attn-n': '模型加载',
-
-                // Context / Generation
-                'n-ctx': '上下文与生成',
-                'n-predict': '上下文与生成',
-                'n-gen': '上下文与生成',
-                'n-keep': '上下文与生成',
-                'n-batch': '上下文与生成',
-                'n-ubatch': '上下文与生成',
-                'n-chat': '上下文与生成',
-                'predict': '上下文与生成',
-                'gen': '上下文与生成',
-                'keep': '上下文与生成',
-                'batch': '上下文与生成',
-                'ubatch': '上下文与生成',
-                'chat': '上下文与生成',
-                'cache': '上下文与生成',
-
-                // Sampling
-                'temp': '采样参数',
-                'top-k': '采样参数',
-                'top-p': '采样参数',
-                'min-p': '采样参数',
-                'repeat-penalty': '采样参数',
-                'repeat-last-n': '采样参数',
-                'presence-penalty': '采样参数',
-                'frequency-penalty': '采样参数',
-                'tfs-z': '采样参数',
-                'mirostat': '采样参数',
-                'mirostat-tau': '采样参数',
-                'mirostat-eta': '采样参数',
-                'xtc-parameters': '采样参数',
-                'dynatemp-range': '采样参数',
-                'dynatemp-exp': '采样参数',
-                'samplers': '采样参数',
-                'spm-fill': '采样参数',
-                'spm-infill': '采样参数',
-
-                // Grammar / Format
-                'grammar': '语法与格式',
-                'grammar-file': '语法与格式',
-                'cell': '语法与格式',
-                'json': '语法与格式',
-                'format': '语法与格式',
-
-                // Performance
-                'main-gpu': '性能与加速',
-                'gpu-layers': '性能与加速',
-                'threads': '性能与加速',
-                'no-kv-offload': '性能与加速',
-                'tensor-split': '性能与加速',
-                'mlock': '性能与加速',
-                'no-mmap': '性能与加速',
-                'prio': '性能与加速',
-
-                // Advanced
-                'rope-scaling': '高级参数',
-                'rope-freq-base': '高级参数',
-                'rope-freq-scale': '高级参数',
-                'rope-scale': '高级参数',
-                'rope': '高级参数',
-                'yarn': '高级参数',
-                'seed': '高级参数',
-                'fast': '高级参数',
-                'ignore-eos': '高级参数',
-                'penalize-nl': '高级参数',
-                'cont-batching': '高级参数',
-                'flash-attn': '高级参数',
-                'no-perf': '高级参数',
-                'chat-template': '高级参数',
-                'slot-save-path': '高级参数',
-                'slot-restore-path': '高级参数',
-                'port': '高级参数',
-                'host': '高级参数',
-                'embedding': '高级参数',
-                'reranking': '高级参数',
-                'timeout': '高级参数',
-
-                // Prompt
-                'prompt': '提示词',
-                'prompt-file': '提示词',
-                'file': '提示词',
-                'in-prefix': '提示词',
-                'in-suffix': '提示词',
-                'reverse-prompt': '提示词',
-                'system-prompt': '提示词',
-                'system': '提示词',
-                'ref-scenario': '提示词',
-
-                // RAG / Knowledge
-                'vector': '知识库(RAG)',
-                'knowledge': '知识库(RAG)',
-                'retrieval': '知识库(RAG)',
-                'search': '知识库(RAG)',
-                'doc': '知识库(RAG)',
-
-                // Multimodal
-                'image': '多模态',
-                'vision': '多模态',
-                'clip': '多模态',
-                'audio': '多模态',
-
-                // Other
-                'verbose': '其他',
-                'log': '其他',
-                'debug': '其他',
-                'help': '其他',
-                'version': '其他'
-            };
-
-            const handledKeys = new Set();
-
-            // First pass: handle known keys
-            Object.keys(params).forEach(key => {
-                const normalizedKey = key.replace(/^-+/g, '').toLowerCase();
-                let section = '其他';
-
-                // Try exact match first
-                if (paramSectionMap[key]) {
-                    section = paramSectionMap[key];
-                } else {
-                    // Try fuzzy match
-                    for (const [pattern, sec] of Object.entries(paramSectionMap)) {
-                        if (normalizedKey.includes(pattern.toLowerCase()) || pattern.toLowerCase().includes(normalizedKey)) {
-                            section = sec;
-                            break;
+        // 从服务器获取文件列表
+        fetch('/api/server/list-models')
+            .then(resp => resp.json())
+            .then(data => {
+                const list = document.getElementById('serverFileList');
+                if (data.success && data.models && data.models.length > 0) {
+                    let html = '';
+                    // 按文件夹分组
+                    const groups = {};
+                    for (const m of data.models) {
+                        const parts = m.name.split('/');
+                        const folder = parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+                        const fname = parts[parts.length - 1];
+                        if (!groups[folder]) groups[folder] = [];
+                        groups[folder].push(m);
+                    }
+                    const sortedFolders = Object.keys(groups).sort();
+                    for (const folder of sortedFolders) {
+                        if (folder) {
+                            html += `<div class="modal-list-folder">📁 ${escapeHtml(folder)}</div>`;
+                        }
+                        for (const m of groups[folder]) {
+                            const fname = m.name.split('/').pop();
+                            html += `<div class="modal-list-item" onclick="selectServerFile('${escapeHtml(m.path)}')">
+                                📄 ${escapeHtml(fname)}
+                                <span class="item-size">${formatSize(m.size)}</span>
+                            </div>`;
                         }
                     }
+                    list.innerHTML = html;
+                } else {
+                    list.innerHTML = '<div class="modal-list-empty">📭 服务器模型目录为空。<br>请先将模型文件放入 <code>/data/llamapanel/model_links/</code> 目录。</div>';
                 }
-
-                if (!sections[section]) {
-                    sections[section] = [];
-                    sectionOrder.push(section);
-                }
-                sections[section].push({ key, value: params[key] });
-                handledKeys.add(key);
+            })
+            .catch(e => {
+                document.getElementById('serverFileList').innerHTML =
+                    '<div class="modal-list-empty">❌ 加载失败: ' + e.message + '</div>';
             });
+    }
 
-            // Sort params within each section
-            Object.keys(sections).forEach(sec => {
-                sections[sec].sort((a, b) => a.key.localeCompare(b.key));
-            });
+    function closeFileModal() {
+        const modal = document.getElementById('serverFileModal');
+        if (modal) modal.classList.remove('active');
+    }
 
-            return sections;
+    function selectServerFile(path) {
+        const modal = document.getElementById('serverFileModal');
+        if (!modal) return;
+        const inputId = modal.dataset.inputId;
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.value = path;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
         }
+        closeFileModal();
+    }
 
-        function renderParamInput(param) {
-            const value = String(param.value);
-            const isBoolean = value === 'true' || value === 'false' || value === '1' || value === '0';
-            const isNumeric = !isNaN(value) && value !== '' && !isBoolean;
-
-            // Check if it looks like a file path
-            const looksLikeFile = value.includes('.') && (
-                value.endsWith('.gguf') || value.endsWith('.bin') ||
-                value.endsWith('.safetensors') || value.endsWith('.pt') ||
-                value.endsWith('.pth') || value.endsWith('.json') ||
-                value.endsWith('.txt') || value.startsWith('/') ||
-                value.startsWith('./') || value.startsWith('../')
-            );
-
-            // Check if it has multiple values (space-separated)
-            const hasMultipleValues = value.includes(' ') && !isNumeric && value.split(' ').length > 1;
-
-            let inputHtml = '';
-            let extraClass = '';
-
-            if (isBoolean) {
-                extraClass = 'checkbox-item';
-                const checked = value === 'true' || value === '1';
-                inputHtml = `
-                    <div class="param-item checkbox-item">
-                        <input type="checkbox" ${checked ? 'checked' : ''} disabled>
-                        <label><span class="param-key">--${param.key}</span></label>
-                    </div>
-                `;
-            } else if (looksLikeFile) {
-                inputHtml = `
-                    <div class="param-item select-wrapper">
-                        <label><span class="param-key">--${param.key}</span> <span class="value-hint">📁 文件路径</span></label>
-                        <select disabled>
-                            <option value="${value}" selected>${value}</option>
-                        </select>
-                        <span class="select-arrow"><i class="fas fa-chevron-down"></i></span>
-                    </div>
-                `;
-            } else if (hasMultipleValues) {
-                inputHtml = `
-                    <div class="param-item">
-                        <label><span class="param-key">--${param.key}</span> <span class="value-hint">📋 多值参数</span></label>
-                        <input type="text" value="${value}" disabled>
-                    </div>
-                `;
+    function filterServerFileList() {
+        const query = document.getElementById('serverFileSearch').value.toLowerCase();
+        const items = document.querySelectorAll('#serverFileList .modal-list-item, #serverFileList .modal-list-folder');
+        for (const item of items) {
+            const text = item.textContent.toLowerCase();
+            if (item.classList.contains('modal-list-folder')) {
+                // 文件夹：检查其下的文件是否有匹配
+                let sibling = item.nextElementSibling;
+                let hasVisible = false;
+                while (sibling && sibling.classList.contains('modal-list-item')) {
+                    const matches = sibling.textContent.toLowerCase().includes(query);
+                    sibling.style.display = matches ? '' : 'none';
+                    if (matches) hasVisible = true;
+                    sibling = sibling.nextElementSibling;
+                }
+                item.style.display = hasVisible ? '' : 'none';
             } else {
-                inputHtml = `
-                    <div class="param-item">
-                        <label><span class="param-key">--${param.key}</span></label>
-                        <input type="text" value="${value}" disabled>
-                    </div>
-                `;
+                item.style.display = text.includes(query) ? '' : 'none';
             }
+        }
+    }
 
-            return inputHtml;
+    function formatSize(bytes) {
+        if (!bytes || bytes <= 0) return '未知';
+        const gb = bytes / (1024 * 1024 * 1024);
+        if (gb >= 1) return gb.toFixed(2) + ' GB';
+        const mb = bytes / (1024 * 1024);
+        if (mb >= 1) return mb.toFixed(0) + ' MB';
+        return (bytes / 1024).toFixed(0) + ' KB';
+    }
+
+    // ==================== 模型管理 ====================
+    function addModel() {
+        modelCounter++;
+        const newModel = { _section: `model_${modelCounter}` };
+        // 使用默认值初始化
+        newModel.name = `模型 ${modelCounter}`;
+        for (const key in paramsMeta) {
+            newModel[key] = paramsMeta[key].default;
+        }
+        models.push(newModel);
+        renderAllCards();
+        showToast(`✅ 已添加「${newModel.name}」`, 'success');
+    }
+
+    function deleteModel(index) {
+        const model = models[index];
+        const name = model.name || `模型 ${index + 1}`;
+        if (!confirm(`确定删除「${name}」？\n此操作无法撤销！`)) return;
+        models.splice(index, 1);
+        renderAllCards();
+        showToast(`🗑️ 已删除「${name}」`, 'info');
+    }
+
+    // ==================== 保存与加载 ====================
+    async function collectAllFormValues() {
+        // 从 DOM 中收集所有值到 models 数组
+        for (let i = 0; i < models.length; i++) {
+            // 先收集 name
+            const nameEl = document.getElementById('modelName-' + i);
+            if (nameEl) models[i].name = nameEl.value.trim();
+
+            // 收集所有参数
+            for (const key in paramsMeta) {
+                const el = document.getElementById(`param-${i}-${key}`);
+                if (!el) continue;
+                const param = paramsMeta[key];
+                if (param.type === 'checkbox') {
+                    models[i][key] = el.checked;
+                } else if (param.type === 'number') {
+                    const rawVal = el.value.trim();
+                    models[i][key] = rawVal === '' ? '' : rawVal;
+                } else {
+                    models[i][key] = el.value.trim();
+                }
+            }
+        }
+    }
+
+    async function saveConfig() {
+        await collectAllFormValues();
+        const iniContent = serializeIni(models);
+        if (!iniContent.trim()) {
+            showToast('❌ 没有可保存的配置', 'error');
+            return;
         }
 
-        function deleteModel(index) {
-            if (!confirm('确定要删除此模型配置吗？')) return;
-
-            fetch('/api/params/delete_model', {
+        try {
+            const resp = await fetch('/api/server/models-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ index: index })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showFlash('模型配置已删除', 'success');
-                    loadModels();
-                } else {
-                    showFlash('删除失败: ' + (data.error || '未知错误'), 'error');
-                }
-            })
-            .catch(err => {
-                showFlash('删除失败: ' + err.message, 'error');
+                body: JSON.stringify({ content: iniContent })
             });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('✅ ' + data.message, 'success');
+            } else {
+                showToast('❌ ' + data.message, 'error');
+            }
+        } catch (e) {
+            showToast('❌ 保存失败: ' + e.message, 'error');
+        }
+    }
+
+    async function saveConfigIni() {
+        await collectAllFormValues();
+        const iniContent = serializeIni(models);
+        if (!iniContent.trim()) {
+            showToast('❌ 没有可保存的配置', 'error');
+            return;
         }
 
-        function loadModels() {
-            fetch('/api/params/get_models')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        modelsData = data.models || [];
-                        renderModels(modelsData);
-                    } else {
-                        showFlash('加载失败: ' + (data.error || '未知错误'), 'error');
+        try {
+            const resp = await fetch('/api/server/save-config-ini', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: iniContent })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('✅ ' + data.message, 'success');
+            } else {
+                showToast('❌ ' + data.message, 'error');
+            }
+        } catch (e) {
+            showToast('❌ 保存失败: ' + e.message, 'error');
+        }
+    }
+
+    async function reloadConfig() {
+        try {
+            const resp = await fetch('/api/server/models-config');
+            const data = await resp.json();
+            if (data.success && data.content) {
+                models = parseIni(data.content);
+                // 更新 modelCounter
+                let maxNum = 0;
+                for (const m of models) {
+                    const match = m._section && m._section.match(/^model_(\d+)$/);
+                    if (match) {
+                        const num = parseInt(match[1]);
+                        if (num > maxNum) maxNum = num;
                     }
-                })
-                .catch(err => {
-                    showFlash('加载失败: ' + err.message, 'error');
-                });
+                }
+                modelCounter = Math.max(maxNum, models.length);
+                renderAllCards();
+                showToast('🔄 配置已重新加载', 'success');
+            } else {
+                showToast('⚠️ 配置文件为空，开始新配置', 'info');
+                models = [];
+                modelCounter = 0;
+                renderAllCards();
+            }
+        } catch (e) {
+            showToast('❌ 加载失败: ' + e.message, 'error');
+        }
+    }
+
+    // ==================== Toast 提示 ====================
+    function showToast(message, type) {
+        let toast = document.getElementById('toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toast';
+            toast.style.cssText = `
+                position: fixed; top: 20px; right: 20px; z-index: 9999;
+                padding: 12px 20px; border-radius: 8px; font-size: 14px;
+                font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                transition: all 0.3s ease; opacity: 0; transform: translateY(-10px);
+                max-width: 400px; word-break: break-word;
+            `;
+            document.body.appendChild(toast);
         }
 
-        // Load models on page load
-        document.addEventListener('DOMContentLoaded', loadModels);
-    </script>
-</body>
-</html>
+        const colors = {
+            success: { bg: '#d4edda', text: '#155724', border: '#c3e6cb' },
+            error: { bg: '#f8d7da', text: '#721c24', border: '#f5c6cb' },
+            info: { bg: '#d1ecf1', text: '#0c5460', border: '#bee5eb' },
+        };
+        const color = colors[type] || colors.info;
+
+        toast.style.background = color.bg;
+        toast.style.color = color.text;
+        toast.style.border = '1px solid ' + color.border;
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+
+        clearTimeout(toast._hideTimer);
+        toast._hideTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+        }, 3000);
+    }
+
+    // ==================== 初始化 ====================
+    async function initPage() {
+        try {
+            // 加载参数元数据
+            const metaResp = await fetch('/api/server/params-meta');
+            const metaData = await metaResp.json();
+            if (metaData.success) {
+                paramsMeta = metaData.params;
+                sections = metaData.sections;
+            }
+
+            // 加载 models.ini 配置
+            await reloadConfig();
+
+        } catch (e) {
+            console.error('初始化失败:', e);
+            document.getElementById('formLoading').innerHTML =
+                '<div style="color:#e53e3e;">❌ 加载失败: ' + e.message + '</div>';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initPage);
+</script>
