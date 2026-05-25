@@ -268,6 +268,110 @@
         animation: spin 0.6s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== 服务端文件选择模态框 ===== */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        gap: 12px;
+    }
+    .modal-header h3 { font-size: 16px; margin: 0; white-space: nowrap; }
+    .modal-close {
+        background: #e2e8f0;
+        border: none;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .modal-close:hover { background: #d1d5db; }
+    .modal-search { margin-bottom: 12px; }
+    .modal-search input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 13px;
+        box-sizing: border-box;
+    }
+    .modal-search input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+    }
+    .modal-list {
+        flex: 1;
+        overflow-y: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        max-height: 50vh;
+    }
+    .modal-list-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+        font-family: monospace;
+        font-size: 12px;
+        transition: background 0.2s;
+    }
+    .modal-list-item:hover { background: #ebf4ff; }
+    .modal-list-item .item-size {
+        float: right;
+        color: #718096;
+        font-size: 11px;
+    }
+    .modal-list-folder {
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #667eea;
+        background: #f7fafc;
+        border-bottom: 1px solid #e2e8f0;
+        position: sticky;
+        top: 0;
+    }
+    .modal-list-empty {
+        padding: 30px 20px;
+        text-align: center;
+        color: #718096;
+        font-size: 13px;
+        line-height: 1.8;
+    }
+    .modal-list-empty code {
+        background: #edf2f7;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+    }
 </style>
 
 <script>
@@ -556,31 +660,128 @@
         });
     }
 
-    // ==================== 文件选择器 ====================
+    // ==================== 服务端文件选择器 ====================
+    // 浏览 llamapanel 服务器上的 /data/llamapanel/model_links/ 目录
     function fileSelect(inputId) {
+        // 获取或创建模态框
+        let modal = document.getElementById('serverFileModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'serverFileModal';
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-box">
+                    <div class="modal-header">
+                        <h3>📂 选择服务器文件</h3>
+                        <span style="font-size:12px;color:#718096;">/data/llamapanel/model_links/</span>
+                        <button class="modal-close" onclick="closeFileModal()">✕</button>
+                    </div>
+                    <div class="modal-search">
+                        <input type="text" id="serverFileSearch" placeholder="搜索文件..." oninput="filterServerFileList()">
+                    </div>
+                    <div class="modal-list" id="serverFileList">
+                        <div class="modal-list-empty"><div class="loading"></div> 加载服务器文件列表中...</div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) closeFileModal();
+            });
+        }
+
+        // 保存当前输入框ID
+        modal.dataset.inputId = inputId;
+        modal.classList.add('active');
+        document.getElementById('serverFileSearch').value = '';
+        document.getElementById('serverFileList').innerHTML = '<div class="modal-list-empty"><div class="loading"></div> 加载服务器文件列表中...</div>';
+
+        // 从服务器获取文件列表
+        fetch('/api/server/list-models')
+            .then(resp => resp.json())
+            .then(data => {
+                const list = document.getElementById('serverFileList');
+                if (data.success && data.models && data.models.length > 0) {
+                    let html = '';
+                    // 按文件夹分组
+                    const groups = {};
+                    for (const m of data.models) {
+                        const parts = m.name.split('/');
+                        const folder = parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+                        const fname = parts[parts.length - 1];
+                        if (!groups[folder]) groups[folder] = [];
+                        groups[folder].push(m);
+                    }
+                    const sortedFolders = Object.keys(groups).sort();
+                    for (const folder of sortedFolders) {
+                        if (folder) {
+                            html += `<div class="modal-list-folder">📁 ${escapeHtml(folder)}</div>`;
+                        }
+                        for (const m of groups[folder]) {
+                            const fname = m.name.split('/').pop();
+                            html += `<div class="modal-list-item" onclick="selectServerFile('${escapeHtml(m.path)}')">
+                                📄 ${escapeHtml(fname)}
+                                <span class="item-size">${formatSize(m.size)}</span>
+                            </div>`;
+                        }
+                    }
+                    list.innerHTML = html;
+                } else {
+                    list.innerHTML = '<div class="modal-list-empty">📭 服务器模型目录为空。<br>请先将模型文件放入 <code>/data/llamapanel/model_links/</code> 目录。</div>';
+                }
+            })
+            .catch(e => {
+                document.getElementById('serverFileList').innerHTML =
+                    '<div class="modal-list-empty">❌ 加载失败: ' + e.message + '</div>';
+            });
+    }
+
+    function closeFileModal() {
+        const modal = document.getElementById('serverFileModal');
+        if (modal) modal.classList.remove('active');
+    }
+
+    function selectServerFile(path) {
+        const modal = document.getElementById('serverFileModal');
+        if (!modal) return;
+        const inputId = modal.dataset.inputId;
         const input = document.getElementById(inputId);
-        if (!input) return;
+        if (input) {
+            input.value = path;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        closeFileModal();
+    }
 
-        // 创建隐藏的 file input
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.style.display = 'none';
-        fileInput.accept = '.gguf,.bin,.pt,.pth,.safetensors,.json';
-        document.body.appendChild(fileInput);
-
-        fileInput.addEventListener('change', function (e) {
-            if (this.files && this.files.length > 0) {
-                const file = this.files[0];
-                // 优先使用 file.path（Electron/CEF 环境），否则用 file.name
-                const path = file.path || file.name || '';
-                input.value = path.replace(/\\/g, '/');
-                // 触发 change 事件更新模型数据
-                input.dispatchEvent(new Event('change', { bubbles: true }));
+    function filterServerFileList() {
+        const query = document.getElementById('serverFileSearch').value.toLowerCase();
+        const items = document.querySelectorAll('#serverFileList .modal-list-item, #serverFileList .modal-list-folder');
+        for (const item of items) {
+            const text = item.textContent.toLowerCase();
+            if (item.classList.contains('modal-list-folder')) {
+                // 文件夹：检查其下的文件是否有匹配
+                let sibling = item.nextElementSibling;
+                let hasVisible = false;
+                while (sibling && sibling.classList.contains('modal-list-item')) {
+                    const matches = sibling.textContent.toLowerCase().includes(query);
+                    sibling.style.display = matches ? '' : 'none';
+                    if (matches) hasVisible = true;
+                    sibling = sibling.nextElementSibling;
+                }
+                item.style.display = hasVisible ? '' : 'none';
+            } else {
+                item.style.display = text.includes(query) ? '' : 'none';
             }
-            document.body.removeChild(fileInput);
-        });
+        }
+    }
 
-        fileInput.click();
+    function formatSize(bytes) {
+        if (!bytes || bytes <= 0) return '未知';
+        const gb = bytes / (1024 * 1024 * 1024);
+        if (gb >= 1) return gb.toFixed(2) + ' GB';
+        const mb = bytes / (1024 * 1024);
+        if (mb >= 1) return mb.toFixed(0) + ' MB';
+        return (bytes / 1024).toFixed(0) + ' KB';
     }
 
     // ==================== 模型管理 ====================
