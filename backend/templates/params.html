@@ -1,5 +1,5 @@
 <div class="card">
-    <h1>⚙️ 参数配置</h1>
+	    <h1 style="background:#fff;color:#000;padding:12px 20px;border-radius:10px;border:1px solid #e2e8f0;font-size:20px;margin-top:0;">ini 文件预览</h1>
     <p class="subtitle">多模型 INI 配置管理 — 每个模型独立配置，保存为 models.ini 格式</p>
 
     <!-- 操作按钮栏 -->
@@ -489,18 +489,6 @@
 
         let html = '';
         html += `<div class="model-card" id="modelCard-${index}">`;
-        html += `    <div class="model-card-header">`;
-        html += `        <div>`;
-        html += `            <input type="text" class="model-name-input" id="modelName-${index}"`;
-        html += `                   value="${escapeHtml(displayName)}" placeholder="模型名称"`;
-        html += `                   onchange="onModelNameChange(${index})">`;
-        html += `            <span class="model-card-badge">${escapeHtml(sectionName)}</span>`;
-        html += `        </div>`;
-        html += `        <div class="model-card-actions">`;
-        html += `            <button class="btn-sm btn-sm-expand" onclick="toggleAllSections(${index})">📂 全部展开/收起</button>`;
-        html += `            <button class="btn-sm btn-sm-danger" onclick="deleteModel(${index})">🗑️ 删除</button>`;
-        html += `        </div>`;
-        html += `    </div>`;
         html += `    <div class="model-card-body">`;
 
         // 渲染每个分区
