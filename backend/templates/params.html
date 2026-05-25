@@ -428,6 +428,7 @@
         const model = models[modelIndex];
         const requiredMark = param.required ? '<span class="param-required">*</span>' : '';
         const currentVal = model[key] !== undefined && model[key] !== null ? model[key] : param.default;
+        const refScenario = param.ref_scenario || '';
         let inputHtml = '';
 
         switch (param.type) {
@@ -464,7 +465,8 @@
 
             case 'file_picker': {
                 const btnId = `btn-${modelIndex}-${key}`;
-                inputHtml = `<div class="input-group" style="display:flex;gap:6px;align-items:stretch;">
+                const refText = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
+                inputHtml = `<div class="input-group" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;">
                     <input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}"
                         placeholder="${escapeHtml(param.placeholder || '')}"
                         onchange="onParamChange(${modelIndex}, '${key}')"
@@ -474,6 +476,7 @@
                         style="padding:4px 12px;background:#667eea;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;white-space:nowrap;">
                         📁 选择文件
                     </button>
+                    ${refText}
                 </div>`;
                 break;
             }
@@ -483,8 +486,9 @@
         }
 
         const flagHtml = param.flag ? `<span class="param-flag">${escapeHtml(param.flag)}</span>` : '';
-        const refScenario = param.ref_scenario || '';
-        const refHtml = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
+        // file_picker 类型的 ref 已在 case 内部处理，此处跳过
+        const refHtml = (param.type !== 'file_picker' && refScenario)
+            ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
 
         if (param.type === 'checkbox') {
             const chkChecked = (currentVal === true || currentVal === 'true' || currentVal === '1') ? 'checked' : '';
