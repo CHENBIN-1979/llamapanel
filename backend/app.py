@@ -463,6 +463,7 @@ HTML_PAGE = '''
             background: rgba(255,255,255,0.2);
             transition: all 0.3s;
             cursor: pointer;
+            font-size: 16px;
         }
         .nav-bar a:hover {
             background: rgba(255,255,255,0.3);
@@ -719,9 +720,9 @@ HTML_PAGE = '''
             <a onclick="showPage('home')" id="navHome" class="active">🏠 主页</a>
             <a onclick="showPage('download')" id="navDownload">📥 模型下载</a>
             <a onclick="showPage('local')" id="navLocal">💾 本地模型</a>
-            <a onclick="showPage('system')" id="navSystem">📋 系统信息</a>
             <a onclick="showPage('params')" id="navParams">⚙️ 参数配置</a>
             <a onclick="showPage('settings')" id="navSettings">🦙 llama.cpp Server</a>
+            <a onclick="showPage('system')" id="navSystem">📋 系统信息</a>
         </div>
         
         <!-- 主页内容 -->
@@ -793,19 +794,19 @@ HTML_PAGE = '''
             <iframe src="/api/local/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
         
-        <!-- 系统信息页面容器 -->
-        <div id="systemPage" class="page-content hidden">
-            <iframe src="/api/system/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
-        </div>
-        
         <!-- 参数配置页面容器 -->
         <div id="paramsPage" class="page-content hidden">
             <iframe src="/api/server/params-page" style="width: 100%; min-height: 800px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
-
+    
         <!-- 服务器设置页面容器 -->
         <div id="settingsPage" class="page-content hidden">
             <iframe src="/api/server/settings-page" style="width: 100%; min-height: 800px; border: none; border-radius: 16px; background: white;"></iframe>
+        </div>
+
+        <!-- 系统信息页面容器 -->
+        <div id="systemPage" class="page-content hidden">
+            <iframe src="/api/system/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
     </div>
     
@@ -818,31 +819,31 @@ HTML_PAGE = '''
             const homePage = document.getElementById('homePage');
             const downloadPage = document.getElementById('downloadPage');
             const localPage = document.getElementById('localPage');
-            const systemPage = document.getElementById('systemPage');
             const paramsPage = document.getElementById('paramsPage');
             const settingsPage = document.getElementById('settingsPage');
+            const systemPage = document.getElementById('systemPage');
             const navHome = document.getElementById('navHome');
             const navDownload = document.getElementById('navDownload');
             const navLocal = document.getElementById('navLocal');
-            const navSystem = document.getElementById('navSystem');
             const navParams = document.getElementById('navParams');
             const navSettings = document.getElementById('navSettings');
+            const navSystem = document.getElementById('navSystem');
             
             // 隐藏所有页面
             homePage.classList.add('hidden');
             downloadPage.classList.add('hidden');
             localPage.classList.add('hidden');
-            systemPage.classList.add('hidden');
             paramsPage.classList.add('hidden');
             settingsPage.classList.add('hidden');
+            systemPage.classList.add('hidden');
             
             // 移除所有 active 状态
             navHome.classList.remove('active');
             navDownload.classList.remove('active');
             navLocal.classList.remove('active');
-            navSystem.classList.remove('active');
             navParams.classList.remove('active');
             navSettings.classList.remove('active');
+            navSystem.classList.remove('active');
             
             if (page === 'home') {
                 homePage.classList.remove('hidden');
@@ -863,13 +864,6 @@ HTML_PAGE = '''
                 if (iframe) {
                     iframe.contentWindow.location.reload();
                 }
-            } else if (page === 'system') {
-                systemPage.classList.remove('hidden');
-                navSystem.classList.add('active');
-                const iframe = document.querySelector('#systemPage iframe');
-                if (iframe) {
-                    iframe.contentWindow.location.reload();
-                }
             } else if (page === 'params') {
                 paramsPage.classList.remove('hidden');
                 navParams.classList.add('active');
@@ -881,6 +875,13 @@ HTML_PAGE = '''
                 settingsPage.classList.remove('hidden');
                 navSettings.classList.add('active');
                 const iframe = document.querySelector('#settingsPage iframe');
+                if (iframe) {
+                    iframe.contentWindow.location.reload();
+                }
+            } else if (page === 'system') {
+                systemPage.classList.remove('hidden');
+                navSystem.classList.add('active');
+                const iframe = document.querySelector('#systemPage iframe');
                 if (iframe) {
                     iframe.contentWindow.location.reload();
                 }
