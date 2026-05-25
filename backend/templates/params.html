@@ -162,17 +162,17 @@
         gap: 12px;
     }
     .param-label {
-        flex: 0 0 200px;
-        min-width: 150px;
+        flex: 0 0 240px;
+        min-width: 180px;
     }
     .param-label label {
         font-weight: 600;
-        font-size: 12px;
+        font-size: 13px;
         color: #2d3748;
     }
     .param-label .param-flag {
         font-family: monospace;
-        font-size: 10px;
+        font-size: 11px;
         color: #667eea;
         background: #ebf4ff;
         padding: 1px 5px;
@@ -180,9 +180,9 @@
         margin-left: 4px;
     }
     .param-desc {
-        font-size: 12px;
+        font-size: 13px;
         color: #718096;
-        margin-top: 4px;
+        margin-top: 6px;
         padding-left: 2px;
         line-height: 1.5;
         width: 100%;
@@ -223,11 +223,11 @@
         font-weight: bold;
     }
     .param-ref {
-        font-size: 10px;
-        color: #888;
-        margin-left: 6px;
-        white-space: nowrap;
-    }
+	        font-size: 11px;
+	        color: #000000;
+	        margin-left: 8px;
+	        white-space: nowrap;
+	    }
 
     /* ===== 参数建议提示 ===== */
     .param-tip {
@@ -484,22 +484,21 @@
 
         const flagHtml = param.flag ? `<span class="param-flag">${escapeHtml(param.flag)}</span>` : '';
         const refScenario = param.ref_scenario || '';
-        const refHtml = refScenario ? `<div class="param-tip">💡 ${escapeHtml(refScenario)}</div>` : '';
+        const refHtml = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
 
         if (param.type === 'checkbox') {
             const chkChecked = (currentVal === true || currentVal === 'true' || currentVal === '1') ? 'checked' : '';
-            const chkRefHtml = refScenario ? `<div class="param-tip" style="margin-top:4px;">💡 ${escapeHtml(refScenario)}</div>` : '';
+            const chkRefHtml = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
             return `<div class="param-row">
                 <div class="param-top-row">
                     <div class="param-label">
                         <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
                     </div>
                     <div class="param-input">
-                        <input type="checkbox" id="param-${modelIndex}-${key}" ${chkChecked} onchange="onParamChange(${modelIndex}, '${key}')">
+                        <input type="checkbox" id="param-${modelIndex}-${key}" ${chkChecked} onchange="onParamChange(${modelIndex}, '${key}')"> ${chkRefHtml}
                     </div>
                 </div>
                 <div class="param-desc">${escapeHtml(param.description || '')}</div>
-                ${chkRefHtml}
             </div>`;
         }
 
@@ -508,10 +507,9 @@
                 <div class="param-label">
                     <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
                 </div>
-                <div class="param-input">${inputHtml}</div>
+                <div class="param-input">${inputHtml} ${refHtml}</div>
             </div>
             <div class="param-desc">${escapeHtml(param.description || '')}</div>
-            ${refHtml}
         </div>`;
     }
 
