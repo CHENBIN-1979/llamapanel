@@ -1,0 +1,798 @@
+<div class="card">
+    <h1>⚙️ 参数配置</h1>
+    <p class="subtitle">所有参数均有默认值，标 <span style="color:#e53e3e;">*</span> 为必填</p>
+
+    <form id="serverConfigForm">
+        <!-- 由 JavaScript 动态渲染 -->
+        <div id="formLoading"><div class="loading"></div> 加载参数配置...</div>
+        <div id="formContent" style="display: none;"></div>
+    </form>
+</div>
+
+<!-- 启动参数预览 -->
+<div class="card" id="commandPreviewCard" style="display: none;">
+    <h3>📋 启动命令预览</h3>
+    <div class="command-box">
+        <code id="commandPreview"></code>
+    </div>
+</div>
+
+<style>
+    /* ===== 通用 ===== */
+    .btn { padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.3s; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-success { background: #38a169; color: white; }
+    .btn-success:hover { background: #2f855a; }
+    .btn-danger { background: #e53e3e; color: white; }
+    .btn-danger:hover { background: #c53030; }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #5a67d8; }
+    .btn-secondary { background: #718096; color: white; }
+    .btn-secondary:hover { background: #4a5568; }
+
+    /* ===== 参数表单 ===== */
+    .params-section {
+        margin-bottom: 24px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .params-section-header {
+        background: #f7fafc;
+        padding: 12px 16px;
+        font-weight: 600;
+        font-size: 15px;
+        color: #2d3748;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        user-select: none;
+        transition: background 0.2s;
+    }
+    .params-section-header:hover { background: #edf2f7; }
+    .params-section-header .section-toggle { font-size: 12px; color: #a0aec0; transition: transform 0.2s; }
+    .params-section-body { padding: 16px; display: block; }
+    .params-section.collapsed .params-section-body { display: none; }
+    .params-section.collapsed .section-toggle { transform: rotate(-90deg); }
+
+    .param-row {
+        display: flex;
+        flex-direction: column;
+        padding: 12px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .param-row:last-child { border-bottom: none; }
+    .param-top-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    .param-label {
+        flex: 0 0 240px;
+        min-width: 180px;
+    }
+    .param-label label {
+        font-weight: 600;
+        font-size: 13px;
+        color: #2d3748;
+    }
+    .param-label .param-flag {
+        font-family: monospace;
+        font-size: 11px;
+        color: #667eea;
+        background: #ebf4ff;
+        padding: 1px 6px;
+        border-radius: 4px;
+        margin-left: 4px;
+    }
+    .param-desc {
+        font-size: 13px;
+        color: #718096;
+        margin-top: 6px;
+        padding-left: 2px;
+        line-height: 1.5;
+        width: 100%;
+    }
+    .param-ref {
+        font-size: 11px;
+        color: #000000;
+        margin-left: 8px;
+        white-space: nowrap;
+    }
+    .param-input { flex: 1; min-width: 100px; }
+    .param-input input[type="text"],
+    .param-input input[type="number"],
+    .param-input select {
+        width: 100%;
+        max-width: 160px;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: monospace;
+        transition: border-color 0.2s;
+    }
+    .param-input input:focus,
+    .param-input select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+    }
+    .param-input input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #667eea;
+    }
+    .param-input .param-checkbox {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #667eea;
+        margin-right: 6px;
+        vertical-align: middle;
+    }
+    .param-input input:disabled,
+    .param-input select:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background: #f7fafc;
+    }
+    .param-input .checkbox-label {
+        font-size: 13px;
+        color: #4a5568;
+        cursor: pointer;
+        margin-left: 6px;
+    }
+    .param-input .model-selector {
+        width: 100%;
+        max-width: 400px;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 13px;
+        background: white;
+    }
+    .param-input .model-select-btn {
+        display: inline-block;
+        margin-top: 4px;
+        font-size: 11px;
+        color: #667eea;
+        cursor: pointer;
+        background: none;
+        border: none;
+        text-decoration: underline;
+    }
+    .param-required {
+        color: #e53e3e;
+        font-weight: bold;
+    }
+
+    /* ===== 命令预览 ===== */
+    .command-box {
+        background: #1e1e1e;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-top: 8px;
+        overflow-x: auto;
+    }
+    .command-box code {
+        color: #d4d4d4;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        line-height: 1.6;
+    }
+
+    .loading {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #e2e8f0;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== 模型选择模态框 ===== */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    .modal-header h3 { font-size: 16px; }
+    .modal-close {
+        background: #e2e8f0;
+        border: none;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    .modal-search {
+        margin-bottom: 12px;
+    }
+    .modal-search input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+    .modal-list {
+        flex: 1;
+        overflow-y: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+    }
+    .modal-list-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+        font-family: monospace;
+        font-size: 12px;
+        transition: background 0.2s;
+    }
+    .modal-list-item:hover { background: #ebf4ff; }
+    .modal-list-item .item-size {
+        float: right;
+        color: #718096;
+        font-size: 11px;
+    }
+    .modal-list-empty {
+        padding: 20px;
+        text-align: center;
+        color: #718096;
+        font-size: 13px;
+    }
+</style>
+
+<script>
+    // ==================== 全局状态 ====================
+    let paramsMeta = {};
+    let sections = [];
+    let currentConfig = {};
+
+    // ==================== 工具函数 ====================
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        if (text === 0 || text === false) text = String(text);
+        div.textContent = text ?? '';
+        return div.innerHTML;
+    }
+
+    function formatSize(bytes) {
+        if (!bytes || bytes <= 0) return '未知';
+        const gb = bytes / (1024*1024*1024);
+        if (gb >= 1) return gb.toFixed(2) + ' GB';
+        const mb = bytes / (1024*1024);
+        if (mb >= 1) return mb.toFixed(0) + ' MB';
+        return (bytes/1024).toFixed(0) + ' KB';
+    }
+
+    // ==================== 初始化 ====================
+    async function initPage() {
+        try {
+            // 加载参数元数据
+            const metaResp = await fetch('/api/server/params-meta');
+            const metaData = await metaResp.json();
+            if (metaData.success) {
+                paramsMeta = metaData.params;
+                sections = metaData.sections;
+            }
+
+            // 加载已保存的配置
+            await loadConfig();
+
+            // 渲染表单
+            renderForm();
+
+        } catch(e) {
+            console.error('初始化失败:', e);
+            document.getElementById('formLoading').innerHTML = '<div style="color:#e53e3e;">❌ 加载失败: ' + e.message + '</div>';
+        }
+    }
+
+    // ==================== 配置管理 ====================
+    async function loadConfig() {
+        try {
+            const resp = await fetch('/api/server/config');
+            const data = await resp.json();
+            if (data.success) {
+                currentConfig = data.config;
+                fillForm();
+            }
+        } catch(e) {
+            console.error('加载配置失败:', e);
+        }
+    }
+
+    async function saveConfig() {
+        collectFormValues();
+        try {
+            const resp = await fetch('/api/server/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config: currentConfig })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('✅ 配置已保存', 'success');
+                updateCommandPreview();
+            } else {
+                showToast('❌ 保存失败: ' + data.message, 'error');
+            }
+        } catch(e) {
+            showToast('❌ 保存失败: ' + e.message, 'error');
+        }
+    }
+
+    function resetConfig() {
+        if (!confirm('确定恢复所有参数为默认值？\n这将删除已保存的配置文件，无法恢复！')) return;
+
+        (async () => {
+            try {
+                const resp = await fetch('/api/server/config', { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('✅ ' + data.message, 'success');
+                } else {
+                    showToast('⚠️ ' + data.message, 'warning');
+                }
+            } catch(e) {
+                console.warn('调用后端重置 API 失败，仅前端重置:', e);
+            }
+        })();
+
+        const meta = paramsMeta;
+        for (const key in meta) {
+            currentConfig[key] = meta[key].default;
+        }
+        fillForm();
+        showToast('🔄 已恢复默认值，请点击「保存配置」以持久化', 'info');
+        updateCommandPreview();
+    }
+
+    // ==================== 表单渲染 ====================
+    function renderForm() {
+        const container = document.getElementById('formContent');
+        const loading = document.getElementById('formLoading');
+        const meta = paramsMeta;
+
+        let html = '';
+        // 添加操作按钮
+        html += '<div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;">';
+        html += '<button type="button" class="btn btn-primary" onclick="saveConfig()">💾 保存配置</button>';
+        html += '<button type="button" class="btn btn-secondary" onclick="resetConfig()">🔄 恢复默认</button>';
+        html += '<button type="button" class="btn btn-secondary" onclick="diagnoseConfig()">🔍 配置诊断</button>';
+        html += '</div>';
+
+        for (const sectionName of sections) {
+            const sectionParams = Object.entries(meta).filter(([key, p]) => p.section === sectionName);
+            if (sectionParams.length === 0) continue;
+
+            html += '<div class="params-section" id="section-' + escapeHtml(sectionName) + '">';
+            html += '<div class="params-section-header" onclick="toggleSection(\'' + escapeHtml(sectionName) + '\')">';
+            html += '    <span>' + getSectionIcon(sectionName) + ' ' + escapeHtml(sectionName) + '</span>';
+            html += '    <span class="section-toggle">▼</span>';
+            html += '</div>';
+            html += '<div class="params-section-body">';
+
+            for (const [key, param] of sectionParams) {
+                html += renderParamField(key, param);
+            }
+
+            html += '</div></div>';
+        }
+
+        container.innerHTML = html;
+        loading.style.display = 'none';
+        container.style.display = 'block';
+
+        document.querySelectorAll('.params-section').forEach(el => el.classList.remove('collapsed'));
+    }
+
+    function getSectionIcon(name) {
+        const icons = {
+            '模型与路径': '📁',
+            'GPU 与加速': '🎮',
+            '上下文与内存': '🧠',
+            '采样参数': '🎯',
+            '服务器设置': '🌐',
+            '线程与性能': '⚡',
+        };
+        return icons[name] || '📋';
+    }
+
+    function toggleSection(name) {
+        const el = document.getElementById('section-' + escapeHtml(name));
+        if (el) el.classList.toggle('collapsed');
+    }
+
+    function renderParamField(key, param) {
+        const requiredMark = param.required ? '<span class="param-required">*</span>' : '';
+        let inputHtml = '';
+
+        const currentVal = currentConfig[key] !== undefined ? currentConfig[key] : param.default;
+
+        switch (param.type) {
+            case 'text':
+                inputHtml = `<input type="text" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}" onchange="onParamChange('${key}')">`;
+                break;
+
+            case 'number':
+                {
+                const min = param.min !== undefined ? ` min="${param.min}"` : '';
+                const max = param.max !== undefined ? ` max="${param.max}"` : '';
+                const step = param.step !== undefined ? ` step="${param.step}"` : '';
+                const refVal = param.default !== undefined ? param.default : '';
+                const refScenario = param.ref_scenario || '';
+                const needsChk = param.needs_checkbox === true;
+                const chkHtml = needsChk ? `<input type="checkbox" class="param-checkbox" id="chk-${key}" onchange="onCheckboxParamToggle('${key}')" title="勾选以启用此参数">` : '';
+                const disAttr = needsChk ? ' disabled' : '';
+                inputHtml = chkHtml + `<input type="number" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onParamChange('${key}')"${disAttr}>`;
+                if (refScenario) {
+                    inputHtml += `<span class="param-ref">💡 参考值：${escapeHtml(refScenario)}</span>`;
+                } else if (refVal !== '') {
+                    inputHtml += `<span class="param-ref">💡 参考值: ${escapeHtml(String(refVal))}</span>`;
+                }
+                }
+                break;
+
+            case 'checkbox': {
+                const chkChecked = currentVal === true || currentVal === 'true' ? 'checked' : '';
+                inputHtml = `<input type="checkbox" id="param-${key}" ${chkChecked} onchange="onParamChange('${key}')">
+                             <label class="checkbox-label" for="param-${key}" onclick="">${escapeHtml(param.label)}</label>`;
+                break;
+            }
+
+            case 'select':
+                {
+                let options = '';
+                if (param.options) {
+                    for (const opt of param.options) {
+                        const selected = currentVal === opt.value ? 'selected' : '';
+                        options += `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label)}</option>`;
+                    }
+                }
+                const needsChkSel = param.needs_checkbox === true;
+                const chkHtmlSel = needsChkSel ? `<input type="checkbox" class="param-checkbox" id="chk-${key}" onchange="onCheckboxParamToggle('${key}')" title="勾选以启用此参数">` : '';
+                const disAttrSel = needsChkSel ? ' disabled' : '';
+                inputHtml = chkHtmlSel + `<select id="param-${key}" onchange="onParamChange('${key}')"${disAttrSel}>${options}</select>`;
+                }
+                break;
+
+            case 'file_picker':
+                inputHtml = `<div class="model-selector-container">
+                    <input type="text" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}" onchange="onParamChange('${key}')" style="margin-bottom:4px;">
+                    <button type="button" class="model-select-btn" onclick="openModelPicker('${key}')">📂 浏览已下载模型...</button>
+                </div>`;
+                break;
+
+            default:
+                inputHtml = `<input type="text" id="param-${key}" value="${escapeHtml(currentVal)}" onchange="onParamChange('${key}')">`;
+        }
+
+        const flagHtml = param.flag ? `<span class="param-flag">${escapeHtml(param.flag)}</span>` : '';
+
+        if (param.type === 'checkbox') {
+            const chkChecked = currentVal === true || currentVal === 'true' ? 'checked' : '';
+            return `<div class="param-row">
+                <div class="param-top-row">
+                    <div class="param-label">
+                        <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
+                    </div>
+                    <div class="param-input">
+                        <input type="checkbox" id="param-${key}" ${chkChecked} onchange="onParamChange('${key}')">
+                    </div>
+                </div>
+                <div class="param-desc">${escapeHtml(param.description || '')}</div>
+            </div>`;
+        }
+
+        return `<div class="param-row">
+            <div class="param-top-row">
+                <div class="param-label">
+                    <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
+                </div>
+                <div class="param-input">${inputHtml}</div>
+            </div>
+            <div class="param-desc">${escapeHtml(param.description || '')}</div>
+        </div>`;
+    }
+
+    function fillForm() {
+        for (const key in paramsMeta) {
+            const param = paramsMeta[key];
+            const el = document.getElementById('param-' + key);
+            if (!el) continue;
+
+            if (param.needs_checkbox) {
+                const chk = document.getElementById('chk-' + key);
+                if (chk) {
+                    const hasValue = currentConfig[key] !== undefined && currentConfig[key] !== null && currentConfig[key] !== '';
+                    chk.checked = hasValue;
+                    el.disabled = !hasValue;
+                }
+            }
+
+            const val = currentConfig[key] !== undefined ? currentConfig[key] : param.default;
+
+            if (param.type === 'checkbox') {
+                el.checked = (val === true || val === 'true');
+            } else if (param.type === 'select') {
+                el.value = val;
+            } else {
+                el.value = val || '';
+            }
+        }
+        updateCommandPreview();
+    }
+
+    function collectFormValues() {
+        for (const key in paramsMeta) {
+            const param = paramsMeta[key];
+            const el = document.getElementById('param-' + key);
+            if (!el) continue;
+
+            if (param.needs_checkbox) {
+                const chk = document.getElementById('chk-' + key);
+                if (chk && !chk.checked) {
+                    delete currentConfig[key];
+                    continue;
+                }
+            }
+
+            if (param.type === 'checkbox') {
+                currentConfig[key] = el.checked;
+            } else if (param.type === 'number') {
+                const rawVal = el.value.trim();
+                if (rawVal === '') {
+                    currentConfig[key] = '';
+                } else {
+                    currentConfig[key] = rawVal;
+                }
+            } else {
+                currentConfig[key] = el.value.trim();
+            }
+        }
+    }
+
+    function onCheckboxParamToggle(key) {
+        const chk = document.getElementById('chk-' + key);
+        const input = document.getElementById('param-' + key);
+        if (chk && input) {
+            input.disabled = !chk.checked;
+        }
+        onParamChange(key);
+    }
+
+    function onParamChange(key) {
+        const param = paramsMeta[key];
+        const el = document.getElementById('param-' + key);
+        if (!el) return;
+
+        if (param.type === 'checkbox') {
+            currentConfig[key] = el.checked;
+        } else if (param.type === 'number') {
+            const rawVal = el.value.trim();
+            currentConfig[key] = rawVal === '' ? '' : rawVal;
+        } else {
+            currentConfig[key] = el.value.trim();
+        }
+        updateCommandPreview();
+    }
+
+    // ==================== 命令预览 ====================
+    function updateCommandPreview() {
+        const card = document.getElementById('commandPreviewCard');
+        const preview = document.getElementById('commandPreview');
+        if (!preview) return;
+
+        collectFormValues();
+        let cmd = 'llama-server';
+        for (const key in paramsMeta) {
+            const param = paramsMeta[key];
+            const val = currentConfig[key];
+
+            if (val === null || val === undefined || val === '') continue;
+
+            if (param.type === 'checkbox') {
+                if (val === true || val === 'true') {
+                    cmd += ' \\\n    ' + param.flag;
+                }
+                continue;
+            }
+
+            cmd += ' \\\n    ' + param.flag + ' ' + String(val);
+        }
+
+        if (cmd === 'llama-server') {
+            card.style.display = 'none';
+        } else {
+            card.style.display = 'block';
+            preview.textContent = cmd;
+        }
+    }
+
+    // ==================== 模型选择器 ====================
+    let modelPickerCallback = null;
+
+    async function openModelPicker(paramKey) {
+        modelPickerCallback = paramKey;
+        const modal = document.getElementById('modelPickerModal');
+        if (!modal) {
+            createModelPickerModal();
+        }
+
+        document.getElementById('modelPickerModal').classList.add('active');
+        document.getElementById('modelPickerSearch').value = '';
+        document.getElementById('modelPickerList').innerHTML = '<div class="modal-list-empty"><div class="loading"></div> 加载模型中...</div>';
+
+        try {
+            const resp = await fetch('/api/server/list-models');
+            const data = await resp.json();
+            const list = document.getElementById('modelPickerList');
+
+            if (data.success && data.models && data.models.length > 0) {
+                let html = '';
+                for (const m of data.models) {
+                    html += `<div class="modal-list-item" onclick="selectModel('${escapeHtml(m.path)}')">
+                        📄 ${escapeHtml(m.name)}
+                        <span class="item-size">${formatSize(m.size)}</span>
+                    </div>`;
+                }
+                list.innerHTML = html;
+            } else {
+                list.innerHTML = '<div class="modal-list-empty">📭 没有找到已下载的模型。请先下载模型或检查软链接目录。</div>';
+            }
+        } catch(e) {
+            document.getElementById('modelPickerList').innerHTML = '<div class="modal-list-empty">❌ 加载失败: ' + e.message + '</div>';
+        }
+    }
+
+    function createModelPickerModal() {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'modelPickerModal';
+        modal.innerHTML = `
+            <div class="modal-box">
+                <div class="modal-header">
+                    <h3>📂 选择模型文件</h3>
+                    <button class="modal-close" onclick="closeModelPicker()">✕</button>
+                </div>
+                <div class="modal-search">
+                    <input type="text" id="modelPickerSearch" placeholder="搜索模型文件..." oninput="filterModelList()">
+                </div>
+                <div class="modal-list" id="modelPickerList">
+                    <div class="modal-list-empty"><div class="loading"></div> 加载中...</div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) closeModelPicker();
+        });
+    }
+
+    function closeModelPicker() {
+        document.getElementById('modelPickerModal').classList.remove('active');
+        modelPickerCallback = null;
+    }
+
+    function selectModel(path) {
+        if (modelPickerCallback) {
+            const el = document.getElementById('param-' + modelPickerCallback);
+            if (el) {
+                el.value = path;
+                currentConfig[modelPickerCallback] = path;
+                updateCommandPreview();
+            }
+        }
+        closeModelPicker();
+        showToast('✅ 已选择模型文件', 'success');
+    }
+
+    function filterModelList() {
+        const query = document.getElementById('modelPickerSearch').value.toLowerCase();
+        const items = document.querySelectorAll('#modelPickerList .modal-list-item');
+        for (const item of items) {
+            const text = item.textContent.toLowerCase();
+            item.style.display = text.includes(query) ? '' : 'none';
+        }
+    }
+
+    // ==================== Toast 提示 ====================
+    function showToast(message, type) {
+        let toast = document.getElementById('toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toast';
+            toast.style.cssText = `
+                position: fixed; top: 20px; right: 20px; z-index: 9999;
+                padding: 12px 20px; border-radius: 8px; font-size: 14px;
+                font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                transition: all 0.3s ease; opacity: 0; transform: translateY(-10px);
+                max-width: 400px; word-break: break-word;
+            `;
+            document.body.appendChild(toast);
+        }
+
+        const colors = {
+            success: { bg: '#d4edda', text: '#155724', border: '#c3e6cb' },
+            error: { bg: '#f8d7da', text: '#721c24', border: '#f5c6cb' },
+            info: { bg: '#d1ecf1', text: '#0c5460', border: '#bee5eb' },
+        };
+        const color = colors[type] || colors.info;
+
+        toast.style.background = color.bg;
+        toast.style.color = color.text;
+        toast.style.border = '1px solid ' + color.border;
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+
+        clearTimeout(toast._hideTimer);
+        toast._hideTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+        }, 3000);
+    }
+
+    // ==================== 配置诊断 ====================
+    async function diagnoseConfig() {
+        try {
+            const resp = await fetch('/api/server/config-check');
+            const data = await resp.json();
+            if (data.success) {
+                let msg = '📋 配置诊断结果：\n';
+                msg += `配置文件存在: ${data.config_exists ? '✅ 是' : '❌ 否'}`;
+                if (data.config_exists) {
+                    msg += ` (${(data.config_size || 0)} 字节)`;
+                    msg += `\n配置文件有效: ${data.config_valid ? '✅ 是' : '❌ 否'}`;
+                    if (data.config_error) msg += `\n错误: ${data.config_error}`;
+                }
+                msg += `\n备份文件存在: ${data.backup_exists ? '✅ 是' : '❌ 否'}`;
+                if (data.backup_exists) {
+                    msg += `\n备份文件有效: ${data.backup_valid ? '✅ 是' : '❌ 否'}`;
+                    if (data.backup_error) msg += `\n错误: ${data.backup_error}`;
+                }
+                msg += '\n\n💡 如果配置文件损坏，请点击「恢复默认」按钮重置。';
+                alert(msg);
+            } else {
+                showToast('❌ 诊断失败: ' + (data.message || '未知错误'), 'error');
+            }
+        } catch(e) {
+            showToast('❌ 诊断请求失败: ' + e.message, 'error');
+        }
+    }
+
+    // ==================== 启动 ====================
+    document.addEventListener('DOMContentLoaded', initPage);
+</script>

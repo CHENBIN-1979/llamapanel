@@ -1,0 +1,793 @@
+<div class="card">
+    <h1>🚀 服务器设置</h1>
+    <p class="subtitle">管理 llama-server 的运行状态与网络参数</p>
+
+    <!-- 服务器状态栏 -->
+    <div id="serverStatusBar" class="status-bar">
+        <div class="status-left">
+            <span id="statusIndicator" class="status-dot status-dot-stopped"></span>
+            <span id="statusText" class="status-text">检测中...</span>
+        </div>
+        <div class="status-right">
+            <span id="statusPid" class="status-detail"></span>
+            <span id="statusElapsed" class="status-detail"></span>
+            <span id="statusPath" class="status-detail" style="font-family: monospace; font-size: 11px;"></span>
+        </div>
+    </div>
+
+    <!-- 操作按钮组 -->
+    <div class="action-bar">
+        <button id="btnStartServer" class="btn btn-success" onclick="startServer()">▶ 启动服务器</button>
+        <button id="btnStopServer" class="btn btn-danger" onclick="stopServer()" disabled>⏹ 停止服务器</button>
+        <button id="btnSaveConfig" class="btn btn-primary" onclick="saveConfig()">💾 保存配置</button>
+        <button id="btnLoadConfig" class="btn btn-secondary" onclick="loadConfig()">📂 加载配置</button>
+        <button id="btnResetConfig" class="btn btn-secondary" onclick="resetConfig()">🔄 恢复默认</button>
+        <button id="btnDiagnose" class="btn btn-secondary" onclick="diagnoseConfig()">🔍 配置诊断</button>
+        <button id="btnRefreshStatus" class="btn btn-secondary" onclick="refreshServerStatus()">🔄 刷新状态</button>
+    </div>
+</div>
+
+<!-- 服务器网络参数配置 -->
+<div class="card">
+    <h2>🌐 服务器设置</h2>
+    <p class="subtitle">配置监听地址、端口、并发等服务器核心参数</p>
+
+    <form id="serverConfigForm">
+        <div id="formLoading"><div class="loading"></div> 加载参数配置...</div>
+        <div id="formContent" style="display: none;"></div>
+    </form>
+</div>
+
+<!-- 服务器进程日志 -->
+<div class="card">
+    <h3>📋 服务器日志</h3>
+    <div class="log-controls">
+        <button onclick="refreshProcessLog()">🔄 刷新日志</button>
+        <label class="auto-refresh">
+            <input type="checkbox" id="autoRefreshLog"> 自动刷新 (3秒)
+        </label>
+        <button onclick="clearProcessLog()" class="btn-small-danger">🗑️ 清空日志</button>
+    </div>
+    <div id="processLog" class="log-viewer">
+        <div class="log-line">等待服务器启动...</div>
+    </div>
+</div>
+
+<style>
+    /* ===== 通用 ===== */
+    .btn { padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.3s; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-success { background: #38a169; color: white; }
+    .btn-success:hover { background: #2f855a; }
+    .btn-danger { background: #e53e3e; color: white; }
+    .btn-danger:hover { background: #c53030; }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #5a67d8; }
+    .btn-secondary { background: #718096; color: white; }
+    .btn-secondary:hover { background: #4a5568; }
+
+    /* ===== 状态栏 ===== */
+    .status-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: #f7fafc;
+        border-radius: 10px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .status-left { display: flex; align-items: center; gap: 10px; }
+    .status-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .status-dot {
+        width: 14px; height: 14px; border-radius: 50%; display: inline-block;
+        transition: background 0.3s;
+    }
+    .status-dot-stopped { background: #e53e3e; box-shadow: 0 0 6px rgba(229,62,62,0.5); }
+    .status-dot-running { background: #38a169; box-shadow: 0 0 6px rgba(56,161,105,0.5); animation: pulse 1.5s infinite; }
+    .status-dot-loading { background: #dd6b20; box-shadow: 0 0 6px rgba(221,107,32,0.5); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .status-text { font-weight: 600; font-size: 15px; color: #2d3748; }
+    .status-detail { font-size: 12px; color: #718096; }
+
+    /* ===== 操作按钮组 ===== */
+    .action-bar {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+        flex-wrap: wrap;
+    }
+
+    /* ===== 参数表单 ===== */
+    .params-section {
+        margin-bottom: 24px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .params-section-header {
+        background: #f7fafc;
+        padding: 12px 16px;
+        font-weight: 600;
+        font-size: 15px;
+        color: #2d3748;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        user-select: none;
+        transition: background 0.2s;
+    }
+    .params-section-header:hover { background: #edf2f7; }
+    .params-section-header .section-toggle { font-size: 12px; color: #a0aec0; transition: transform 0.2s; }
+    .params-section-body { padding: 16px; display: block; }
+    .params-section.collapsed .params-section-body { display: none; }
+    .params-section.collapsed .section-toggle { transform: rotate(-90deg); }
+
+    .param-row {
+        display: flex;
+        flex-direction: column;
+        padding: 12px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .param-row:last-child { border-bottom: none; }
+    .param-top-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    .param-label {
+        flex: 0 0 240px;
+        min-width: 180px;
+    }
+    .param-label label {
+        font-weight: 600;
+        font-size: 13px;
+        color: #2d3748;
+    }
+    .param-label .param-flag {
+        font-family: monospace;
+        font-size: 11px;
+        color: #667eea;
+        background: #ebf4ff;
+        padding: 1px 6px;
+        border-radius: 4px;
+        margin-left: 4px;
+    }
+    .param-desc {
+        font-size: 13px;
+        color: #718096;
+        margin-top: 6px;
+        padding-left: 2px;
+        line-height: 1.5;
+        width: 100%;
+    }
+    .param-ref {
+        font-size: 11px;
+        color: #000000;
+        margin-left: 8px;
+        white-space: nowrap;
+    }
+    .param-input { flex: 1; min-width: 100px; }
+    .param-input input[type="text"],
+    .param-input input[type="number"],
+    .param-input select {
+        width: 100%;
+        max-width: 160px;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: monospace;
+        transition: border-color 0.2s;
+    }
+    .param-input input:focus,
+    .param-input select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+    }
+    .param-input input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #667eea;
+    }
+    .param-input .param-checkbox {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #667eea;
+        margin-right: 6px;
+        vertical-align: middle;
+    }
+    .param-input input:disabled,
+    .param-input select:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background: #f7fafc;
+    }
+    .param-input .checkbox-label {
+        font-size: 13px;
+        color: #4a5568;
+        cursor: pointer;
+        margin-left: 6px;
+    }
+    .param-required {
+        color: #e53e3e;
+        font-weight: bold;
+    }
+
+    /* ===== 日志 ===== */
+    .log-controls {
+        margin-bottom: 10px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .log-controls button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.3s;
+    }
+    .log-controls button:hover { background: #5a67d8; }
+    .btn-small-danger {
+        background: #e53e3e !important;
+    }
+    .btn-small-danger:hover { background: #c53030 !important; }
+    .auto-refresh { font-size: 12px; color: #718096; display: flex; align-items: center; gap: 5px; }
+    .log-viewer {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        font-family: 'Courier New', monospace;
+        padding: 16px;
+        border-radius: 8px;
+        height: 300px;
+        overflow-y: auto;
+        font-size: 12px;
+    }
+    .log-line {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        padding: 3px 5px;
+        border-bottom: 1px solid #2a2a2a;
+        white-space: pre-wrap;
+        word-break: break-all;
+        margin: 0;
+    }
+    .log-empty { height: 5px; border-bottom: none; }
+    .log-error { color: #ff6b6b; background-color: rgba(255, 107, 107, 0.1); }
+    .log-warning { color: #ffd93d; }
+    .log-success { color: #6bcb77; }
+    .log-command { color: #4d9de0; }
+    .log-separator { color: #c9c9c9; font-weight: bold; border-bottom: 1px solid #555; margin: 5px 0; background-color: #2a2a2a; }
+
+    .loading {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #e2e8f0;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<script>
+    // ==================== 全局状态 ====================
+    let paramsMeta = {};
+    let currentConfig = {};
+    let autoRefreshLogInterval = null;
+    let serverStatusInterval = null;
+
+    // 只显示"服务器设置"分区
+    const SERVER_SECTION_NAME = '服务器设置';
+
+    // ==================== 工具函数 ====================
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        if (text === 0 || text === false) text = String(text);
+        div.textContent = text ?? '';
+        return div.innerHTML;
+    }
+
+    // ==================== 初始化 ====================
+    async function initPage() {
+        try {
+            // 加载参数元数据
+            const metaResp = await fetch('/api/server/params-meta');
+            const metaData = await metaResp.json();
+            if (metaData.success) {
+                paramsMeta = metaData.params;
+            }
+
+            // 加载已保存的配置
+            await loadConfig();
+
+            // 只渲染"服务器设置"分区
+            renderServerSettingsSection();
+
+            // 刷新服务器状态
+            await refreshServerStatus();
+
+            // 刷新日志
+            await refreshProcessLog();
+
+            // 启动定时刷新
+            startPeriodicRefresh();
+
+        } catch(e) {
+            console.error('初始化失败:', e);
+            document.getElementById('formLoading').innerHTML = '<div style="color:#e53e3e;">❌ 加载失败: ' + e.message + '</div>';
+        }
+    }
+
+    // ==================== 配置管理 ====================
+    async function loadConfig() {
+        try {
+            const resp = await fetch('/api/server/config');
+            const data = await resp.json();
+            if (data.success) {
+                currentConfig = data.config;
+                fillForm();
+            }
+        } catch(e) {
+            console.error('加载配置失败:', e);
+        }
+    }
+
+    async function saveConfig() {
+        collectFormValues();
+        try {
+            const resp = await fetch('/api/server/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config: currentConfig })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('✅ 配置已保存', 'success');
+            } else {
+                showToast('❌ 保存失败: ' + data.message, 'error');
+            }
+        } catch(e) {
+            showToast('❌ 保存失败: ' + e.message, 'error');
+        }
+    }
+
+    function resetConfig() {
+        if (!confirm('确定恢复所有参数为默认值？\n这将删除已保存的配置文件，无法恢复！')) return;
+
+        (async () => {
+            try {
+                const resp = await fetch('/api/server/config', { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('✅ ' + data.message, 'success');
+                } else {
+                    showToast('⚠️ ' + data.message, 'warning');
+                }
+            } catch(e) {
+                console.warn('调用后端重置 API 失败，仅前端重置:', e);
+            }
+        })();
+
+        const meta = paramsMeta;
+        for (const key in meta) {
+            currentConfig[key] = meta[key].default;
+        }
+        fillForm();
+        showToast('🔄 已恢复默认值，请点击「保存配置」以持久化', 'info');
+    }
+
+    async function diagnoseConfig() {
+        try {
+            const resp = await fetch('/api/server/config-check');
+            const data = await resp.json();
+            if (data.success) {
+                let msg = '📋 配置诊断结果：\n';
+                msg += `配置文件存在: ${data.config_exists ? '✅ 是' : '❌ 否'}`;
+                if (data.config_exists) {
+                    msg += ` (${(data.config_size || 0)} 字节)`;
+                    msg += `\n配置文件有效: ${data.config_valid ? '✅ 是' : '❌ 否'}`;
+                    if (data.config_error) msg += `\n错误: ${data.config_error}`;
+                }
+                msg += `\n备份文件存在: ${data.backup_exists ? '✅ 是' : '❌ 否'}`;
+                if (data.backup_exists) {
+                    msg += `\n备份文件有效: ${data.backup_valid ? '✅ 是' : '❌ 否'}`;
+                    if (data.backup_error) msg += `\n错误: ${data.backup_error}`;
+                }
+                msg += '\n\n💡 如果配置文件损坏，请点击「恢复默认」按钮重置。';
+                alert(msg);
+            } else {
+                showToast('❌ 诊断失败: ' + (data.message || '未知错误'), 'error');
+            }
+        } catch(e) {
+            showToast('❌ 诊断请求失败: ' + e.message, 'error');
+        }
+    }
+
+    // ==================== 仅渲染"服务器设置"分区 ====================
+    function renderServerSettingsSection() {
+        const container = document.getElementById('formContent');
+        const loading = document.getElementById('formLoading');
+        const meta = paramsMeta;
+
+        // 只提取"服务器设置"分区的参数
+        const sectionParams = Object.entries(meta).filter(([key, p]) => p.section === SERVER_SECTION_NAME);
+        if (sectionParams.length === 0) {
+            container.innerHTML = '<div style="color:#718096;padding:16px;">未找到服务器设置参数</div>';
+            loading.style.display = 'none';
+            container.style.display = 'block';
+            return;
+        }
+
+        let html = '';
+        html += '<div class="params-section" id="section-server-settings">';
+        html += '<div class="params-section-header" onclick="toggleSection()">';
+        html += '    <span>🌐 服务器设置</span>';
+        html += '    <span class="section-toggle">▼</span>';
+        html += '</div>';
+        html += '<div class="params-section-body">';
+
+        for (const [key, param] of sectionParams) {
+            html += renderParamField(key, param);
+        }
+
+        html += '</div></div>';
+
+        container.innerHTML = html;
+        loading.style.display = 'none';
+        container.style.display = 'block';
+    }
+
+    function toggleSection() {
+        const el = document.getElementById('section-server-settings');
+        if (el) el.classList.toggle('collapsed');
+    }
+
+    function renderParamField(key, param) {
+        const requiredMark = param.required ? '<span class="param-required">*</span>' : '';
+        let inputHtml = '';
+
+        const currentVal = currentConfig[key] !== undefined ? currentConfig[key] : param.default;
+
+        switch (param.type) {
+            case 'text':
+                inputHtml = `<input type="text" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}" onchange="onParamChange('${key}')">`;
+                break;
+
+            case 'number':
+                {
+                const min = param.min !== undefined ? ` min="${param.min}"` : '';
+                const max = param.max !== undefined ? ` max="${param.max}"` : '';
+                const step = param.step !== undefined ? ` step="${param.step}"` : '';
+                inputHtml = `<input type="number" id="param-${key}" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onParamChange('${key}')">`;
+                }
+                break;
+
+            case 'checkbox': {
+                const chkChecked = currentVal === true || currentVal === 'true' ? 'checked' : '';
+                inputHtml = `<input type="checkbox" id="param-${key}" ${chkChecked} onchange="onParamChange('${key}')">
+                             <label class="checkbox-label" for="param-${key}">${escapeHtml(param.label)}</label>`;
+                break;
+            }
+
+            case 'select':
+                {
+                let options = '';
+                if (param.options) {
+                    for (const opt of param.options) {
+                        const selected = currentVal === opt.value ? 'selected' : '';
+                        options += `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label)}</option>`;
+                    }
+                }
+                inputHtml = `<select id="param-${key}" onchange="onParamChange('${key}')">${options}</select>`;
+                }
+                break;
+
+            default:
+                inputHtml = `<input type="text" id="param-${key}" value="${escapeHtml(currentVal)}" onchange="onParamChange('${key}')">`;
+        }
+
+        const flagHtml = param.flag ? `<span class="param-flag">${escapeHtml(param.flag)}</span>` : '';
+
+        if (param.type === 'checkbox') {
+            return `<div class="param-row">
+                <div class="param-top-row">
+                    <div class="param-label">
+                        <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
+                    </div>
+                    <div class="param-input">
+                        <input type="checkbox" id="param-${key}" ${currentVal === true || currentVal === 'true' ? 'checked' : ''} onchange="onParamChange('${key}')">
+                    </div>
+                </div>
+                <div class="param-desc">${escapeHtml(param.description || '')}</div>
+            </div>`;
+        }
+
+        return `<div class="param-row">
+            <div class="param-top-row">
+                <div class="param-label">
+                    <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
+                </div>
+                <div class="param-input">${inputHtml}</div>
+            </div>
+            <div class="param-desc">${escapeHtml(param.description || '')}</div>
+        </div>`;
+    }
+
+    function fillForm() {
+        for (const key in paramsMeta) {
+            const param = paramsMeta[key];
+            // 只填充"服务器设置"分区的字段
+            if (param.section !== SERVER_SECTION_NAME) continue;
+
+            const el = document.getElementById('param-' + key);
+            if (!el) continue;
+
+            const val = currentConfig[key] !== undefined ? currentConfig[key] : param.default;
+
+            if (param.type === 'checkbox') {
+                el.checked = (val === true || val === 'true');
+            } else if (param.type === 'select') {
+                el.value = val;
+            } else {
+                el.value = val || '';
+            }
+        }
+    }
+
+    function collectFormValues() {
+        for (const key in paramsMeta) {
+            const param = paramsMeta[key];
+            // 只收集"服务器设置"分区的字段
+            if (param.section !== SERVER_SECTION_NAME) continue;
+
+            const el = document.getElementById('param-' + key);
+            if (!el) continue;
+
+            if (param.type === 'checkbox') {
+                currentConfig[key] = el.checked;
+            } else if (param.type === 'number') {
+                const rawVal = el.value.trim();
+                currentConfig[key] = rawVal === '' ? '' : rawVal;
+            } else {
+                currentConfig[key] = el.value.trim();
+            }
+        }
+    }
+
+    function onParamChange(key) {
+        const param = paramsMeta[key];
+        const el = document.getElementById('param-' + key);
+        if (!el) return;
+
+        if (param.type === 'checkbox') {
+            currentConfig[key] = el.checked;
+        } else if (param.type === 'number') {
+            const rawVal = el.value.trim();
+            currentConfig[key] = rawVal === '' ? '' : rawVal;
+        } else {
+            currentConfig[key] = el.value.trim();
+        }
+    }
+
+    // ==================== 服务器控制 ====================
+    async function startServer() {
+        collectFormValues();
+
+        // 检查模型路径（从完整配置中读取）
+        if (!currentConfig.model || currentConfig.model.trim() === '') {
+            showToast('❌ 请先设置模型文件路径 (-m)，请在「参数配置」页面中设置', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btnStartServer');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading"></span> 启动中...';
+
+        try {
+            const resp = await fetch('/api/server/start', { method: 'POST' });
+            const data = await resp.json();
+
+            if (data.success) {
+                showToast('✅ ' + data.message, 'success');
+                await refreshServerStatus();
+                await refreshProcessLog();
+                startProcessLogPolling();
+            } else {
+                showToast('❌ ' + data.message, 'error');
+                if (data.log) {
+                    const logDiv = document.getElementById('processLog');
+                    logDiv.innerHTML = '<div class="log-line log-error">❌ ' + escapeHtml(data.log) + '</div>';
+                }
+            }
+        } catch(e) {
+            showToast('❌ 启动失败: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '▶ 启动服务器';
+        }
+    }
+
+    async function stopServer() {
+        if (!confirm('确定停止 llama-server 服务吗？')) return;
+
+        const btn = document.getElementById('btnStopServer');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading"></span> 停止中...';
+
+        try {
+            const resp = await fetch('/api/server/stop', { method: 'POST' });
+            const data = await resp.json();
+
+            if (data.success) {
+                showToast('✅ ' + data.message, 'success');
+            } else {
+                showToast('❌ ' + data.message, 'error');
+            }
+            await refreshServerStatus();
+            await refreshProcessLog();
+        } catch(e) {
+            showToast('❌ 停止失败: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '⏹ 停止服务器';
+        }
+    }
+
+    async function refreshServerStatus() {
+        try {
+            const resp = await fetch('/api/server/status');
+            const data = await resp.json();
+
+            const dot = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
+            const pid = document.getElementById('statusPid');
+            const elapsed = document.getElementById('statusElapsed');
+            const path = document.getElementById('statusPath');
+            const startBtn = document.getElementById('btnStartServer');
+            const stopBtn = document.getElementById('btnStopServer');
+
+            if (data.success) {
+                if (data.running) {
+                    dot.className = 'status-dot status-dot-running';
+                    text.textContent = '🟢 运行中';
+                    pid.textContent = 'PID: ' + (data.pid || '?');
+                    elapsed.textContent = '⏱ 已运行: ' + (data.elapsed || '刚刚');
+                    path.textContent = data.server_path || '';
+                    if (startBtn) startBtn.disabled = true;
+                    if (stopBtn) stopBtn.disabled = false;
+                } else {
+                    dot.className = 'status-dot status-dot-stopped';
+                    text.textContent = '🔴 已停止';
+                    pid.textContent = '';
+                    elapsed.textContent = '';
+                    path.textContent = data.server_path ? '📎 ' + data.server_path : '❌ 未找到 llama-server，请先编译';
+                    if (startBtn) startBtn.disabled = false;
+                    if (stopBtn) stopBtn.disabled = true;
+                }
+            }
+        } catch(e) {
+            console.error('刷新状态失败:', e);
+        }
+    }
+
+    // ==================== 日志 ====================
+    async function refreshProcessLog() {
+        try {
+            const resp = await fetch('/api/server/process-log');
+            const data = await resp.json();
+            const logDiv = document.getElementById('processLog');
+            if (!logDiv) return;
+
+            if (data.success && data.log) {
+                let text = data.log;
+                const lines = text.split('\n');
+                let html = '';
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    let cls = 'log-line';
+                    let display = escapeHtml(line);
+                    if (line.includes('❌') || line.includes('Error') || line.includes('error')) {
+                        cls += ' log-error';
+                    } else if (line.includes('✅')) {
+                        cls += ' log-success';
+                    } else if (line.includes('⚠️')) {
+                        cls += ' log-warning';
+                    } else if (line.includes('启动') || line.includes('执行')) {
+                        cls += ' log-command';
+                    } else if (line.includes('====')) {
+                        cls += ' log-separator';
+                    }
+                    html += `<div class="${cls}">${display}</div>`;
+                }
+                logDiv.innerHTML = html || '<div class="log-line">暂无日志</div>';
+                logDiv.scrollTop = logDiv.scrollHeight;
+            } else {
+                logDiv.innerHTML = '<div class="log-line">暂无日志 - 等待服务器启动...</div>';
+            }
+        } catch(e) {
+            console.error('刷新日志失败:', e);
+        }
+    }
+
+    function clearProcessLog() {
+        if (!confirm('确定清空服务器日志？')) return;
+        document.getElementById('processLog').innerHTML = '<div class="log-line">日志已清空</div>';
+    }
+
+    function startProcessLogPolling() {
+        if (autoRefreshLogInterval) clearInterval(autoRefreshLogInterval);
+        autoRefreshLogInterval = setInterval(refreshProcessLog, 3000);
+    }
+
+    function startPeriodicRefresh() {
+        if (serverStatusInterval) clearInterval(serverStatusInterval);
+        serverStatusInterval = setInterval(refreshServerStatus, 5000);
+
+        const chk = document.getElementById('autoRefreshLog');
+        if (chk) {
+            chk.addEventListener('change', function() {
+                if (this.checked) {
+                    startProcessLogPolling();
+                } else {
+                    if (autoRefreshLogInterval) {
+                        clearInterval(autoRefreshLogInterval);
+                        autoRefreshLogInterval = null;
+                    }
+                }
+            });
+        }
+    }
+
+    // ==================== Toast 提示 ====================
+    function showToast(message, type) {
+        let toast = document.getElementById('toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toast';
+            toast.style.cssText = `
+                position: fixed; top: 20px; right: 20px; z-index: 9999;
+                padding: 12px 20px; border-radius: 8px; font-size: 14px;
+                font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                transition: all 0.3s ease; opacity: 0; transform: translateY(-10px);
+                max-width: 400px; word-break: break-word;
+            `;
+            document.body.appendChild(toast);
+        }
+
+        const colors = {
+            success: { bg: '#d4edda', text: '#155724', border: '#c3e6cb' },
+            error: { bg: '#f8d7da', text: '#721c24', border: '#f5c6cb' },
+            info: { bg: '#d1ecf1', text: '#0c5460', border: '#bee5eb' },
+        };
+        const color = colors[type] || colors.info;
+
+        toast.style.background = color.bg;
+        toast.style.color = color.text;
+        toast.style.border = '1px solid ' + color.border;
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+
+        clearTimeout(toast._hideTimer);
+        toast._hideTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+        }, 3000);
+    }
+
+    // ==================== 启动 ====================
+    document.addEventListener('DOMContentLoaded', initPage);
+</script>

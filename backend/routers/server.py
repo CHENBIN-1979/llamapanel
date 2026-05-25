@@ -66,11 +66,25 @@ def get_server_log_file() -> Path:
 
 # ==================== 读取 HTML 模板（含错误包容） ====================
 SERVER_HTML = "<h1>页面加载失败</h1>"
+PARAMS_HTML = "<h1>页面加载失败</h1>"
+SERVER_SETTINGS_HTML = "<h1>页面加载失败</h1>"
 try:
-    html_path = Path(__file__).parent.parent / "templates" / "server.html"
+    base_path = Path(__file__).parent.parent / "templates"
+    # 原服务器配置页面
+    html_path = base_path / "server.html"
     if html_path.exists():
         with open(html_path, 'r', encoding='utf-8') as f:
             SERVER_HTML = f.read()
+    # 参数配置页面
+    params_path = base_path / "params.html"
+    if params_path.exists():
+        with open(params_path, 'r', encoding='utf-8') as f:
+            PARAMS_HTML = f.read()
+    # 服务器设置页面
+    settings_path = base_path / "server_settings.html"
+    if settings_path.exists():
+        with open(settings_path, 'r', encoding='utf-8') as f:
+            SERVER_SETTINGS_HTML = f.read()
 except Exception as e:
     print(f"[server] ⚠️ 读取模板失败: {e}")
     SERVER_HTML = "<h1>页面模板加载失败，请检查模板文件</h1>"
@@ -799,8 +813,20 @@ def server_process_runner(cmd: list):
 
 @router.get("/page", response_class=HTMLResponse)
 async def server_page():
-    """服务器参数配置页面"""
+    """服务器参数配置页面（原完整页面）"""
     return HTMLResponse(content=SERVER_HTML)
+
+
+@router.get("/params-page", response_class=HTMLResponse)
+async def params_page():
+    """参数配置页面 - 仅参数配置表单和命令预览"""
+    return HTMLResponse(content=PARAMS_HTML)
+
+
+@router.get("/settings-page", response_class=HTMLResponse)
+async def server_settings_page():
+    """服务器设置页面 - 服务器控制、服务器设置参数和日志"""
+    return HTMLResponse(content=SERVER_SETTINGS_HTML)
 
 
 @router.get("/params-meta")
