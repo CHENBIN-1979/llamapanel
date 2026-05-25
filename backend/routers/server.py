@@ -105,6 +105,7 @@ SERVER_PARAMS_META = {
         "default": "",
         "placeholder": "/data/llamapanel/model_links/模型名称.gguf",
         "required": True,
+        "ref_scenario": "推荐使用 Q4_K_M 或 Q5_K_M 量化等级的 GGUF 文件，在质量和性能间取得平衡",
     },
     "mmproj": {
         "section": "模型与路径",
@@ -114,6 +115,7 @@ SERVER_PARAMS_META = {
         "description": "🖼️ 如果你用的是「能看懂图片」的模型（如 LLaVA 等多模态模型），需要额外指定这个文件。纯文本模型不需要，保持为空即可（不会添加到启动命令中）。",
         "default": "",
         "placeholder": "/data/llamapanel/model_links/模型文件夹/mmproj-file.gguf",
+        "ref_scenario": "只有多模态模型（如 LLaVA、Qwen-VL）才需要填此项，纯文本模型请保持为空",
     },
     "lora": {
         "section": "模型与路径",

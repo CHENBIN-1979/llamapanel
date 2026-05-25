@@ -229,6 +229,34 @@
         white-space: nowrap;
     }
 
+    /* ===== 参数建议提示 ===== */
+    .param-tip {
+        font-size: 12px;
+        color: #856404;
+        background: #fff8e1;
+        border-left: 3px solid #ffc107;
+        padding: 4px 10px;
+        margin-top: 6px;
+        border-radius: 0 4px 4px 0;
+        line-height: 1.5;
+    }
+
+    /* ===== 文件选择按钮 ===== */
+    .btn-file-select {
+        padding: 4px 12px !important;
+        background: #667eea !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 5px !important;
+        cursor: pointer !important;
+        font-size: 12px !important;
+        white-space: nowrap !important;
+        transition: background 0.2s !important;
+    }
+    .btn-file-select:hover {
+        background: #5a67d8 !important;
+    }
+
     /* ===== 加载动画 ===== */
     .loading {
         display: inline-block;
@@ -411,11 +439,7 @@
                 const min = param.min !== undefined ? ` min="${param.min}"` : '';
                 const max = param.max !== undefined ? ` max="${param.max}"` : '';
                 const step = param.step !== undefined ? ` step="${param.step}"` : '';
-                const refScenario = param.ref_scenario || '';
                 inputHtml = `<input type="number" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onParamChange(${modelIndex}, '${key}')">`;
-                if (refScenario) {
-                    inputHtml += `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>`;
-                }
                 break;
             }
 
@@ -438,14 +462,33 @@
                 break;
             }
 
+            case 'file_picker': {
+                const btnId = `btn-${modelIndex}-${key}`;
+                inputHtml = `<div class="input-group" style="display:flex;gap:6px;align-items:stretch;">
+                    <input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}"
+                        placeholder="${escapeHtml(param.placeholder || '')}"
+                        onchange="onParamChange(${modelIndex}, '${key}')"
+                        style="flex:1;min-width:120px;">
+                    <button type="button" class="btn-file-select" id="${btnId}"
+                        onclick="fileSelect('param-${modelIndex}-${key}')"
+                        style="padding:4px 12px;background:#667eea;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;white-space:nowrap;">
+                        📁 选择文件
+                    </button>
+                </div>`;
+                break;
+            }
+
             default:
                 inputHtml = `<input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" onchange="onParamChange(${modelIndex}, '${key}')">`;
         }
 
         const flagHtml = param.flag ? `<span class="param-flag">${escapeHtml(param.flag)}</span>` : '';
+        const refScenario = param.ref_scenario || '';
+        const refHtml = refScenario ? `<div class="param-tip">💡 ${escapeHtml(refScenario)}</div>` : '';
 
         if (param.type === 'checkbox') {
             const chkChecked = (currentVal === true || currentVal === 'true' || currentVal === '1') ? 'checked' : '';
+            const chkRefHtml = refScenario ? `<div class="param-tip" style="margin-top:4px;">💡 ${escapeHtml(refScenario)}</div>` : '';
             return `<div class="param-row">
                 <div class="param-top-row">
                     <div class="param-label">
@@ -456,6 +499,7 @@
                     </div>
                 </div>
                 <div class="param-desc">${escapeHtml(param.description || '')}</div>
+                ${chkRefHtml}
             </div>`;
         }
 
@@ -467,6 +511,7 @@
                 <div class="param-input">${inputHtml}</div>
             </div>
             <div class="param-desc">${escapeHtml(param.description || '')}</div>
+            ${refHtml}
         </div>`;
     }
 
@@ -507,6 +552,33 @@
             if (allExpanded) s.classList.remove('expanded');
             else s.classList.add('expanded');
         });
+    }
+
+    // ==================== 文件选择器 ====================
+    function fileSelect(inputId) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+
+        // 创建隐藏的 file input
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.style.display = 'none';
+        fileInput.accept = '.gguf,.bin,.pt,.pth,.safetensors,.json';
+        document.body.appendChild(fileInput);
+
+        fileInput.addEventListener('change', function (e) {
+            if (this.files && this.files.length > 0) {
+                const file = this.files[0];
+                // 优先使用 file.path（Electron/CEF 环境），否则用 file.name
+                const path = file.path || file.name || '';
+                input.value = path.replace(/\\/g, '/');
+                // 触发 change 事件更新模型数据
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            document.body.removeChild(fileInput);
+        });
+
+        fileInput.click();
     }
 
     // ==================== 模型管理 ====================
