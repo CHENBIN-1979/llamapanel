@@ -1,23 +1,26 @@
 <div class="card">
-	    <h1 style="background:#fff;color:#000;padding:12px 20px;border-radius:10px;border:1px solid #e2e8f0;font-size:20px;margin-top:0;">ini 文件预览</h1>
-    <p class="subtitle">多模型 INI 配置管理 — 每个模型独立配置，保存为 models.ini 格式</p>
+    <h1 style="background:#fff;color:#000;padding:12px 20px;border-radius:10px;border:1px solid #e2e8f0;font-size:20px;margin-top:0;">📄 ini 文件预览</h1>
+    <p class="subtitle">models.ini 多模型配置文件 — 直接编辑 INI 内容，点击「添加模型」自动追加配置段</p>
 
     <!-- 操作按钮栏 -->
     <div class="action-bar">
-        <button class="btn btn-primary" onclick="saveConfig()">💾 保存配置</button>
-        <button class="btn btn-secondary" onclick="saveConfigIni()">📄 config.ini 保存</button>
-        <button class="btn btn-success" onclick="addModel()">➕ 添加模型</button>
-        <button class="btn btn-secondary" onclick="reloadConfig()">🔄 重新加载</button>
+        <button class="btn btn-primary" onclick="saveIni()">💾 保存</button>
+        <button class="btn btn-success" onclick="addModelSection()">➕ 添加模型</button>
+        <button class="btn btn-secondary" onclick="loadIni()">🔄 重新加载</button>
     </div>
 
-    <!-- 模型卡片容器 -->
-    <div id="modelsContainer">
-        <div id="formLoading"><div class="loading"></div> 加载多模型配置...</div>
+    <!-- INI 文件内容编辑器 -->
+    <div class="ini-editor-wrapper">
+        <div class="ini-status-bar" id="iniStatusBar">
+            <span id="iniFileInfo">📁 /data/llamapanel/server_configs/models.ini</span>
+            <span id="iniStats">加载中...</span>
+        </div>
+        <textarea id="iniEditor" spellcheck="false" wrap="off" placeholder="加载 ini 文件中..."></textarea>
     </div>
 </div>
 
 <style>
-    /* ===== 通用 ===== */
+    /* ===== 通用按钮 ===== */
     .btn {
         padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
         font-size: 14px; transition: all 0.3s;
@@ -41,790 +44,157 @@
         flex-wrap: wrap;
     }
 
-    /* ===== 模型卡片 ===== */
-    .model-card {
+    /* ===== INI 编辑器 ===== */
+    .ini-editor-wrapper {
         border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        margin-bottom: 20px;
+        border-radius: 12px;
         overflow: hidden;
         background: white;
         box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        transition: box-shadow 0.3s;
     }
-    .model-card:hover {
-        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-    }
-    .model-card-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 14px 18px;
+
+    .ini-status-bar {
         display: flex;
         justify-content: space-between;
         align-items: center;
-    }
-    .model-card-header .model-name-input {
-        background: rgba(255,255,255,0.2);
-        border: 1px solid rgba(255,255,255,0.3);
-        border-radius: 6px;
-        padding: 6px 12px;
-        font-size: 15px;
-        font-weight: 600;
-        color: white;
-        width: 300px;
-        outline: none;
-        transition: all 0.3s;
-    }
-    .model-card-header .model-name-input:focus {
-        background: rgba(255,255,255,0.3);
-        border-color: white;
-    }
-    .model-card-header .model-name-input::placeholder {
-        color: rgba(255,255,255,0.6);
-    }
-    .model-card-header .model-card-actions {
-        display: flex;
-        gap: 8px;
-    }
-    .model-card-header .btn-sm {
-        padding: 5px 12px;
-        font-size: 12px;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-    .btn-sm-danger {
-        background: rgba(255,255,255,0.2);
-        color: white;
-    }
-    .btn-sm-danger:hover {
-        background: #e53e3e;
-    }
-    .btn-sm-expand {
-        background: rgba(255,255,255,0.2);
-        color: white;
-    }
-    .btn-sm-expand:hover {
-        background: rgba(255,255,255,0.35);
-    }
-    .model-card-badge {
-        display: inline-block;
-        background: rgba(255,255,255,0.2);
-        color: white;
-        font-size: 11px;
-        padding: 2px 8px;
-        border-radius: 10px;
-        margin-left: 10px;
-        font-weight: normal;
-    }
-
-    /* ===== 参数分区（在卡片内） ===== */
-    .params-section {
-        margin: 0;
+        padding: 10px 16px;
+        background: #f8fafc;
         border-bottom: 1px solid #e2e8f0;
-    }
-    .params-section:last-child {
-        border-bottom: none;
-    }
-    .params-section-header {
-        background: #f7fafc;
-        padding: 10px 18px;
-        font-weight: 600;
-        font-size: 14px;
-        color: #2d3748;
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        user-select: none;
-        transition: background 0.2s;
-    }
-    .params-section-header:hover { background: #edf2f7; }
-    .params-section-header .section-toggle {
-        font-size: 11px;
-        color: #a0aec0;
-        transition: transform 0.2s;
-    }
-    .params-section-body { padding: 8px 18px 12px; display: none; }
-    .params-section.expanded .params-section-body { display: block; }
-    .params-section.expanded .section-toggle { transform: rotate(0deg); }
-    .params-section:not(.expanded) .section-toggle { transform: rotate(-90deg); }
-
-    .param-row {
-        display: flex;
-        flex-direction: column;
-        padding: 8px 0;
-        border-bottom: 1px solid #f0f0f0;
-    }
-    .param-row:last-child { border-bottom: none; }
-    .param-top-row {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-    }
-    .param-label {
-        flex: 0 0 240px;
-        min-width: 180px;
-    }
-    .param-label label {
-        font-weight: 600;
         font-size: 13px;
-        color: #2d3748;
+        color: #475569;
     }
-    .param-label .param-flag {
+
+    .ini-status-bar #iniFileInfo {
         font-family: monospace;
-        font-size: 11px;
-        color: #667eea;
-        background: #ebf4ff;
-        padding: 1px 5px;
-        border-radius: 3px;
-        margin-left: 4px;
+        font-size: 12px;
+        color: #64748b;
     }
-    .param-desc {
-        font-size: 13px;
-        color: #718096;
-        margin-top: 6px;
-        padding-left: 2px;
-        line-height: 1.5;
+
+    .ini-status-bar #iniStats {
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    #iniEditor {
         width: 100%;
-    }
-    .param-input { flex: 1; min-width: 80px; }
-    .param-input input[type="text"],
-    .param-input input[type="number"],
-    .param-input select {
-        width: 100%;
-        max-width: 140px;
-        padding: 6px 10px;
-        border: 1px solid #e2e8f0;
-        border-radius: 5px;
-        font-size: 12px;
-        font-family: monospace;
-        transition: border-color 0.2s;
-    }
-    .param-input input:focus,
-    .param-input select:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
-    }
-    .param-input input[type="checkbox"] {
-        width: 16px;
-        height: 16px;
-        cursor: pointer;
-        accent-color: #667eea;
-    }
-    .param-input .checkbox-label {
-        font-size: 12px;
-        color: #4a5568;
-        cursor: pointer;
-        margin-left: 4px;
-    }
-    .param-required {
-        color: #e53e3e;
-        font-weight: bold;
-    }
-    .param-ref {
-	        font-size: 11px;
-	        color: #000000;
-	        margin-left: 8px;
-	        white-space: nowrap;
-	    }
-
-    /* ===== 参数建议提示 ===== */
-    .param-tip {
-        font-size: 12px;
-        color: #856404;
-        background: #fff8e1;
-        border-left: 3px solid #ffc107;
-        padding: 4px 10px;
-        margin-top: 6px;
-        border-radius: 0 4px 4px 0;
-        line-height: 1.5;
-    }
-
-    /* ===== 文件选择按钮 ===== */
-    .btn-file-select {
-        padding: 4px 12px !important;
-        background: #667eea !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 5px !important;
-        cursor: pointer !important;
-        font-size: 12px !important;
-        white-space: nowrap !important;
-        transition: background 0.2s !important;
-    }
-    .btn-file-select:hover {
-        background: #5a67d8 !important;
-    }
-
-    /* ===== 加载动画 ===== */
-    .loading {
-        display: inline-block;
-        width: 16px;
-        height: 16px;
-        border: 2px solid #e2e8f0;
-        border-top-color: #667eea;
-        border-radius: 50%;
-        animation: spin 0.6s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ===== 服务端文件选择模态框 ===== */
-    .modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-    }
-    .modal-overlay.active { display: flex; }
-    .modal-box {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
-        width: 90%;
-        max-width: 700px;
+        min-height: 600px;
         max-height: 80vh;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-    }
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-        gap: 12px;
-    }
-    .modal-header h3 { font-size: 16px; margin: 0; white-space: nowrap; }
-    .modal-close {
-        background: #e2e8f0;
+        padding: 20px;
         border: none;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-    .modal-close:hover { background: #d1d5db; }
-    .modal-search { margin-bottom: 12px; }
-    .modal-search input {
-        width: 100%;
-        padding: 8px 12px;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
+        outline: none;
+        resize: vertical;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
         font-size: 13px;
+        line-height: 1.7;
+        color: #1e293b;
+        background: #ffffff;
+        tab-size: 4;
         box-sizing: border-box;
     }
-    .modal-search input:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+
+    #iniEditor:focus {
+        background: #ffffff;
     }
-    .modal-list {
-        flex: 1;
-        overflow-y: auto;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        max-height: 50vh;
+
+    #iniEditor::placeholder {
+        color: #94a3b8;
     }
-    .modal-list-item {
-        padding: 8px 12px;
-        cursor: pointer;
-        border-bottom: 1px solid #f0f0f0;
-        font-family: monospace;
-        font-size: 12px;
-        transition: background 0.2s;
-    }
-    .modal-list-item:hover { background: #ebf4ff; }
-    .modal-list-item .item-size {
-        float: right;
-        color: #718096;
-        font-size: 11px;
-    }
-    .modal-list-folder {
-        padding: 6px 12px;
-        font-size: 12px;
-        font-weight: 600;
-        color: #667eea;
-        background: #f7fafc;
-        border-bottom: 1px solid #e2e8f0;
-        position: sticky;
-        top: 0;
-    }
-    .modal-list-empty {
-        padding: 30px 20px;
-        text-align: center;
-        color: #718096;
-        font-size: 13px;
-        line-height: 1.8;
-    }
-    .modal-list-empty code {
-        background: #edf2f7;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-family: monospace;
-        font-size: 12px;
+
+    /* ===== Toast 提示 ===== */
+    .toast {
+        position: fixed; top: 20px; right: 20px; z-index: 9999;
+        padding: 12px 20px; border-radius: 8px; font-size: 14px;
+        font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transition: all 0.3s ease; opacity: 0; transform: translateY(-10px);
+        max-width: 400px; word-break: break-word;
     }
 </style>
 
 <script>
-    // ==================== 全局状态 ====================
-    let paramsMeta = {};
-    let sections = [];
-    let models = [];      // 模型配置数组 [{_section: 'model_1', name: '...', model: '...', ...}]
-    let modelCounter = 0; // 用于生成唯一 section 名称
-
     // ==================== 工具函数 ====================
     function escapeHtml(text) {
         const div = document.createElement('div');
-        if (text === 0 || text === false) text = String(text);
         div.textContent = text ?? '';
         return div.innerHTML;
     }
 
-    function getSectionIcon(name) {
-        const icons = {
-            '模型与路径': '📁',
-            'GPU 与加速': '🎮',
-            '上下文与内存': '🧠',
-            '采样参数': '🎯',
-            '服务器设置': '🌐',
-            '线程与性能': '⚡',
-        };
-        return icons[name] || '📋';
-    }
+    // ==================== INI 文件操作 ====================
+    async function loadIni() {
+        const editor = document.getElementById('iniEditor');
+        const stats = document.getElementById('iniStats');
+        editor.placeholder = '🔄 加载中...';
 
-    // ==================== INI 解析器 ====================
-    function parseIni(text) {
-        const lines = text.split('\n');
-        const result = [];
-        let currentModel = null;
+        try {
+            const resp = await fetch('/api/server/models-config');
+            const data = await resp.json();
 
-        for (const rawLine of lines) {
-            const line = rawLine.trim();
-            if (!line || line.startsWith(';') || line.startsWith('#')) continue;
-
-            // 匹配 section 标题 [model_1]
-            const sectionMatch = line.match(/^\[(.+)\]$/);
-            if (sectionMatch) {
-                if (currentModel) result.push(currentModel);
-                currentModel = { _section: sectionMatch[1] };
-                continue;
+            if (data.success && data.content) {
+                editor.value = data.content;
+                updateStats(data.content);
+                showToast('✅ ini 文件已加载', 'success');
+            } else {
+                // 文件为空，生成默认内容
+                const defaultIni = generateDefaultIni();
+                editor.value = defaultIni;
+                updateStats(defaultIni);
+                showToast('📄 已创建默认 ini 配置', 'info');
             }
-
-            // 匹配 key=value
-            const kvMatch = line.match(/^([^=]+)=(.*)$/);
-            if (kvMatch && currentModel) {
-                const key = kvMatch[1].trim();
-                const value = kvMatch[2].trim();
-                if (key) currentModel[key] = value;
-            }
+        } catch (e) {
+            editor.placeholder = '❌ 加载失败: ' + e.message;
+            showToast('❌ 加载失败: ' + e.message, 'error');
         }
-        if (currentModel) result.push(currentModel);
-        return result;
     }
 
-    function serializeIni(modelsArray) {
-        const lines = [];
-        for (let i = 0; i < modelsArray.length; i++) {
-            const model = modelsArray[i];
-            const section = model._section || `model_${i + 1}`;
-            lines.push(`[${section}]`);
-            // 先写 name
-            if (model.name !== undefined) {
-                lines.push(`name = ${model.name}`);
-            }
-            // 写其他参数（按 SERVER_PARAMS_META 的顺序）
-            for (const key of Object.keys(paramsMeta)) {
-                if (key === 'name') continue;
-                if (model[key] === undefined || model[key] === null) continue;
-                const val = String(model[key]).trim();
-                // 跳过空值和未勾选的 checkbox
-                if (val === '' && paramsMeta[key].type !== 'number') continue;
-                if (paramsMeta[key].type === 'checkbox' && val === 'false') continue;
-                lines.push(`${key} = ${val}`);
-            }
-            // 写自定义键（不在 meta 中的额外字段）
-            for (const key in model) {
-                if (key === '_section' || key === 'name') continue;
-                if (key in paramsMeta) continue;
-                lines.push(`${key} = ${model[key]}`);
-            }
-            lines.push('');
-        }
-        return lines.join('\n');
-    }
-
-    // ==================== 渲染 ====================
-    function renderAllCards() {
-        const container = document.getElementById('modelsContainer');
-        const loading = document.getElementById('formLoading');
-        if (!container) return;
-
-        if (models.length === 0) {
-            container.innerHTML = '<div style="text-align:center;padding:40px;color:#718096;">📭 暂无模型配置，点击「添加模型」开始配置</div>';
+    function updateStats(content) {
+        const stats = document.getElementById('iniStats');
+        if (!content || !content.trim()) {
+            stats.textContent = '📭 空文件';
             return;
         }
 
-        let html = '';
-        for (let i = 0; i < models.length; i++) {
-            html += renderModelCard(i);
-        }
+        const lines = content.split('\n');
+        const nonEmpty = lines.filter(l => l.trim() !== '').length;
+        const sections = content.match(/^\[.+\]/gm);
+        const sectionCount = sections ? sections.length : 0;
 
-        container.innerHTML = html;
-        if (loading) loading.style.display = 'none';
+        stats.textContent = `📄 ${lines.length} 行 · ${sectionCount} 个模型 · ${nonEmpty} 非空行`;
     }
 
-    function renderModelCard(index) {
-        const model = models[index];
-        const sectionName = model._section || `model_${index + 1}`;
-        const displayName = model.name || `模型 ${index + 1}`;
-
-        let html = '';
-        html += `<div class="model-card" id="modelCard-${index}">`;
-        html += `    <div class="model-card-body">`;
-
-        // 渲染每个分区
-        for (const sectionName of sections) {
-            const sectionParams = Object.entries(paramsMeta).filter(([key, p]) => p.section === sectionName);
-            if (sectionParams.length === 0) continue;
-
-            const sectionId = `section-${index}-${sectionName.replace(/\s+/g, '-')}`;
-            html += `        <div class="params-section expanded" id="${escapeHtml(sectionId)}">`;
-            html += `            <div class="params-section-header" onclick="toggleSection('${escapeHtml(sectionId)}')">`;
-            html += `                <span>${getSectionIcon(sectionName)} ${escapeHtml(sectionName)}</span>`;
-            html += `                <span class="section-toggle">▼</span>`;
-            html += `            </div>`;
-            html += `            <div class="params-section-body">`;
-
-            for (const [key, param] of sectionParams) {
-                html += renderParamField(index, key, param);
-            }
-
-            html += `            </div></div>`;
-        }
-
-        html += `    </div>`;
-        html += `</div>`;
-        return html;
+    function generateDefaultIni() {
+        const lines = [];
+        lines.push('[model_1]');
+        lines.push('# 模型显示名称');
+        lines.push('name = Qwen2.5-7B-Q4_K_M');
+        lines.push('model = /data/llamapanel/model_links/qwen2.5-7b-q4_k_m.gguf');
+        lines.push('');
+        lines.push('# 以下是可选参数，按需取消注释使用');
+        lines.push('# n_gpu_layers = -1');
+        lines.push('# ctx_size = 4096');
+        lines.push('# temp = 0.8');
+        lines.push('# top_k = 40');
+        lines.push('# top_p = 0.95');
+        lines.push('# repeat_penalty = 1.1');
+        lines.push('# threads = 8');
+        lines.push('');
+        return lines.join('\n');
     }
 
-    function renderParamField(modelIndex, key, param) {
-        const model = models[modelIndex];
-        const requiredMark = param.required ? '<span class="param-required">*</span>' : '';
-        const currentVal = model[key] !== undefined && model[key] !== null ? model[key] : param.default;
-        const refScenario = param.ref_scenario || '';
-        let inputHtml = '';
-
-        switch (param.type) {
-            case 'text':
-                inputHtml = `<input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}" onchange="onParamChange(${modelIndex}, '${key}')">`;
-                break;
-
-            case 'number': {
-                const min = param.min !== undefined ? ` min="${param.min}"` : '';
-                const max = param.max !== undefined ? ` max="${param.max}"` : '';
-                const step = param.step !== undefined ? ` step="${param.step}"` : '';
-                inputHtml = `<input type="number" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onParamChange(${modelIndex}, '${key}')">`;
-                break;
-            }
-
-            case 'checkbox': {
-                const chkChecked = (currentVal === true || currentVal === 'true' || currentVal === '1') ? 'checked' : '';
-                inputHtml = `<input type="checkbox" id="param-${modelIndex}-${key}" ${chkChecked} onchange="onParamChange(${modelIndex}, '${key}')">
-                             <label class="checkbox-label" for="param-${modelIndex}-${key}">${escapeHtml(param.label)}</label>`;
-                break;
-            }
-
-            case 'select': {
-                let options = '';
-                if (param.options) {
-                    for (const opt of param.options) {
-                        const selected = String(currentVal) === String(opt.value) ? 'selected' : '';
-                        options += `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label)}</option>`;
-                    }
-                }
-                inputHtml = `<select id="param-${modelIndex}-${key}" onchange="onParamChange(${modelIndex}, '${key}')">${options}</select>`;
-                break;
-            }
-
-            case 'file_picker': {
-                const btnId = `btn-${modelIndex}-${key}`;
-                const refText = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
-                inputHtml = `<div class="input-group" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                    <input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}"
-                        placeholder="${escapeHtml(param.placeholder || '')}"
-                        onchange="onParamChange(${modelIndex}, '${key}')"
-                        style="flex:1;min-width:120px;">
-                    <button type="button" class="btn-file-select" id="${btnId}"
-                        onclick="fileSelect('param-${modelIndex}-${key}')"
-                        style="padding:4px 12px;background:#667eea;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;white-space:nowrap;">
-                        📁 选择文件
-                    </button>
-                    ${refText}
-                </div>`;
-                break;
-            }
-
-            default:
-                inputHtml = `<input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" onchange="onParamChange(${modelIndex}, '${key}')">`;
-        }
-
-        const flagHtml = param.flag ? `<span class="param-flag">${escapeHtml(param.flag)}</span>` : '';
-        // file_picker 类型的 ref 已在 case 内部处理，此处跳过
-        const refHtml = (param.type !== 'file_picker' && refScenario)
-            ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
-
-        if (param.type === 'checkbox') {
-            const chkChecked = (currentVal === true || currentVal === 'true' || currentVal === '1') ? 'checked' : '';
-            const chkRefHtml = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
-            return `<div class="param-row">
-                <div class="param-top-row">
-                    <div class="param-label">
-                        <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
-                    </div>
-                    <div class="param-input">
-                        <input type="checkbox" id="param-${modelIndex}-${key}" ${chkChecked} onchange="onParamChange(${modelIndex}, '${key}')"> ${chkRefHtml}
-                    </div>
-                </div>
-                <div class="param-desc">${escapeHtml(param.description || '')}</div>
-            </div>`;
-        }
-
-        return `<div class="param-row">
-            <div class="param-top-row">
-                <div class="param-label">
-                    <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
-                </div>
-                <div class="param-input">${inputHtml} ${refHtml}</div>
-            </div>
-            <div class="param-desc">${escapeHtml(param.description || '')}</div>
-        </div>`;
+    function generateModelSection(counter) {
+        const lines = [];
+        lines.push('');
+        lines.push(`[model_${counter}]`);
+        lines.push('name = 新模型 ' + counter);
+        lines.push('model = /data/llamapanel/model_links/your-model.gguf');
+        lines.push('');
+        return lines.join('\n');
     }
 
-    // ==================== 交互事件 ====================
-    function onModelNameChange(index) {
-        const el = document.getElementById('modelName-' + index);
-        if (el) models[index].name = el.value.trim();
-    }
+    async function saveIni() {
+        const editor = document.getElementById('iniEditor');
+        const content = editor.value.trim();
 
-    function onParamChange(modelIndex, key) {
-        const param = paramsMeta[key];
-        const el = document.getElementById(`param-${modelIndex}-${key}`);
-        if (!el) return;
-
-        if (param.type === 'checkbox') {
-            models[modelIndex][key] = el.checked;
-        } else if (param.type === 'number') {
-            const rawVal = el.value.trim();
-            models[modelIndex][key] = rawVal === '' ? '' : rawVal;
-        } else {
-            models[modelIndex][key] = el.value.trim();
-        }
-    }
-
-    function toggleSection(sectionId) {
-        const el = document.getElementById(sectionId);
-        if (el) el.classList.toggle('expanded');
-    }
-
-    function toggleAllSections(modelIndex) {
-        const card = document.getElementById('modelCard-' + modelIndex);
-        if (!card) return;
-        const sections = card.querySelectorAll('.params-section');
-        // 判断当前状态：如果所有都是展开的，则全部收起；否则全部展开
-        let allExpanded = true;
-        sections.forEach(s => { if (!s.classList.contains('expanded')) allExpanded = false; });
-        sections.forEach(s => {
-            if (allExpanded) s.classList.remove('expanded');
-            else s.classList.add('expanded');
-        });
-    }
-
-    // ==================== 服务端文件选择器 ====================
-    // 浏览 llamapanel 服务器上的 /data/llamapanel/model_links/ 目录
-    function fileSelect(inputId) {
-        // 获取或创建模态框
-        let modal = document.getElementById('serverFileModal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'serverFileModal';
-            modal.className = 'modal-overlay';
-            modal.innerHTML = `
-                <div class="modal-box">
-                    <div class="modal-header">
-                        <h3>📂 选择服务器文件</h3>
-                        <span style="font-size:12px;color:#718096;">/data/llamapanel/model_links/</span>
-                        <button class="modal-close" onclick="closeFileModal()">✕</button>
-                    </div>
-                    <div class="modal-search">
-                        <input type="text" id="serverFileSearch" placeholder="搜索文件..." oninput="filterServerFileList()">
-                    </div>
-                    <div class="modal-list" id="serverFileList">
-                        <div class="modal-list-empty"><div class="loading"></div> 加载服务器文件列表中...</div>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            modal.addEventListener('click', function(e) {
-                if (e.target === modal) closeFileModal();
-            });
-        }
-
-        // 保存当前输入框ID
-        modal.dataset.inputId = inputId;
-        modal.classList.add('active');
-        document.getElementById('serverFileSearch').value = '';
-        document.getElementById('serverFileList').innerHTML = '<div class="modal-list-empty"><div class="loading"></div> 加载服务器文件列表中...</div>';
-
-        // 从服务器获取文件列表
-        fetch('/api/server/list-models')
-            .then(resp => resp.json())
-            .then(data => {
-                const list = document.getElementById('serverFileList');
-                if (data.success && data.models && data.models.length > 0) {
-                    let html = '';
-                    // 按文件夹分组
-                    const groups = {};
-                    for (const m of data.models) {
-                        const parts = m.name.split('/');
-                        const folder = parts.length > 1 ? parts.slice(0, -1).join('/') : '';
-                        const fname = parts[parts.length - 1];
-                        if (!groups[folder]) groups[folder] = [];
-                        groups[folder].push(m);
-                    }
-                    const sortedFolders = Object.keys(groups).sort();
-                    for (const folder of sortedFolders) {
-                        if (folder) {
-                            html += `<div class="modal-list-folder">📁 ${escapeHtml(folder)}</div>`;
-                        }
-                        for (const m of groups[folder]) {
-                            const fname = m.name.split('/').pop();
-                            html += `<div class="modal-list-item" onclick="selectServerFile('${escapeHtml(m.path)}')">
-                                📄 ${escapeHtml(fname)}
-                                <span class="item-size">${formatSize(m.size)}</span>
-                            </div>`;
-                        }
-                    }
-                    list.innerHTML = html;
-                } else {
-                    list.innerHTML = '<div class="modal-list-empty">📭 服务器模型目录为空。<br>请先将模型文件放入 <code>/data/llamapanel/model_links/</code> 目录。</div>';
-                }
-            })
-            .catch(e => {
-                document.getElementById('serverFileList').innerHTML =
-                    '<div class="modal-list-empty">❌ 加载失败: ' + e.message + '</div>';
-            });
-    }
-
-    function closeFileModal() {
-        const modal = document.getElementById('serverFileModal');
-        if (modal) modal.classList.remove('active');
-    }
-
-    function selectServerFile(path) {
-        const modal = document.getElementById('serverFileModal');
-        if (!modal) return;
-        const inputId = modal.dataset.inputId;
-        const input = document.getElementById(inputId);
-        if (input) {
-            input.value = path;
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        closeFileModal();
-    }
-
-    function filterServerFileList() {
-        const query = document.getElementById('serverFileSearch').value.toLowerCase();
-        const items = document.querySelectorAll('#serverFileList .modal-list-item, #serverFileList .modal-list-folder');
-        for (const item of items) {
-            const text = item.textContent.toLowerCase();
-            if (item.classList.contains('modal-list-folder')) {
-                // 文件夹：检查其下的文件是否有匹配
-                let sibling = item.nextElementSibling;
-                let hasVisible = false;
-                while (sibling && sibling.classList.contains('modal-list-item')) {
-                    const matches = sibling.textContent.toLowerCase().includes(query);
-                    sibling.style.display = matches ? '' : 'none';
-                    if (matches) hasVisible = true;
-                    sibling = sibling.nextElementSibling;
-                }
-                item.style.display = hasVisible ? '' : 'none';
-            } else {
-                item.style.display = text.includes(query) ? '' : 'none';
-            }
-        }
-    }
-
-    function formatSize(bytes) {
-        if (!bytes || bytes <= 0) return '未知';
-        const gb = bytes / (1024 * 1024 * 1024);
-        if (gb >= 1) return gb.toFixed(2) + ' GB';
-        const mb = bytes / (1024 * 1024);
-        if (mb >= 1) return mb.toFixed(0) + ' MB';
-        return (bytes / 1024).toFixed(0) + ' KB';
-    }
-
-    // ==================== 模型管理 ====================
-    function addModel() {
-        modelCounter++;
-        const newModel = { _section: `model_${modelCounter}` };
-        // 使用默认值初始化
-        newModel.name = `模型 ${modelCounter}`;
-        for (const key in paramsMeta) {
-            newModel[key] = paramsMeta[key].default;
-        }
-        models.push(newModel);
-        renderAllCards();
-        showToast(`✅ 已添加「${newModel.name}」`, 'success');
-    }
-
-    function deleteModel(index) {
-        const model = models[index];
-        const name = model.name || `模型 ${index + 1}`;
-        if (!confirm(`确定删除「${name}」？\n此操作无法撤销！`)) return;
-        models.splice(index, 1);
-        renderAllCards();
-        showToast(`🗑️ 已删除「${name}」`, 'info');
-    }
-
-    // ==================== 保存与加载 ====================
-    async function collectAllFormValues() {
-        // 从 DOM 中收集所有值到 models 数组
-        for (let i = 0; i < models.length; i++) {
-            // 先收集 name
-            const nameEl = document.getElementById('modelName-' + i);
-            if (nameEl) models[i].name = nameEl.value.trim();
-
-            // 收集所有参数
-            for (const key in paramsMeta) {
-                const el = document.getElementById(`param-${i}-${key}`);
-                if (!el) continue;
-                const param = paramsMeta[key];
-                if (param.type === 'checkbox') {
-                    models[i][key] = el.checked;
-                } else if (param.type === 'number') {
-                    const rawVal = el.value.trim();
-                    models[i][key] = rawVal === '' ? '' : rawVal;
-                } else {
-                    models[i][key] = el.value.trim();
-                }
-            }
-        }
-    }
-
-    async function saveConfig() {
-        await collectAllFormValues();
-        const iniContent = serializeIni(models);
-        if (!iniContent.trim()) {
-            showToast('❌ 没有可保存的配置', 'error');
+        if (!content) {
+            showToast('❌ 内容为空，无法保存', 'error');
             return;
         }
 
@@ -832,10 +202,11 @@
             const resp = await fetch('/api/server/models-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: iniContent })
+                body: JSON.stringify({ content: content })
             });
             const data = await resp.json();
             if (data.success) {
+                updateStats(content);
                 showToast('✅ ' + data.message, 'success');
             } else {
                 showToast('❌ ' + data.message, 'error');
@@ -845,73 +216,59 @@
         }
     }
 
-    async function saveConfigIni() {
-        await collectAllFormValues();
-        const iniContent = serializeIni(models);
-        if (!iniContent.trim()) {
-            showToast('❌ 没有可保存的配置', 'error');
-            return;
+    function addModelSection() {
+        const editor = document.getElementById('iniEditor');
+        let content = editor.value;
+
+        // 计算当前最大的 model_ 编号
+        const sectionRegex = /^\[model_(\d+)\]/gm;
+        let maxNum = 0;
+        let match;
+        while ((match = sectionRegex.exec(content)) !== null) {
+            const num = parseInt(match[1]);
+            if (num > maxNum) maxNum = num;
         }
 
-        try {
-            const resp = await fetch('/api/server/save-config-ini', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: iniContent })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                showToast('✅ ' + data.message, 'success');
-            } else {
-                showToast('❌ ' + data.message, 'error');
-            }
-        } catch (e) {
-            showToast('❌ 保存失败: ' + e.message, 'error');
-        }
-    }
-
-    async function reloadConfig() {
-        try {
-            const resp = await fetch('/api/server/models-config');
-            const data = await resp.json();
-            if (data.success && data.content) {
-                models = parseIni(data.content);
-                // 更新 modelCounter
-                let maxNum = 0;
-                for (const m of models) {
-                    const match = m._section && m._section.match(/^model_(\d+)$/);
-                    if (match) {
-                        const num = parseInt(match[1]);
-                        if (num > maxNum) maxNum = num;
-                    }
+        // 如果没有匹配到任何 model_ 编号，从文件名中提取或使用计数器
+        if (maxNum === 0) {
+            // 尝试从已有内容中找任何 section
+            const anySectionRegex = /^\[(.+?)\]/gm;
+            let anyMatch;
+            let maxAny = 0;
+            while ((anyMatch = anySectionRegex.exec(content)) !== null) {
+                const name = anyMatch[1];
+                const numMatch = name.match(/^model_(\d+)$/);
+                if (numMatch) {
+                    const num = parseInt(numMatch[1]);
+                    if (num > maxAny) maxAny = num;
                 }
-                modelCounter = Math.max(maxNum, models.length);
-                renderAllCards();
-                showToast('🔄 配置已重新加载', 'success');
-            } else {
-                showToast('⚠️ 配置文件为空，开始新配置', 'info');
-                models = [];
-                modelCounter = 0;
-                renderAllCards();
             }
-        } catch (e) {
-            showToast('❌ 加载失败: ' + e.message, 'error');
+            maxNum = maxAny;
         }
+
+        const newCounter = maxNum + 1;
+        const newSection = generateModelSection(newCounter);
+
+        // 在文件末尾追加（如果文件末尾没有空行，先加一个空行）
+        if (content && !content.endsWith('\n')) {
+            content += '\n';
+        }
+        content += newSection;
+        editor.value = content;
+
+        updateStats(content);
+        showToast(`✅ 已添加 [model_${newCounter}] 配置段`, 'success');
+
+        // 滚动到底部
+        editor.scrollTop = editor.scrollHeight;
     }
 
     // ==================== Toast 提示 ====================
     function showToast(message, type) {
-        let toast = document.getElementById('toast');
+        let toast = document.querySelector('.toast');
         if (!toast) {
             toast = document.createElement('div');
-            toast.id = 'toast';
-            toast.style.cssText = `
-                position: fixed; top: 20px; right: 20px; z-index: 9999;
-                padding: 12px 20px; border-radius: 8px; font-size: 14px;
-                font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                transition: all 0.3s ease; opacity: 0; transform: translateY(-10px);
-                max-width: 400px; word-break: break-word;
-            `;
+            toast.className = 'toast';
             document.body.appendChild(toast);
         }
 
@@ -936,26 +293,17 @@
         }, 3000);
     }
 
-    // ==================== 初始化 ====================
-    async function initPage() {
-        try {
-            // 加载参数元数据
-            const metaResp = await fetch('/api/server/params-meta');
-            const metaData = await metaResp.json();
-            if (metaData.success) {
-                paramsMeta = metaData.params;
-                sections = metaData.sections;
+    // ==================== 快捷键 ====================
+    document.addEventListener('DOMContentLoaded', function() {
+        // 加载 ini 文件
+        loadIni();
+
+        // Ctrl+S 保存
+        document.getElementById('iniEditor').addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveIni();
             }
-
-            // 加载 models.ini 配置
-            await reloadConfig();
-
-        } catch (e) {
-            console.error('初始化失败:', e);
-            document.getElementById('formLoading').innerHTML =
-                '<div style="color:#e53e3e;">❌ 加载失败: ' + e.message + '</div>';
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', initPage);
+        });
+    });
 </script>
