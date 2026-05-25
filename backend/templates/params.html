@@ -1,309 +1,756 @@
-<div class="card">
-    <h1 style="background:#fff;color:#000;padding:12px 20px;border-radius:10px;border:1px solid #e2e8f0;font-size:20px;margin-top:0;">📄 ini 文件预览</h1>
-    <p class="subtitle">models.ini 多模型配置文件 — 直接编辑 INI 内容，点击「添加模型」自动追加配置段</p>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>ini 文件预览</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    <!-- 操作按钮栏 -->
-    <div class="action-bar">
-        <button class="btn btn-primary" onclick="saveIni()">💾 保存</button>
-        <button class="btn btn-success" onclick="addModelSection()">➕ 添加模型</button>
-        <button class="btn btn-secondary" onclick="loadIni()">🔄 重新加载</button>
-    </div>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            min-height: 100vh;
+        }
 
-    <!-- INI 文件内容编辑器 -->
-    <div class="ini-editor-wrapper">
-        <div class="ini-status-bar" id="iniStatusBar">
-            <span id="iniFileInfo">📁 /data/llamapanel/server_configs/models.ini</span>
-            <span id="iniStats">加载中...</span>
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header-section {
+            background: #fff;
+            border-radius: 16px;
+            padding: 24px 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-section h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1a1a2e;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-section h1 i {
+            color: #4f46e5;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #4f46e5;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #4338ca;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .btn-danger {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .btn-danger:hover {
+            background: #fecaca;
+        }
+
+        .models-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .model-card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+            border: 1px solid #e5e7eb;
+        }
+
+        .model-card:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+
+        .model-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .model-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .model-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .section-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            background: #e0e7ff;
+            color: #4f46e5;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .model-header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .params-grid {
+            padding: 20px 24px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 16px;
+        }
+
+        .param-item {
+            position: relative;
+        }
+
+        .param-item label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+
+        .param-item label .param-key {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 400;
+        }
+
+        .param-item .value-hint {
+            font-size: 12px;
+            color: #6b7280;
+            margin-left: 6px;
+        }
+
+        .param-item input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: #fff;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+
+        .param-item input:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+        }
+
+        .param-item .param-suggestion {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .param-item.select-wrapper {
+            position: relative;
+        }
+
+        .param-item select {
+            width: 100%;
+            padding: 8px 32px 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: #fff;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .param-item select:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+        }
+
+        .param-item .select-arrow {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .param-item.checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .param-item.checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #4f46e5;
+        }
+
+        .param-item.checkbox-item label {
+            margin-bottom: 0;
+            cursor: pointer;
+        }
+
+        .param-section {
+            margin-bottom: 20px;
+        }
+
+        .param-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .param-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .param-section-title .section-count {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 400;
+        }
+
+        .context-params {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 8px;
+        }
+
+        .context-params-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #4f46e5;
+            margin-bottom: 12px;
+        }
+
+        .flash-messages {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .flash-message {
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .flash-message.success {
+            background: #10b981;
+            color: #fff;
+        }
+
+        .flash-message.error {
+            background: #ef4444;
+            color: #fff;
+        }
+
+        .flash-message.info {
+            background: #3b82f6;
+            color: #fff;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            color: #d1d5db;
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: #374151;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .model-save-btn {
+            position: sticky;
+            bottom: 20px;
+            display: flex;
+            justify-content: center;
+            padding: 16px;
+            background: linear-gradient(transparent, #f0f2f5 30%);
+        }
+
+        .model-save-btn .btn {
+            padding: 12px 40px;
+            font-size: 16px;
+            box-shadow: 0 4px 16px rgba(79,70,229,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="flash-messages" id="flashMessages"></div>
+
+    <div class="container">
+        <div class="header-section">
+            <h1><i class="fas fa-file-alt"></i> ini 文件预览</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="toggleAll()">
+                    <i class="fas fa-chevron-down" id="toggleIcon"></i> 全部展开/收起
+                </button>
+            </div>
         </div>
-        <textarea id="iniEditor" spellcheck="false" wrap="off" placeholder="加载 ini 文件中..."></textarea>
+
+        <div id="modelsContainer">
+            <div class="empty-state">
+                <i class="fas fa-cube"></i>
+                <h3>暂无模型配置</h3>
+                <p>请先在「模型管理」页面添加模型，或点击下方按钮添加。</p>
+            </div>
+        </div>
     </div>
-</div>
 
-<style>
-    /* ===== 通用按钮 ===== */
-    .btn {
-        padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
-        font-size: 14px; transition: all 0.3s;
-    }
-    .btn:hover { transform: translateY(-1px); }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-    .btn-success { background: #38a169; color: white; }
-    .btn-success:hover { background: #2f855a; }
-    .btn-danger { background: #e53e3e; color: white; }
-    .btn-danger:hover { background: #c53030; }
-    .btn-primary { background: #667eea; color: white; }
-    .btn-primary:hover { background: #5a67d8; }
-    .btn-secondary { background: #718096; color: white; }
-    .btn-secondary:hover { background: #4a5568; }
+    <script>
+        let modelsData = [];
+        let allCollapsed = false;
 
-    /* ===== 操作按钮栏 ===== */
-    .action-bar {
-        display: flex;
-        gap: 10px;
-        margin: 16px 0;
-        flex-wrap: wrap;
-    }
+        function showFlash(message, type = 'info') {
+            const container = document.getElementById('flashMessages');
+            const div = document.createElement('div');
+            div.className = `flash-message ${type}`;
+            div.textContent = message;
+            container.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
+        }
 
-    /* ===== INI 编辑器 ===== */
-    .ini-editor-wrapper {
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        overflow: hidden;
-        background: white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
+        function toggleAll() {
+            allCollapsed = !allCollapsed;
+            document.getElementById('toggleIcon').className = allCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-down';
+            document.querySelectorAll('.params-grid').forEach(grid => {
+                grid.style.display = allCollapsed ? 'none' : 'grid';
+            });
+            document.querySelectorAll('.model-header .collapse-icon').forEach(icon => {
+                icon.className = allCollapsed ? 'fas fa-chevron-right collapse-icon' : 'fas fa-chevron-down collapse-icon';
+            });
+        }
 
-    .ini-status-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 16px;
-        background: #f8fafc;
-        border-bottom: 1px solid #e2e8f0;
-        font-size: 13px;
-        color: #475569;
-    }
-
-    .ini-status-bar #iniFileInfo {
-        font-family: monospace;
-        font-size: 12px;
-        color: #64748b;
-    }
-
-    .ini-status-bar #iniStats {
-        font-size: 12px;
-        color: #64748b;
-    }
-
-    #iniEditor {
-        width: 100%;
-        min-height: 600px;
-        max-height: 80vh;
-        padding: 20px;
-        border: none;
-        outline: none;
-        resize: vertical;
-        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-        font-size: 13px;
-        line-height: 1.7;
-        color: #1e293b;
-        background: #ffffff;
-        tab-size: 4;
-        box-sizing: border-box;
-    }
-
-    #iniEditor:focus {
-        background: #ffffff;
-    }
-
-    #iniEditor::placeholder {
-        color: #94a3b8;
-    }
-
-    /* ===== Toast 提示 ===== */
-    .toast {
-        position: fixed; top: 20px; right: 20px; z-index: 9999;
-        padding: 12px 20px; border-radius: 8px; font-size: 14px;
-        font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        transition: all 0.3s ease; opacity: 0; transform: translateY(-10px);
-        max-width: 400px; word-break: break-word;
-    }
-</style>
-
-<script>
-    // ==================== 工具函数 ====================
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text ?? '';
-        return div.innerHTML;
-    }
-
-    // ==================== INI 文件操作 ====================
-    async function loadIni() {
-        const editor = document.getElementById('iniEditor');
-        const stats = document.getElementById('iniStats');
-        editor.placeholder = '🔄 加载中...';
-
-        try {
-            const resp = await fetch('/api/server/models-config');
-            const data = await resp.json();
-
-            if (data.success && data.content) {
-                editor.value = data.content;
-                updateStats(data.content);
-                showToast('✅ ini 文件已加载', 'success');
+        function toggleModel(header) {
+            const card = header.closest('.model-card');
+            const grid = card.querySelector('.params-grid');
+            const icon = header.querySelector('.collapse-icon');
+            if (grid.style.display === 'none') {
+                grid.style.display = 'grid';
+                icon.className = 'fas fa-chevron-down collapse-icon';
             } else {
-                // 文件为空，生成默认内容
-                const defaultIni = generateDefaultIni();
-                editor.value = defaultIni;
-                updateStats(defaultIni);
-                showToast('📄 已创建默认 ini 配置', 'info');
+                grid.style.display = 'none';
+                icon.className = 'fas fa-chevron-right collapse-icon';
             }
-        } catch (e) {
-            editor.placeholder = '❌ 加载失败: ' + e.message;
-            showToast('❌ 加载失败: ' + e.message, 'error');
-        }
-    }
-
-    function updateStats(content) {
-        const stats = document.getElementById('iniStats');
-        if (!content || !content.trim()) {
-            stats.textContent = '📭 空文件';
-            return;
         }
 
-        const lines = content.split('\n');
-        const nonEmpty = lines.filter(l => l.trim() !== '').length;
-        const sections = content.match(/^\[.+\]/gm);
-        const sectionCount = sections ? sections.length : 0;
+        function renderModels(models) {
+            const container = document.getElementById('modelsContainer');
+            if (!models || models.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-cube"></i>
+                        <h3>暂无模型配置</h3>
+                        <p>请先在「模型管理」页面添加模型，或点击下方按钮添加。</p>
+                    </div>
+                `;
+                return;
+            }
 
-        stats.textContent = `📄 ${lines.length} 行 · ${sectionCount} 个模型 · ${nonEmpty} 非空行`;
-    }
-
-    function generateDefaultIni() {
-        const lines = [];
-        lines.push('[model_1]');
-        lines.push('# 模型显示名称');
-        lines.push('name = Qwen2.5-7B-Q4_K_M');
-        lines.push('model = /data/llamapanel/model_links/qwen2.5-7b-q4_k_m.gguf');
-        lines.push('');
-        lines.push('# 以下是可选参数，按需取消注释使用');
-        lines.push('# n_gpu_layers = -1');
-        lines.push('# ctx_size = 4096');
-        lines.push('# temp = 0.8');
-        lines.push('# top_k = 40');
-        lines.push('# top_p = 0.95');
-        lines.push('# repeat_penalty = 1.1');
-        lines.push('# threads = 8');
-        lines.push('');
-        return lines.join('\n');
-    }
-
-    function generateModelSection(counter) {
-        const lines = [];
-        lines.push('');
-        lines.push(`[model_${counter}]`);
-        lines.push('name = 新模型 ' + counter);
-        lines.push('model = /data/llamapanel/model_links/your-model.gguf');
-        lines.push('');
-        return lines.join('\n');
-    }
-
-    async function saveIni() {
-        const editor = document.getElementById('iniEditor');
-        const content = editor.value.trim();
-
-        if (!content) {
-            showToast('❌ 内容为空，无法保存', 'error');
-            return;
+            let html = '<div class="models-grid">';
+            models.forEach((model, index) => {
+                html += `
+                    <div class="model-card">
+                        <div class="model-header" onclick="toggleModel(this)">
+                            <div class="model-header-left">
+                                <i class="fas fa-chevron-down collapse-icon" style="font-size:12px;color:#9ca3af"></i>
+                                <span class="model-name">${model.name}</span>
+                                <span class="section-badge">${model.section}</span>
+                            </div>
+                            <div class="model-header-right">
+                                <button class="btn btn-danger" onclick="event.stopPropagation();deleteModel(${index})">
+                                    <i class="fas fa-trash"></i> 删除
+                                </button>
+                            </div>
+                        </div>
+                        <div class="params-grid">
+                            ${renderParams(model.params)}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
         }
 
-        try {
-            const resp = await fetch('/api/server/models-config', {
+        function renderParams(params) {
+            if (!params || Object.keys(params).length === 0) return '<div class="empty-state" style="padding:20px"><p>暂无参数</p></div>';
+
+            const sections = groupParamsBySection(params);
+            let html = '';
+            for (const [section, sectionParams] of Object.entries(sections)) {
+                html += `<div class="param-section">`;
+                html += `<div class="param-section-title">${section} <span class="section-count">(${sectionParams.length} 项)</span></div>`;
+                html += `<div class="param-items" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px">`;
+                sectionParams.forEach(param => {
+                    html += renderParamInput(param);
+                });
+                html += `</div>`;
+                html += `</div>`;
+            }
+            return html;
+        }
+
+        function groupParamsBySection(params) {
+            const sections = {};
+            const sectionOrder = [];
+
+            // Define section mapping based on common llama.cpp parameter categories
+            const paramSectionMap = {
+                // Model loading
+                'model': '模型加载',
+                'model-url': '模型加载',
+                'mmproj': '模型加载',
+                'hf-repo': '模型加载',
+                'hf-file': '模型加载',
+                'alias': '模型加载',
+                'lora': '模型加载',
+                'lora-base': '模型加载',
+                'num- Experts': '模型加载',
+                'grp-attn-n': '模型加载',
+
+                // Context / Generation
+                'n-ctx': '上下文与生成',
+                'n-predict': '上下文与生成',
+                'n-gen': '上下文与生成',
+                'n-keep': '上下文与生成',
+                'n-batch': '上下文与生成',
+                'n-ubatch': '上下文与生成',
+                'n-chat': '上下文与生成',
+                'predict': '上下文与生成',
+                'gen': '上下文与生成',
+                'keep': '上下文与生成',
+                'batch': '上下文与生成',
+                'ubatch': '上下文与生成',
+                'chat': '上下文与生成',
+                'cache': '上下文与生成',
+
+                // Sampling
+                'temp': '采样参数',
+                'top-k': '采样参数',
+                'top-p': '采样参数',
+                'min-p': '采样参数',
+                'repeat-penalty': '采样参数',
+                'repeat-last-n': '采样参数',
+                'presence-penalty': '采样参数',
+                'frequency-penalty': '采样参数',
+                'tfs-z': '采样参数',
+                'mirostat': '采样参数',
+                'mirostat-tau': '采样参数',
+                'mirostat-eta': '采样参数',
+                'xtc-parameters': '采样参数',
+                'dynatemp-range': '采样参数',
+                'dynatemp-exp': '采样参数',
+                'samplers': '采样参数',
+                'spm-fill': '采样参数',
+                'spm-infill': '采样参数',
+
+                // Grammar / Format
+                'grammar': '语法与格式',
+                'grammar-file': '语法与格式',
+                'cell': '语法与格式',
+                'json': '语法与格式',
+                'format': '语法与格式',
+
+                // Performance
+                'main-gpu': '性能与加速',
+                'gpu-layers': '性能与加速',
+                'threads': '性能与加速',
+                'no-kv-offload': '性能与加速',
+                'tensor-split': '性能与加速',
+                'mlock': '性能与加速',
+                'no-mmap': '性能与加速',
+                'prio': '性能与加速',
+
+                // Advanced
+                'rope-scaling': '高级参数',
+                'rope-freq-base': '高级参数',
+                'rope-freq-scale': '高级参数',
+                'rope-scale': '高级参数',
+                'rope': '高级参数',
+                'yarn': '高级参数',
+                'seed': '高级参数',
+                'fast': '高级参数',
+                'ignore-eos': '高级参数',
+                'penalize-nl': '高级参数',
+                'cont-batching': '高级参数',
+                'flash-attn': '高级参数',
+                'no-perf': '高级参数',
+                'chat-template': '高级参数',
+                'slot-save-path': '高级参数',
+                'slot-restore-path': '高级参数',
+                'port': '高级参数',
+                'host': '高级参数',
+                'embedding': '高级参数',
+                'reranking': '高级参数',
+                'timeout': '高级参数',
+
+                // Prompt
+                'prompt': '提示词',
+                'prompt-file': '提示词',
+                'file': '提示词',
+                'in-prefix': '提示词',
+                'in-suffix': '提示词',
+                'reverse-prompt': '提示词',
+                'system-prompt': '提示词',
+                'system': '提示词',
+                'ref-scenario': '提示词',
+
+                // RAG / Knowledge
+                'vector': '知识库(RAG)',
+                'knowledge': '知识库(RAG)',
+                'retrieval': '知识库(RAG)',
+                'search': '知识库(RAG)',
+                'doc': '知识库(RAG)',
+
+                // Multimodal
+                'image': '多模态',
+                'vision': '多模态',
+                'clip': '多模态',
+                'audio': '多模态',
+
+                // Other
+                'verbose': '其他',
+                'log': '其他',
+                'debug': '其他',
+                'help': '其他',
+                'version': '其他'
+            };
+
+            const handledKeys = new Set();
+
+            // First pass: handle known keys
+            Object.keys(params).forEach(key => {
+                const normalizedKey = key.replace(/^-+/g, '').toLowerCase();
+                let section = '其他';
+
+                // Try exact match first
+                if (paramSectionMap[key]) {
+                    section = paramSectionMap[key];
+                } else {
+                    // Try fuzzy match
+                    for (const [pattern, sec] of Object.entries(paramSectionMap)) {
+                        if (normalizedKey.includes(pattern.toLowerCase()) || pattern.toLowerCase().includes(normalizedKey)) {
+                            section = sec;
+                            break;
+                        }
+                    }
+                }
+
+                if (!sections[section]) {
+                    sections[section] = [];
+                    sectionOrder.push(section);
+                }
+                sections[section].push({ key, value: params[key] });
+                handledKeys.add(key);
+            });
+
+            // Sort params within each section
+            Object.keys(sections).forEach(sec => {
+                sections[sec].sort((a, b) => a.key.localeCompare(b.key));
+            });
+
+            return sections;
+        }
+
+        function renderParamInput(param) {
+            const value = String(param.value);
+            const isBoolean = value === 'true' || value === 'false' || value === '1' || value === '0';
+            const isNumeric = !isNaN(value) && value !== '' && !isBoolean;
+
+            // Check if it looks like a file path
+            const looksLikeFile = value.includes('.') && (
+                value.endsWith('.gguf') || value.endsWith('.bin') ||
+                value.endsWith('.safetensors') || value.endsWith('.pt') ||
+                value.endsWith('.pth') || value.endsWith('.json') ||
+                value.endsWith('.txt') || value.startsWith('/') ||
+                value.startsWith('./') || value.startsWith('../')
+            );
+
+            // Check if it has multiple values (space-separated)
+            const hasMultipleValues = value.includes(' ') && !isNumeric && value.split(' ').length > 1;
+
+            let inputHtml = '';
+            let extraClass = '';
+
+            if (isBoolean) {
+                extraClass = 'checkbox-item';
+                const checked = value === 'true' || value === '1';
+                inputHtml = `
+                    <div class="param-item checkbox-item">
+                        <input type="checkbox" ${checked ? 'checked' : ''} disabled>
+                        <label><span class="param-key">--${param.key}</span></label>
+                    </div>
+                `;
+            } else if (looksLikeFile) {
+                inputHtml = `
+                    <div class="param-item select-wrapper">
+                        <label><span class="param-key">--${param.key}</span> <span class="value-hint">📁 文件路径</span></label>
+                        <select disabled>
+                            <option value="${value}" selected>${value}</option>
+                        </select>
+                        <span class="select-arrow"><i class="fas fa-chevron-down"></i></span>
+                    </div>
+                `;
+            } else if (hasMultipleValues) {
+                inputHtml = `
+                    <div class="param-item">
+                        <label><span class="param-key">--${param.key}</span> <span class="value-hint">📋 多值参数</span></label>
+                        <input type="text" value="${value}" disabled>
+                    </div>
+                `;
+            } else {
+                inputHtml = `
+                    <div class="param-item">
+                        <label><span class="param-key">--${param.key}</span></label>
+                        <input type="text" value="${value}" disabled>
+                    </div>
+                `;
+            }
+
+            return inputHtml;
+        }
+
+        function deleteModel(index) {
+            if (!confirm('确定要删除此模型配置吗？')) return;
+
+            fetch('/api/params/delete_model', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: content })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                updateStats(content);
-                showToast('✅ ' + data.message, 'success');
-            } else {
-                showToast('❌ ' + data.message, 'error');
-            }
-        } catch (e) {
-            showToast('❌ 保存失败: ' + e.message, 'error');
-        }
-    }
-
-    function addModelSection() {
-        const editor = document.getElementById('iniEditor');
-        let content = editor.value;
-
-        // 计算当前最大的 model_ 编号
-        const sectionRegex = /^\[model_(\d+)\]/gm;
-        let maxNum = 0;
-        let match;
-        while ((match = sectionRegex.exec(content)) !== null) {
-            const num = parseInt(match[1]);
-            if (num > maxNum) maxNum = num;
-        }
-
-        // 如果没有匹配到任何 model_ 编号，从文件名中提取或使用计数器
-        if (maxNum === 0) {
-            // 尝试从已有内容中找任何 section
-            const anySectionRegex = /^\[(.+?)\]/gm;
-            let anyMatch;
-            let maxAny = 0;
-            while ((anyMatch = anySectionRegex.exec(content)) !== null) {
-                const name = anyMatch[1];
-                const numMatch = name.match(/^model_(\d+)$/);
-                if (numMatch) {
-                    const num = parseInt(numMatch[1]);
-                    if (num > maxAny) maxAny = num;
+                body: JSON.stringify({ index: index })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showFlash('模型配置已删除', 'success');
+                    loadModels();
+                } else {
+                    showFlash('删除失败: ' + (data.error || '未知错误'), 'error');
                 }
-            }
-            maxNum = maxAny;
+            })
+            .catch(err => {
+                showFlash('删除失败: ' + err.message, 'error');
+            });
         }
 
-        const newCounter = maxNum + 1;
-        const newSection = generateModelSection(newCounter);
-
-        // 在文件末尾追加（如果文件末尾没有空行，先加一个空行）
-        if (content && !content.endsWith('\n')) {
-            content += '\n';
-        }
-        content += newSection;
-        editor.value = content;
-
-        updateStats(content);
-        showToast(`✅ 已添加 [model_${newCounter}] 配置段`, 'success');
-
-        // 滚动到底部
-        editor.scrollTop = editor.scrollHeight;
-    }
-
-    // ==================== Toast 提示 ====================
-    function showToast(message, type) {
-        let toast = document.querySelector('.toast');
-        if (!toast) {
-            toast = document.createElement('div');
-            toast.className = 'toast';
-            document.body.appendChild(toast);
+        function loadModels() {
+            fetch('/api/params/get_models')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        modelsData = data.models || [];
+                        renderModels(modelsData);
+                    } else {
+                        showFlash('加载失败: ' + (data.error || '未知错误'), 'error');
+                    }
+                })
+                .catch(err => {
+                    showFlash('加载失败: ' + err.message, 'error');
+                });
         }
 
-        const colors = {
-            success: { bg: '#d4edda', text: '#155724', border: '#c3e6cb' },
-            error: { bg: '#f8d7da', text: '#721c24', border: '#f5c6cb' },
-            info: { bg: '#d1ecf1', text: '#0c5460', border: '#bee5eb' },
-        };
-        const color = colors[type] || colors.info;
-
-        toast.style.background = color.bg;
-        toast.style.color = color.text;
-        toast.style.border = '1px solid ' + color.border;
-        toast.textContent = message;
-        toast.style.opacity = '1';
-        toast.style.transform = 'translateY(0)';
-
-        clearTimeout(toast._hideTimer);
-        toast._hideTimer = setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateY(-10px)';
-        }, 3000);
-    }
-
-    // ==================== 快捷键 ====================
-    document.addEventListener('DOMContentLoaded', function() {
-        // 加载 ini 文件
-        loadIni();
-
-        // Ctrl+S 保存
-        document.getElementById('iniEditor').addEventListener('keydown', function(e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                e.preventDefault();
-                saveIni();
-            }
-        });
-    });
-</script>
+        // Load models on page load
+        document.addEventListener('DOMContentLoaded', loadModels);
+    </script>
+</body>
+</html>
