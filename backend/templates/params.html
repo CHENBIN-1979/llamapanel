@@ -1145,10 +1145,23 @@
         const editor = document.getElementById('configIniEditor');
         if (!editor) return;
         const content = editor.value;
-        if (!content.trim()) {
-            showToast('❌ config.ini 内容为空', 'error');
-            return;
+
+        try {
+            const resp = await fetch('/api/server/save-config-ini', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('✅ config.ini 已保存', 'success');
+            } else {
+                showToast('❌ ' + data.message, 'error');
+            }
+        } catch (e) {
+            showToast('❌ 保存失败: ' + e.message, 'error');
         }
+    }
         try {
             const resp = await fetch('/api/server/save-config-ini', {
                 method: 'POST',
