@@ -670,6 +670,9 @@
         const loading = document.getElementById('formLoading');
         if (!container) return;
 
+        // 隐藏加载指示器
+        if (loading) loading.style.display = 'none';
+
         if (models.length === 0) {
             container.innerHTML = '<div style="text-align:center;padding:40px;color:#718096;">📭 暂无模型配置，点击「添加模型」开始配置</div>';
             return;
@@ -998,6 +1001,10 @@
 
     // ==================== 全局参数保存与加载 ====================
     async function loadGlobalParams() {
+        // 先隐藏加载指示器
+        const loadingEl = document.getElementById('globalParamsLoading');
+        if (loadingEl) loadingEl.style.display = 'none';
+        
         try {
             const resp = await fetch('/api/server/get-global-params');
             const data = await resp.json();
@@ -1011,8 +1018,6 @@
             globalParams = {};
         }
         renderGlobalParams();
-        const loadingEl = document.getElementById('globalParamsLoading');
-        if (loadingEl) loadingEl.style.display = 'none';
     }
 
     async function saveGlobalParams() {
@@ -1155,22 +1160,6 @@
             const data = await resp.json();
             if (data.success) {
                 showToast('✅ config.ini 已保存', 'success');
-            } else {
-                showToast('❌ ' + data.message, 'error');
-            }
-        } catch (e) {
-            showToast('❌ 保存失败: ' + e.message, 'error');
-        }
-    }
-        try {
-            const resp = await fetch('/api/server/save-config-ini', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: content })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                showToast('✅ ' + data.message, 'success');
             } else {
                 showToast('❌ ' + data.message, 'error');
             }
