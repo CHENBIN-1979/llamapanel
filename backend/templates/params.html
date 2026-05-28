@@ -1,26 +1,37 @@
 <div class="card">
     <h1>⚙️ 参数配置</h1>
-    <p class="subtitle">多模型 INI 配置管理 — 每个模型独立配置，保存为 models.ini 格式</p>
+    <p class="subtitle">全局参数 → config.ini ｜ 多模型列表 → models.ini</p>
 
     <!-- 操作按钮栏 -->
     <div class="action-bar">
-        <button class="btn btn-primary" onclick="saveConfig()">💾 保存配置</button>
-        <button class="btn btn-secondary" onclick="saveConfigIni()">📄 config.ini 保存</button>
+        <button class="btn btn-primary" onclick="saveGlobalParams()">💾 保存全局参数</button>
         <button class="btn btn-success" onclick="addModel()">➕ 添加模型</button>
-        <button class="btn btn-secondary" onclick="reloadConfig()">🔄 重新加载</button>
+        <button class="btn btn-secondary" onclick="reloadAll()">🔄 重新加载</button>
     </div>
 
-    <!-- config.ini 预览折叠面板 -->
+    <!-- 全局参数设置区 -->
+    <div id="globalParamsArea" class="global-params-area">
+        <div class="global-params-header" onclick="toggleGlobalParams()">
+            <span>⚙️ 全局参数设置</span>
+            <span class="global-toggle-icon">▼</span>
+        </div>
+        <div class="global-params-body" id="globalParamsBody">
+            <div id="globalParamsLoading" style="padding:20px;text-align:center;color:#718096;"><div class="loading"></div> 加载全局参数...</div>
+        </div>
+    </div>
+
+    <!-- config.ini 编辑器折叠面板 -->
     <div class="config-ini-preview">
         <div class="config-ini-preview-header" onclick="toggleConfigIniPreview()">
-            <span>📄 config.ini 预览</span>
+            <span>📄 config.ini 编辑器</span>
             <span class="config-ini-toggle">▶</span>
         </div>
         <div class="config-ini-preview-body" id="configIniPreviewBody">
-            <pre id="configIniContent" class="config-ini-code"><span style="color:#718096;">点击「刷新预览」或「config.ini 保存」后自动更新</span></pre>
+            <textarea id="configIniEditor" class="config-ini-textarea" spellcheck="false" placeholder="加载 config.ini 内容..."></textarea>
             <div class="config-ini-preview-actions">
-                <button class="btn btn-sm" onclick="refreshConfigIniPreview()">🔄 刷新预览</button>
-                <span class="config-ini-filepath" id="configIniPath">加载中...</span>
+                <button class="btn btn-sm btn-primary" onclick="saveConfigIniContent()">💾 保存 config.ini</button>
+                <button class="btn btn-sm" onclick="refreshConfigIniPreview()">🔄 刷新</button>
+                <span class="config-ini-filepath">文件: server_configs/config.ini</span>
             </div>
         </div>
     </div>
@@ -71,11 +82,9 @@
     }
     .model-card-badge {
         display: inline-block;
-        background: rgba(255,255,255,0.2);
-        color: white;
         font-size: 11px;
         padding: 2px 8px;
-        border-radius: 10px;
+        border-radius: 8px;
         font-weight: 500;
         font-family: monospace;
     }
@@ -86,20 +95,6 @@
         border-radius: 5px;
         cursor: pointer;
         transition: background 0.2s;
-    }
-    .btn-sm-expand {
-        background: rgba(255,255,255,0.2);
-        color: white;
-    }
-    .btn-sm-expand:hover {
-        background: rgba(255,255,255,0.3);
-    }
-    .btn-sm-danger {
-        background: rgba(255,255,255,0.2);
-        color: white;
-    }
-    .btn-sm-danger:hover {
-        background: rgba(255,255,255,0.3);
     }
 
     /* ===== 参数分区（在卡片内） ===== */
@@ -358,14 +353,147 @@
         font-size: 12px;
     }
 
-    /* ===== config.ini 预览折叠面板 ===== */
+    /* ===== 全局参数设置区 ===== */
+    .global-params-area {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        overflow: hidden;
+        background: white;
+    }
+    .global-params-area.open .global-params-body {
+        display: block;
+    }
+    .global-params-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: #ebf4ff;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        color: #2b6cb0;
+        user-select: none;
+        transition: background 0.2s;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .global-params-header:hover {
+        background: #dbeafe;
+    }
+    .global-toggle-icon {
+        font-size: 11px;
+        color: #63b3ed;
+        transition: transform 0.3s;
+    }
+    .global-params-area.open .global-toggle-icon {
+        transform: rotate(180deg);
+    }
+    .global-params-body {
+        display: block;
+    }
+
+    /* ===== config.ini 编辑器折叠面板 ===== */
     .config-ini-preview {
         border: 1px solid #e2e8f0;
         border-radius: 10px;
-        margin-bottom: 16px;
+        margin-bottom: 20px;
         overflow: hidden;
         background: white;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .config-ini-preview.open .config-ini-preview-body {
+        display: block;
+    }
+    .config-ini-preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: #f7fafc;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        color: #2d3748;
+        user-select: none;
+        transition: background 0.2s;
+    }
+    .config-ini-preview-header:hover {
+        background: #edf2f7;
+    }
+    .config-ini-toggle {
+        font-size: 12px;
+        color: #a0aec0;
+        transition: transform 0.3s;
+    }
+    .config-ini-preview.open .config-ini-toggle {
+        transform: rotate(90deg);
+    }
+    .config-ini-preview-body {
+        display: none;
+        border-top: 1px solid #e2e8f0;
+    }
+    .config-ini-textarea {
+        width: 100%;
+        min-height: 300px;
+        max-height: 500px;
+        padding: 14px 16px;
+        background: #1a202c;
+        color: #e2e8f0;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        border: none;
+        resize: vertical;
+        outline: none;
+        box-sizing: border-box;
+        tab-size: 4;
+        white-space: pre;
+        overflow: auto;
+    }
+    .config-ini-textarea::placeholder {
+        color: #718096;
+    }
+    .config-ini-textarea:focus {
+        box-shadow: inset 0 0 0 1px #667eea;
+    }
+    .config-ini-preview-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #f7fafc;
+        border-top: 1px solid #e2e8f0;
+        flex-wrap: wrap;
+    }
+    .config-ini-preview-actions .btn-sm {
+        padding: 5px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        background: white;
+        color: #4a5568;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .config-ini-preview-actions .btn-sm:hover {
+        background: #edf2f7;
+        border-color: #cbd5e0;
+    }
+    .config-ini-preview-actions .btn-primary {
+        background: #667eea;
+        color: white;
+        border: none;
+    }
+    .config-ini-preview-actions .btn-primary:hover {
+        background: #5a67d8;
+    }
+    .config-ini-filepath {
+        font-size: 11px;
+        color: #a0aec0;
+        font-family: monospace;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-left: auto;
     }
     .config-ini-preview-header {
         display: flex;
@@ -453,6 +581,7 @@
     let sections = [];
     let models = [];      // 模型配置数组 [{_section: 'model_1', name: '...', model: '...', ...}]
     let modelCounter = 0; // 用于生成唯一 section 名称
+    let globalParams = {}; // 全局参数值（来自 config.ini）
 
     // ==================== 工具函数 ====================
     function escapeHtml(text) {
@@ -562,57 +691,41 @@
 
         let html = '';
         html += `<div class="model-card" id="modelCard-${index}">`;
-        html += `    <div class="model-card-body">`;
-
-        // 渲染每个分区
-        for (const sectionName of sections) {
-            const sectionParams = Object.entries(paramsMeta).filter(([key, p]) => p.section === sectionName);
-            if (sectionParams.length === 0) continue;
-
-            const sectionId = `section-${index}-${sectionName.replace(/\s+/g, '-')}`;
-            html += `        <div class="params-section expanded" id="${escapeHtml(sectionId)}">`;
-            html += `            <div class="params-section-header" onclick="toggleSection('${escapeHtml(sectionId)}')">`;
-            html += `                <span>${getSectionIcon(sectionName)} ${escapeHtml(sectionName)}</span>`;
-            html += `                <span class="section-toggle">▼</span>`;
-            html += `            </div>`;
-            html += `            <div class="params-section-body">`;
-
-            for (const [key, param] of sectionParams) {
-                html += renderParamField(index, key, param);
-            }
-
-            html += `            </div></div>`;
-        }
-
+        html += `    <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;">`;
+        html += `        <span style="font-weight:600;font-size:14px;color:#2d3748;">📋 ${escapeHtml(displayName)}</span>`;
+        html += `        <span class="model-card-badge" style="background:#ebf4ff;color:#667eea;font-size:11px;padding:2px 8px;border-radius:8px;font-family:monospace;">${escapeHtml(sectionName)}</span>`;
+        html += `        <div style="margin-left:auto;display:flex;gap:6px;">`;
+        html += `            <button class="btn-sm btn-sm-danger" onclick="deleteModel(${index})" style="background:#e53e3e;color:white;padding:4px 10px;border:none;border-radius:5px;cursor:pointer;font-size:12px;">🗑️ 删除</button>`;
+        html += `        </div>`;
         html += `    </div>`;
         html += `</div>`;
         return html;
     }
 
-    function renderParamField(modelIndex, key, param) {
-        const model = models[modelIndex];
+    // ==================== 全局参数渲染 ====================
+    function renderGlobalParamField(key, param) {
         const requiredMark = param.required ? '<span class="param-required">*</span>' : '';
-        const currentVal = model[key] !== undefined && model[key] !== null ? model[key] : param.default;
+        const currentVal = globalParams[key] !== undefined && globalParams[key] !== null ? globalParams[key] : param.default;
         const refScenario = param.ref_scenario || '';
         let inputHtml = '';
 
         switch (param.type) {
             case 'text':
-                inputHtml = `<input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}" onchange="onParamChange(${modelIndex}, '${key}')">`;
+                inputHtml = `<input type="text" id="gparam-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}" onchange="onGlobalParamChange('${key}')">`;
                 break;
 
             case 'number': {
                 const min = param.min !== undefined ? ` min="${param.min}"` : '';
                 const max = param.max !== undefined ? ` max="${param.max}"` : '';
                 const step = param.step !== undefined ? ` step="${param.step}"` : '';
-                inputHtml = `<input type="number" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onParamChange(${modelIndex}, '${key}')">`;
+                inputHtml = `<input type="number" id="gparam-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onGlobalParamChange('${key}')">`;
                 break;
             }
 
             case 'checkbox': {
                 const chkChecked = (currentVal === true || currentVal === 'true' || currentVal === '1') ? 'checked' : '';
-                inputHtml = `<input type="checkbox" id="param-${modelIndex}-${key}" ${chkChecked} onchange="onParamChange(${modelIndex}, '${key}')">
-                             <label class="checkbox-label" for="param-${modelIndex}-${key}">${escapeHtml(param.label)}</label>`;
+                inputHtml = `<input type="checkbox" id="gparam-${key}" ${chkChecked} onchange="onGlobalParamChange('${key}')">
+                             <label class="checkbox-label" for="gparam-${key}">${escapeHtml(param.label)}</label>`;
                 break;
             }
 
@@ -624,20 +737,20 @@
                         options += `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label)}</option>`;
                     }
                 }
-                inputHtml = `<select id="param-${modelIndex}-${key}" onchange="onParamChange(${modelIndex}, '${key}')">${options}</select>`;
+                inputHtml = `<select id="gparam-${key}" onchange="onGlobalParamChange('${key}')">${options}</select>`;
                 break;
             }
 
             case 'file_picker': {
-                const btnId = `btn-${modelIndex}-${key}`;
+                const btnId = `gbtn-${key}`;
                 const refText = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
                 inputHtml = `<div class="input-group" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                    <input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}"
+                    <input type="text" id="gparam-${key}" value="${escapeHtml(String(currentVal))}"
                         placeholder="${escapeHtml(param.placeholder || '')}"
-                        onchange="onParamChange(${modelIndex}, '${key}')"
+                        onchange="onGlobalParamChange('${key}')"
                         style="flex:1;min-width:120px;">
                     <button type="button" class="btn-file-select" id="${btnId}"
-                        onclick="fileSelect('param-${modelIndex}-${key}')"
+                        onclick="gfileSelect('gparam-${key}')"
                         style="padding:4px 12px;background:#667eea;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;white-space:nowrap;">
                         📁 选择文件
                     </button>
@@ -647,11 +760,10 @@
             }
 
             default:
-                inputHtml = `<input type="text" id="param-${modelIndex}-${key}" value="${escapeHtml(String(currentVal))}" onchange="onParamChange(${modelIndex}, '${key}')">`;
+                inputHtml = `<input type="text" id="gparam-${key}" value="${escapeHtml(String(currentVal))}" onchange="onGlobalParamChange('${key}')">`;
         }
 
         const flagHtml = param.flag ? `<span class="param-flag">${escapeHtml(param.flag)}</span>` : '';
-        // file_picker 类型的 ref 已在 case 内部处理，此处跳过
         const refHtml = (param.type !== 'file_picker' && refScenario)
             ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
 
@@ -664,7 +776,7 @@
                         <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
                     </div>
                     <div class="param-input">
-                        <input type="checkbox" id="param-${modelIndex}-${key}" ${chkChecked} onchange="onParamChange(${modelIndex}, '${key}')"> ${chkRefHtml}
+                        <input type="checkbox" id="gparam-${key}" ${chkChecked} onchange="onGlobalParamChange('${key}')"> ${chkRefHtml}
                     </div>
                 </div>
                 <div class="param-desc">${escapeHtml(param.description || '')}</div>
@@ -682,43 +794,64 @@
         </div>`;
     }
 
-    // ==================== 交互事件 ====================
-    function onModelNameChange(index) {
-        const el = document.getElementById('modelName-' + index);
-        if (el) models[index].name = el.value.trim();
+    function renderGlobalParams() {
+        const container = document.getElementById('globalParamsBody');
+        if (!container) return;
+
+        let html = '';
+        for (const sectionName of sections) {
+            const sectionParams = Object.entries(paramsMeta).filter(([key, p]) => p.section === sectionName);
+            if (sectionParams.length === 0) continue;
+
+            const sectionId = `gsection-${sectionName.replace(/\s+/g, '-')}`;
+            html += `<div class="params-section expanded" id="${escapeHtml(sectionId)}">`;
+            html += `    <div class="params-section-header" onclick="toggleSection('${escapeHtml(sectionId)}')">`;
+            html += `        <span>${getSectionIcon(sectionName)} ${escapeHtml(sectionName)}</span>`;
+            html += `        <span class="section-toggle">▼</span>`;
+            html += `    </div>`;
+            html += `    <div class="params-section-body">`;
+
+            for (const [key, param] of sectionParams) {
+                html += renderGlobalParamField(key, param);
+            }
+
+            html += `    </div></div>`;
+        }
+
+        container.innerHTML = html;
     }
 
-    function onParamChange(modelIndex, key) {
+    function onGlobalParamChange(key) {
         const param = paramsMeta[key];
-        const el = document.getElementById(`param-${modelIndex}-${key}`);
+        const el = document.getElementById(`gparam-${key}`);
         if (!el) return;
 
         if (param.type === 'checkbox') {
-            models[modelIndex][key] = el.checked;
+            globalParams[key] = el.checked;
         } else if (param.type === 'number') {
             const rawVal = el.value.trim();
-            models[modelIndex][key] = rawVal === '' ? '' : rawVal;
+            globalParams[key] = rawVal === '' ? '' : rawVal;
         } else {
-            models[modelIndex][key] = el.value.trim();
+            globalParams[key] = el.value.trim();
         }
     }
 
+    function toggleGlobalParams() {
+        const area = document.getElementById('globalParamsArea');
+        if (area) area.classList.toggle('open');
+    }
+
+    function gfileSelect(inputId) {
+        // 复用文件选择模态框，但用不同的输入ID
+        fileSelect(inputId);
+    }
+
+
+
+    // ==================== 交互事件 ====================
     function toggleSection(sectionId) {
         const el = document.getElementById(sectionId);
         if (el) el.classList.toggle('expanded');
-    }
-
-    function toggleAllSections(modelIndex) {
-        const card = document.getElementById('modelCard-' + modelIndex);
-        if (!card) return;
-        const sections = card.querySelectorAll('.params-section');
-        // 判断当前状态：如果所有都是展开的，则全部收起；否则全部展开
-        let allExpanded = true;
-        sections.forEach(s => { if (!s.classList.contains('expanded')) allExpanded = false; });
-        sections.forEach(s => {
-            if (allExpanded) s.classList.remove('expanded');
-            else s.classList.add('expanded');
-        });
     }
 
     // ==================== 服务端文件选择器 ====================
@@ -848,12 +981,7 @@
     // ==================== 模型管理 ====================
     function addModel() {
         modelCounter++;
-        const newModel = { _section: `model_${modelCounter}` };
-        // 使用默认值初始化
-        newModel.name = `模型 ${modelCounter}`;
-        for (const key in paramsMeta) {
-            newModel[key] = paramsMeta[key].default;
-        }
+        const newModel = { _section: `model_${modelCounter}`, name: `模型 ${modelCounter}` };
         models.push(newModel);
         renderAllCards();
         showToast(`✅ 已添加「${newModel.name}」`, 'success');
@@ -868,36 +996,65 @@
         showToast(`🗑️ 已删除「${name}」`, 'info');
     }
 
-    // ==================== 保存与加载 ====================
-    async function collectAllFormValues() {
-        // 从 DOM 中收集所有值到 models 数组
-        for (let i = 0; i < models.length; i++) {
-            // 先收集 name
-            const nameEl = document.getElementById('modelName-' + i);
-            if (nameEl) models[i].name = nameEl.value.trim();
-
-            // 收集所有参数
-            for (const key in paramsMeta) {
-                const el = document.getElementById(`param-${i}-${key}`);
-                if (!el) continue;
-                const param = paramsMeta[key];
-                if (param.type === 'checkbox') {
-                    models[i][key] = el.checked;
-                } else if (param.type === 'number') {
-                    const rawVal = el.value.trim();
-                    models[i][key] = rawVal === '' ? '' : rawVal;
-                } else {
-                    models[i][key] = el.value.trim();
-                }
+    // ==================== 全局参数保存与加载 ====================
+    async function loadGlobalParams() {
+        try {
+            const resp = await fetch('/api/server/get-global-params');
+            const data = await resp.json();
+            if (data.success) {
+                globalParams = data.params || {};
+            } else {
+                globalParams = {};
             }
+        } catch (e) {
+            console.error('加载全局参数失败:', e);
+            globalParams = {};
+        }
+        renderGlobalParams();
+        const loadingEl = document.getElementById('globalParamsLoading');
+        if (loadingEl) loadingEl.style.display = 'none';
+    }
+
+    async function saveGlobalParams() {
+        // 从 DOM 收集全局参数值
+        for (const key in paramsMeta) {
+            const el = document.getElementById(`gparam-${key}`);
+            if (!el) continue;
+            const param = paramsMeta[key];
+            if (param.type === 'checkbox') {
+                globalParams[key] = el.checked;
+            } else if (param.type === 'number') {
+                const rawVal = el.value.trim();
+                globalParams[key] = rawVal === '' ? '' : rawVal;
+            } else {
+                globalParams[key] = el.value.trim();
+            }
+        }
+
+        try {
+            const resp = await fetch('/api/server/save-global-params', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ params: globalParams })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('✅ ' + data.message, 'success');
+                // 保存后刷新 config.ini 预览
+                refreshConfigIniPreview();
+            } else {
+                showToast('❌ ' + data.message, 'error');
+            }
+        } catch (e) {
+            showToast('❌ 保存失败: ' + e.message, 'error');
         }
     }
 
-    async function saveConfig() {
-        await collectAllFormValues();
+    // ==================== 模型列表保存与加载 ====================
+    async function saveModelsConfig() {
         const iniContent = serializeIni(models);
         if (!iniContent.trim()) {
-            showToast('❌ 没有可保存的配置', 'error');
+            showToast('❌ 没有可保存的模型配置', 'error');
             return;
         }
 
@@ -918,40 +1075,12 @@
         }
     }
 
-    async function saveConfigIni() {
-        await collectAllFormValues();
-        const iniContent = serializeIni(models);
-        if (!iniContent.trim()) {
-            showToast('❌ 没有可保存的配置', 'error');
-            return;
-        }
-
-        try {
-            const resp = await fetch('/api/server/save-config-ini', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: iniContent })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                showToast('✅ ' + data.message, 'success');
-                // 保存成功后自动刷新预览
-                refreshConfigIniPreview();
-            } else {
-                showToast('❌ ' + data.message, 'error');
-            }
-        } catch (e) {
-            showToast('❌ 保存失败: ' + e.message, 'error');
-        }
-    }
-
-    async function reloadConfig() {
+    async function loadModelsConfig() {
         try {
             const resp = await fetch('/api/server/models-config');
             const data = await resp.json();
             if (data.success && data.content) {
                 models = parseIni(data.content);
-                // 更新 modelCounter
                 let maxNum = 0;
                 for (const m of models) {
                     const match = m._section && m._section.match(/^model_(\d+)$/);
@@ -962,24 +1091,30 @@
                 }
                 modelCounter = Math.max(maxNum, models.length);
                 renderAllCards();
-                showToast('🔄 配置已重新加载', 'success');
             } else {
-                showToast('⚠️ 配置文件为空，开始新配置', 'info');
                 models = [];
                 modelCounter = 0;
                 renderAllCards();
             }
         } catch (e) {
-            showToast('❌ 加载失败: ' + e.message, 'error');
+            console.error('加载模型配置失败:', e);
+            models = [];
+            modelCounter = 0;
+            renderAllCards();
         }
     }
 
-    // ==================== config.ini 预览 ====================
+    async function reloadAll() {
+        await Promise.all([loadGlobalParams(), loadModelsConfig()]);
+        refreshConfigIniPreview();
+        showToast('🔄 全部配置已重新加载', 'success');
+    }
+
+    // ==================== config.ini 编辑器 ====================
     function toggleConfigIniPreview() {
         const panel = document.querySelector('.config-ini-preview');
         if (panel) {
             panel.classList.toggle('open');
-            // 展开时自动刷新内容
             if (panel.classList.contains('open')) {
                 refreshConfigIniPreview();
             }
@@ -987,30 +1122,47 @@
     }
 
     async function refreshConfigIniPreview() {
-        const contentEl = document.getElementById('configIniContent');
-        const pathEl = document.getElementById('configIniPath');
-        if (!contentEl) return;
-        contentEl.textContent = '加载中...';
+        const editor = document.getElementById('configIniEditor');
+        if (!editor) return;
+        editor.placeholder = '加载中...';
         try {
             const resp = await fetch('/api/server/get-config-ini');
             const data = await resp.json();
             if (data.success) {
-                contentEl.textContent = data.content || '(config.ini 文件为空，尚未保存过)';
+                editor.value = data.content || '';
+                editor.placeholder = '(config.ini 文件为空)';
             } else {
-                contentEl.textContent = '❌ ' + (data.message || '加载失败');
+                editor.value = '';
+                editor.placeholder = '❌ ' + (data.message || '加载失败');
             }
         } catch (e) {
-            contentEl.textContent = '❌ 加载失败: ' + e.message;
+            editor.value = '';
+            editor.placeholder = '❌ 加载失败: ' + e.message;
         }
-        // 更新文件路径
-        if (pathEl) {
-            try {
-                const infoResp = await fetch('/api/server/config-check');
-                // 只显示路径提示
-                pathEl.textContent = '文件位于服务端 server_configs/config.ini';
-            } catch {
-                pathEl.textContent = '';
+    }
+
+    async function saveConfigIniContent() {
+        const editor = document.getElementById('configIniEditor');
+        if (!editor) return;
+        const content = editor.value;
+        if (!content.trim()) {
+            showToast('❌ config.ini 内容为空', 'error');
+            return;
+        }
+        try {
+            const resp = await fetch('/api/server/save-config-ini', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: content })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('✅ ' + data.message, 'success');
+            } else {
+                showToast('❌ ' + data.message, 'error');
             }
+        } catch (e) {
+            showToast('❌ 保存失败: ' + e.message, 'error');
         }
     }
 
@@ -1062,8 +1214,8 @@
                 sections = metaData.sections;
             }
 
-            // 加载 models.ini 配置
-            await reloadConfig();
+            // 加载全局参数和模型配置
+            await reloadAll();
 
         } catch (e) {
             console.error('初始化失败:', e);

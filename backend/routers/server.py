@@ -1201,14 +1201,91 @@ async def save_models_config(data: dict = Body(...)):
         return {"success": False, "message": f"保存失败: {e}"}
 
 
+@router.get("/get-global-params")
+async def get_global_params():
+    """读取 config.ini 中的全局参数（按分区组织，返回各字段的值）"""
+    ini_path = get_config_ini_path()
+    # 默认值
+    params = {}
+    for key, meta in SERVER_PARAMS_META.items():
+        params[key] = meta["default"]
+
+    if not ini_path.exists():
+        return {"success": True, "params": params}
+
+    try:
+        import configparser
+        parser = configparser.ConfigParser()
+        parser.read(ini_path, encoding="utf-8")
+
+        for key, meta in SERVER_PARAMS_META.items():
+            if parser.has_option("general", key):
+                raw_val = parser.get("general", key)
+                if meta["type"] == "checkbox":
+                    params[key] = raw_val.lower() in ("true", "1", "yes", "on")
+                elif meta["type"] == "number":
+                    try:
+                        if "." in raw_val:
+                            params[key] = float(raw_val)
+                        else:
+                            params[key] = int(raw_val)
+                    except (ValueError, TypeError):
+                        params[key] = meta["default"]
+                else:
+                    params[key] = raw_val
+        return {"success": True, "params": params}
+    except Exception as e:
+        print(f"[server] 读取全局参数失败: {e}")
+        return {"success": True, "params": params}
+
+
+@router.post("/save-global-params")
+async def save_global_params(data: dict = Body(...)):
+    """保存全局参数到 config.ini 的 [general] 区"""
+    ini_path = get_config_ini_path()
+    submitted = data.get("params", {})
+    if not submitted:
+        return {"success": False, "message": "参数为空"}
+
+    try:
+        import configparser
+        parser = configparser.ConfigParser()
+
+        if ini_path.exists():
+            parser.read(ini_path, encoding="utf-8")
+
+        if "general" not in parser:
+            parser.add_section("general")
+
+        # 更新参数值
+        for key, value in submitted.items():
+            if key in SERVER_PARAMS_META:
+                meta = SERVER_PARAMS_META[key]
+                if meta["type"] == "checkbox":
+                    parser.set("general", key, "true" if value else "false")
+                else:
+                    parser.set("general", key, str(value))
+
+        # 写入文件（configparser 会格式化 [general] 区，但兼容性好）
+        ini_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(ini_path, "w", encoding="utf-8") as f:
+            parser.write(f)
+
+        return {"success": True, "message": "✅ 全局参数已保存到 config.ini"}
+    except Exception as e:
+        print(f"[server] 保存全局参数失败: {e}")
+        return {"success": False, "message": f"保存失败: {e}"}
+
+
 @router.post("/save-config-ini")
 async def save_config_ini(data: dict = Body(...)):
-    """保存 config.ini 总配置文件"""
+    """保存 config.ini 总配置文件（完整文本覆盖）"""
     ini_path = get_config_ini_path()
     content = data.get("content", "")
     if not content:
         return {"success": False, "message": "配置内容为空"}
     try:
+        ini_path.parent.mkdir(parents=True, exist_ok=True)
         with open(ini_path, "w", encoding="utf-8") as f:
             f.write(content)
         return {"success": True, "message": f"✅ config.ini 已保存"}
@@ -1218,7 +1295,7 @@ async def save_config_ini(data: dict = Body(...)):
 
 @router.get("/get-config-ini")
 async def get_config_ini():
-    """读取 config.ini 文件内容（供前端预览）"""
+    """读取 config.ini 文件内容（供前端预览/编辑）"""
     ini_path = get_config_ini_path()
     if not ini_path.exists():
         return {"success": True, "content": "", "message": "config.ini 尚未生成"}
