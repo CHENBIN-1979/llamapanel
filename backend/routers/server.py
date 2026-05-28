@@ -764,29 +764,8 @@ def build_command(config: Dict[str, Any]) -> list:
 
 
 def generate_default_models_ini() -> str:
-    """生成默认的 models.ini 内容（含一个示例模型和所有参数）"""
-    lines = []
-    lines.append("[model_1]")
-    lines.append("# 模型显示名称")
-    lines.append("name = Qwen2.5-7B-Q4_K_M")
-
-    # 遍历所有参数生成默认值
-    for key, meta in SERVER_PARAMS_META.items():
-        default_val = meta["default"]
-        # 跳过布尔值，勾选框不写入（未勾选时不传参）
-        if meta["type"] == "checkbox" and not default_val:
-            continue
-        # 将值转为字符串
-        if isinstance(default_val, bool):
-            val_str = "true" if default_val else "false"
-        elif default_val == "":
-            val_str = ""
-        else:
-            val_str = str(default_val)
-        lines.append(f"{key} = {val_str}")
-
-    lines.append("")
-    return "\n".join(lines)
+    """生成默认的 models.ini 内容（空模板，不含示例模型）"""
+    return ""
 
 
 def write_server_log(message: str):
