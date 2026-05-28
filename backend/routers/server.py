@@ -1216,6 +1216,20 @@ async def save_config_ini(data: dict = Body(...)):
         return {"success": False, "message": f"保存失败: {e}"}
 
 
+@router.get("/get-config-ini")
+async def get_config_ini():
+    """读取 config.ini 文件内容（供前端预览）"""
+    ini_path = get_config_ini_path()
+    if not ini_path.exists():
+        return {"success": True, "content": "", "message": "config.ini 尚未生成"}
+    try:
+        with open(ini_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {"success": True, "content": content}
+    except Exception as e:
+        return {"success": False, "content": "", "message": f"读取失败: {e}"}
+
+
 @router.get("/start-command")
 async def get_start_command():
     """生成带 --models-preset 的完整 llama-server 启动命令（多模型模式）"""

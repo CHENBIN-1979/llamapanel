@@ -10,6 +10,21 @@
         <button class="btn btn-secondary" onclick="reloadConfig()">🔄 重新加载</button>
     </div>
 
+    <!-- config.ini 预览折叠面板 -->
+    <div class="config-ini-preview">
+        <div class="config-ini-preview-header" onclick="toggleConfigIniPreview()">
+            <span>📄 config.ini 预览</span>
+            <span class="config-ini-toggle">▶</span>
+        </div>
+        <div class="config-ini-preview-body" id="configIniPreviewBody">
+            <pre id="configIniContent" class="config-ini-code"><span style="color:#718096;">点击「刷新预览」或「config.ini 保存」后自动更新</span></pre>
+            <div class="config-ini-preview-actions">
+                <button class="btn btn-sm" onclick="refreshConfigIniPreview()">🔄 刷新预览</button>
+                <span class="config-ini-filepath" id="configIniPath">加载中...</span>
+            </div>
+        </div>
+    </div>
+
     <!-- 模型卡片容器 -->
     <div id="modelsContainer">
         <div id="formLoading"><div class="loading"></div> 加载多模型配置...</div>
@@ -341,6 +356,94 @@
         border-radius: 4px;
         font-family: monospace;
         font-size: 12px;
+    }
+
+    /* ===== config.ini 预览折叠面板 ===== */
+    .config-ini-preview {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        margin-bottom: 16px;
+        overflow: hidden;
+        background: white;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .config-ini-preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        background: #f7fafc;
+        cursor: pointer;
+        user-select: none;
+        font-weight: 600;
+        font-size: 14px;
+        color: #2d3748;
+        transition: background 0.2s;
+    }
+    .config-ini-preview-header:hover {
+        background: #edf2f7;
+    }
+    .config-ini-toggle {
+        font-size: 12px;
+        color: #a0aec0;
+        transition: transform 0.2s;
+    }
+    .config-ini-preview.open .config-ini-toggle {
+        transform: rotate(90deg);
+    }
+    .config-ini-preview-body {
+        display: none;
+        padding: 0;
+        border-top: 1px solid #e2e8f0;
+    }
+    .config-ini-preview.open .config-ini-preview-body {
+        display: block;
+    }
+    .config-ini-code {
+        margin: 0;
+        padding: 14px 16px;
+        background: #1a202c;
+        color: #e2e8f0;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .config-ini-preview-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 16px;
+        background: #f7fafc;
+        border-top: 1px solid #e2e8f0;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .config-ini-preview-actions .btn-sm {
+        padding: 5px 12px;
+        font-size: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        background: white;
+        color: #4a5568;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .config-ini-preview-actions .btn-sm:hover {
+        background: #edf2f7;
+        border-color: #cbd5e0;
+    }
+    .config-ini-filepath {
+        font-size: 11px;
+        color: #a0aec0;
+        font-family: monospace;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 </style>
 
@@ -832,6 +935,8 @@
             const data = await resp.json();
             if (data.success) {
                 showToast('✅ ' + data.message, 'success');
+                // 保存成功后自动刷新预览
+                refreshConfigIniPreview();
             } else {
                 showToast('❌ ' + data.message, 'error');
             }
@@ -866,6 +971,46 @@
             }
         } catch (e) {
             showToast('❌ 加载失败: ' + e.message, 'error');
+        }
+    }
+
+    // ==================== config.ini 预览 ====================
+    function toggleConfigIniPreview() {
+        const panel = document.querySelector('.config-ini-preview');
+        if (panel) {
+            panel.classList.toggle('open');
+            // 展开时自动刷新内容
+            if (panel.classList.contains('open')) {
+                refreshConfigIniPreview();
+            }
+        }
+    }
+
+    async function refreshConfigIniPreview() {
+        const contentEl = document.getElementById('configIniContent');
+        const pathEl = document.getElementById('configIniPath');
+        if (!contentEl) return;
+        contentEl.textContent = '加载中...';
+        try {
+            const resp = await fetch('/api/server/get-config-ini');
+            const data = await resp.json();
+            if (data.success) {
+                contentEl.textContent = data.content || '(config.ini 文件为空，尚未保存过)';
+            } else {
+                contentEl.textContent = '❌ ' + (data.message || '加载失败');
+            }
+        } catch (e) {
+            contentEl.textContent = '❌ 加载失败: ' + e.message;
+        }
+        // 更新文件路径
+        if (pathEl) {
+            try {
+                const infoResp = await fetch('/api/server/config-check');
+                // 只显示路径提示
+                pathEl.textContent = '文件位于服务端 server_configs/config.ini';
+            } catch {
+                pathEl.textContent = '';
+            }
         }
     }
 
