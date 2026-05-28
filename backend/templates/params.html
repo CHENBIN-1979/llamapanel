@@ -54,58 +54,6 @@
     .model-card:hover {
         box-shadow: 0 4px 16px rgba(0,0,0,0.1);
     }
-    .model-card-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 14px 18px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .model-card-header .model-name-input {
-        background: rgba(255,255,255,0.2);
-        border: 1px solid rgba(255,255,255,0.3);
-        border-radius: 6px;
-        padding: 6px 12px;
-        font-size: 15px;
-        font-weight: 600;
-        color: white;
-        width: 300px;
-        outline: none;
-        transition: all 0.3s;
-    }
-    .model-card-header .model-name-input:focus {
-        background: rgba(255,255,255,0.3);
-        border-color: white;
-    }
-    .model-card-header .model-name-input::placeholder {
-        color: rgba(255,255,255,0.6);
-    }
-    .model-card-header .model-card-actions {
-        display: flex;
-        gap: 8px;
-    }
-    .model-card-header .btn-sm {
-        padding: 5px 12px;
-        font-size: 12px;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-    .btn-sm-danger {
-        background: rgba(255,255,255,0.2);
-        color: white;
-    }
-    .btn-sm-danger:hover {
-        background: #e53e3e;
-    }
-    .btn-sm-expand {
-        background: rgba(255,255,255,0.2);
-        color: white;
-    }
-    .btn-sm-expand:hover {
-        background: rgba(255,255,255,0.35);
-    }
     .model-card-badge {
         display: inline-block;
         background: rgba(255,255,255,0.2);
@@ -113,8 +61,30 @@
         font-size: 11px;
         padding: 2px 8px;
         border-radius: 10px;
-        margin-left: 10px;
-        font-weight: normal;
+        font-weight: 500;
+        font-family: monospace;
+    }
+    .btn-sm {
+        padding: 5px 10px;
+        font-size: 12px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .btn-sm-expand {
+        background: rgba(255,255,255,0.2);
+        color: white;
+    }
+    .btn-sm-expand:hover {
+        background: rgba(255,255,255,0.3);
+    }
+    .btn-sm-danger {
+        background: rgba(255,255,255,0.2);
+        color: white;
+    }
+    .btn-sm-danger:hover {
+        background: rgba(255,255,255,0.3);
     }
 
     /* ===== 参数分区（在卡片内） ===== */
@@ -489,18 +459,6 @@
 
         let html = '';
         html += `<div class="model-card" id="modelCard-${index}">`;
-        html += `    <div class="model-card-header">`;
-        html += `        <div>`;
-        html += `            <input type="text" class="model-name-input" id="modelName-${index}"`;
-        html += `                   value="${escapeHtml(displayName)}" placeholder="模型名称"`;
-        html += `                   onchange="onModelNameChange(${index})">`;
-        html += `            <span class="model-card-badge">${escapeHtml(sectionName)}</span>`;
-        html += `        </div>`;
-        html += `        <div class="model-card-actions">`;
-        html += `            <button class="btn-sm btn-sm-expand" onclick="toggleAllSections(${index})">📂 全部展开/收起</button>`;
-        html += `            <button class="btn-sm btn-sm-danger" onclick="deleteModel(${index})">🗑️ 删除</button>`;
-        html += `        </div>`;
-        html += `    </div>`;
         html += `    <div class="model-card-body">`;
 
         // 渲染每个分区
