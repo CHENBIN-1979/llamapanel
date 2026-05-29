@@ -1216,8 +1216,9 @@
                 sections = metaData.sections;
             }
 
-            // 加载全局参数和模型配置
-            await reloadAll();
+            // 自动加载全局参数和模型配置（不显示提示）
+            await loadGlobalParams();
+            await loadModelsConfig();
 
         } catch (e) {
             console.error('初始化失败:', e);
