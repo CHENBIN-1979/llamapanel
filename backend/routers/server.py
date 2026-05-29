@@ -855,6 +855,163 @@ async def get_params_meta():
     }
 
 
+# ==================== models.ini 多模型配置管理 ====================
+
+@router.get("/models-ini")
+async def get_models_ini():
+    """读取 models.ini 文件内容"""
+    models_ini_path = get_models_ini_path()
+    try:
+        if models_ini_path.exists():
+            with open(models_ini_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return {"success": True, "content": content}
+        else:
+            return {"success": True, "content": ""}
+    except Exception as e:
+        print(f"[server] 读取 models.ini 失败：{e}")
+        return {"success": False, "message": f"读取失败：{e}", "content": ""}
+
+
+@router.post("/models-ini")
+async def save_models_ini(payload: dict = Body(...)):
+    """保存 models.ini 文件内容"""
+    models_ini_path = get_models_ini_path()
+    content = payload.get("content", "")
+    try:
+        with open(models_ini_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return {"success": True, "message": "models.ini 已保存"}
+    except Exception as e:
+        print(f"[server] 保存 models.ini 失败：{e}")
+        return {"success": False, "message": f"保存失败：{e}"}
+
+
+@router.get("/model-params/{model_name}")
+async def get_model_params(model_name: str):
+    """获取指定模型的参数配置"""
+    models_ini_path = get_models_ini_path()
+    try:
+        if not models_ini_path.exists():
+            return {"success": True, "params": {}}
+        
+        with open(models_ini_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # 解析 INI 内容
+        params = {}
+        current_section = None
+        for line in content.split("\n"):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("[") and line.endswith("]"):
+                current_section = line[1:-1].strip()
+                continue
+            if current_section == model_name and "=" in line:
+                key, value = line.split("=", 1)
+                params[key.strip()] = value.strip()
+        
+        return {"success": True, "params": params}
+    except Exception as e:
+        print(f"[server] 读取模型参数失败：{e}")
+        return {"success": False, "message": f"读取失败：{e}", "params": {}}
+
+
+@router.post("/model-params/{model_name}")
+async def save_model_params(model_name: str, payload: dict = Body(...)):
+    """保存指定模型的参数配置到 models.ini"""
+    models_ini_path = get_models_ini_path()
+    params = payload.get("params", {})
+    
+    try:
+        # 读取现有内容
+        existing_content = ""
+        if models_ini_path.exists():
+            with open(models_ini_path, "r", encoding="utf-8") as f:
+                existing_content = f.read()
+        
+        # 解析现有内容
+        sections = {}
+        current_section = None
+        section_lines = []
+        
+        for line in existing_content.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                if current_section:
+                    sections[current_section] = section_lines
+                current_section = stripped[1:-1].strip()
+                section_lines = []
+            elif current_section:
+                section_lines.append(line)
+        
+        if current_section:
+            sections[current_section] = section_lines
+        
+        # 更新或添加当前模型的 section
+        new_section_lines = [f"[{model_name}]"]
+        for key, value in params.items():
+            if value is not None and str(value).strip():
+                new_section_lines.append(f"{key} = {value}")
+        sections[model_name] = new_section_lines
+        
+        # 重新生成内容
+        new_content = ""
+        for section_name, lines in sections.items():
+            if new_content:
+                new_content += "\n"
+            new_content += "\n".join(lines) + "\n"
+        
+        with open(models_ini_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        
+        return {"success": True, "message": f"模型 {model_name} 参数已保存"}
+    except Exception as e:
+        print(f"[server] 保存模型参数失败：{e}")
+        return {"success": False, "message": f"保存失败：{e}"}
+
+
+@router.delete("/model/{model_name}")
+async def delete_model(model_name: str):
+    """删除指定模型的参数配置"""
+    models_ini_path = get_models_ini_path()
+    try:
+        if not models_ini_path.exists():
+            return {"success": True, "message": "配置文件不存在"}
+        
+        with open(models_ini_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # 解析并删除指定 section
+        lines = content.split("\n")
+        new_lines = []
+        in_section = False
+        section_to_delete = model_name
+        
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                current_section = stripped[1:-1].strip()
+                if current_section == section_to_delete:
+                    in_section = True
+                    continue
+                else:
+                    in_section = False
+            if not in_section:
+                new_lines.append(line)
+        
+        new_content = "\n".join(new_lines)
+        
+        with open(models_ini_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        
+        return {"success": True, "message": f"模型 {model_name} 配置已删除"}
+    except Exception as e:
+        print(f"[server] 删除模型配置失败：{e}")
+        return {"success": False, "message": f"删除失败：{e}"}
+
+
 @router.get("/config")
 async def get_config():
     """获取已保存的服务器配置"""
@@ -1201,26 +1358,83 @@ async def save_models_config(data: dict = Body(...)):
         return {"success": False, "message": f"保存失败: {e}"}
 
 
-@router.get("/get-global-params")
-async def get_global_params():
-    """读取 config.ini 中的全局参数（按分区组织，返回各字段的值）"""
-    ini_path = get_config_ini_path()
-    # 默认值
-    params = {}
-    for key, meta in SERVER_PARAMS_META.items():
-        params[key] = meta["default"]
+# ==================== models.ini 模型参数管理 ====================
 
+@router.get("/models-ini")
+async def get_models_ini():
+    """读取 models.ini 文件内容（供前端预览/编辑）"""
+    ini_path = get_models_ini_path()
     if not ini_path.exists():
-        return {"success": True, "params": params}
+        return {"success": True, "content": "", "message": "models.ini 尚未生成"}
+    try:
+        with open(ini_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {"success": True, "content": content}
+    except Exception as e:
+        return {"success": False, "content": "", "message": f"读取失败：{e}"}
 
+
+@router.post("/models-ini")
+async def save_models_ini(data: dict = Body(...)):
+    """保存 models.ini 文件内容（完整文本覆盖）"""
+    ini_path = get_models_ini_path()
+    content = data.get("content", "")
+    if not content:
+        return {"success": False, "message": "配置内容为空"}
+    try:
+        ini_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(ini_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return {"success": True, "message": "✅ models.ini 已保存"}
+    except Exception as e:
+        return {"success": False, "message": f"保存失败：{e}"}
+
+
+@router.get("/models-list")
+async def get_models_list():
+    """获取 models.ini 中的所有模型名称列表"""
+    ini_path = get_models_ini_path()
+    if not ini_path.exists():
+        return {"success": True, "models": []}
+    
     try:
         import configparser
         parser = configparser.ConfigParser()
         parser.read(ini_path, encoding="utf-8")
+        
+        models = []
+        for section in parser.sections():
+            name = parser.get(section, "name", fallback=section)
+            models.append({"section": section, "name": name})
+        
+        return {"success": True, "models": models}
+    except Exception as e:
+        print(f"[server] 读取模型列表失败：{e}")
+        return {"success": False, "models": [], "message": f"读取失败：{e}"}
 
+
+@router.get("/model-params/{model_name}")
+async def get_model_params(model_name: str):
+    """获取指定模型的参数（按分区组织，返回各字段的值）"""
+    ini_path = get_models_ini_path()
+    params = {}
+    for key, meta in SERVER_PARAMS_META.items():
+        params[key] = meta["default"]
+    
+    if not ini_path.exists():
+        return {"success": True, "params": params}
+    
+    try:
+        import configparser
+        parser = configparser.ConfigParser()
+        parser.read(ini_path, encoding="utf-8")
+        
+        if not parser.has_section(model_name):
+            return {"success": True, "params": params}
+        
         for key, meta in SERVER_PARAMS_META.items():
-            if parser.has_option("general", key):
-                raw_val = parser.get("general", key)
+            if parser.has_option(model_name, key):
+                raw_val = parser.get(model_name, key)
                 if meta["type"] == "checkbox":
                     params[key] = raw_val.lower() in ("true", "1", "yes", "on")
                 elif meta["type"] == "number":
@@ -1235,76 +1449,70 @@ async def get_global_params():
                     params[key] = raw_val
         return {"success": True, "params": params}
     except Exception as e:
-        print(f"[server] 读取全局参数失败: {e}")
+        print(f"[server] 读取模型参数失败：{e}")
         return {"success": True, "params": params}
 
 
-@router.post("/save-global-params")
-async def save_global_params(data: dict = Body(...)):
-    """保存全局参数到 config.ini 的 [general] 区"""
-    ini_path = get_config_ini_path()
+@router.post("/model-params/{model_name}")
+async def save_model_params(model_name: str, data: dict = Body(...)):
+    """保存指定模型的参数到 models.ini"""
+    ini_path = get_models_ini_path()
     submitted = data.get("params", {})
     if not submitted:
         return {"success": False, "message": "参数为空"}
-
+    
     try:
         import configparser
         parser = configparser.ConfigParser()
-
+        
         if ini_path.exists():
             parser.read(ini_path, encoding="utf-8")
-
-        if "general" not in parser:
-            parser.add_section("general")
-
-        # 更新参数值
+        
+        if model_name not in parser:
+            parser.add_section(model_name)
+        
         for key, value in submitted.items():
             if key in SERVER_PARAMS_META:
                 meta = SERVER_PARAMS_META[key]
                 if meta["type"] == "checkbox":
-                    parser.set("general", key, "true" if value else "false")
+                    parser.set(model_name, key, "true" if value else "false")
                 else:
-                    parser.set("general", key, str(value))
-
-        # 写入文件（configparser 会格式化 [general] 区，但兼容性好）
+                    parser.set(model_name, key, str(value))
+        
         ini_path.parent.mkdir(parents=True, exist_ok=True)
         with open(ini_path, "w", encoding="utf-8") as f:
             parser.write(f)
-
-        return {"success": True, "message": "✅ 全局参数已保存到 config.ini"}
+        
+        return {"success": True, "message": f"✅ 模型「{model_name}」参数已保存"}
     except Exception as e:
-        print(f"[server] 保存全局参数失败: {e}")
-        return {"success": False, "message": f"保存失败: {e}"}
+        print(f"[server] 保存模型参数失败：{e}")
+        return {"success": False, "message": f"保存失败：{e}"}
 
 
-@router.post("/save-config-ini")
-async def save_config_ini(data: dict = Body(...)):
-    """保存 config.ini 总配置文件（完整文本覆盖）"""
-    ini_path = get_config_ini_path()
-    content = data.get("content", "")
-    if not content:
-        return {"success": False, "message": "配置内容为空"}
-    try:
-        ini_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(ini_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        return {"success": True, "message": f"✅ config.ini 已保存"}
-    except Exception as e:
-        return {"success": False, "message": f"保存失败: {e}"}
-
-
-@router.get("/get-config-ini")
-async def get_config_ini():
-    """读取 config.ini 文件内容（供前端预览/编辑）"""
-    ini_path = get_config_ini_path()
+@router.delete("/model-params/{model_name}")
+async def delete_model_params(model_name: str):
+    """删除指定模型的配置"""
+    ini_path = get_models_ini_path()
     if not ini_path.exists():
-        return {"success": True, "content": "", "message": "config.ini 尚未生成"}
+        return {"success": False, "message": "models.ini 不存在"}
+    
     try:
-        with open(ini_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return {"success": True, "content": content}
+        import configparser
+        parser = configparser.ConfigParser()
+        parser.read(ini_path, encoding="utf-8")
+        
+        if not parser.has_section(model_name):
+            return {"success": False, "message": f"模型「{model_name}」不存在"}
+        
+        parser.remove_section(model_name)
+        
+        with open(ini_path, "w", encoding="utf-8") as f:
+            parser.write(f)
+        
+        return {"success": True, "message": f"🗑️ 已删除模型「{model_name}」的配置"}
     except Exception as e:
-        return {"success": False, "content": "", "message": f"读取失败: {e}"}
+        print(f"[server] 删除模型配置失败：{e}")
+        return {"success": False, "message": f"删除失败：{e}"}
 
 
 @router.get("/start-command")

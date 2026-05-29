@@ -1,44 +1,76 @@
 <div class="card">
     <h1>⚙️ 参数配置</h1>
-    <p class="subtitle">全局参数 → config.ini ｜ 多模型列表 → models.ini</p>
+    <p class="subtitle">模型参数 → models.ini</p>
 
     <!-- 操作按钮栏 -->
     <div class="action-bar">
-        <button class="btn btn-primary" onclick="saveGlobalParams()">💾 保存全局参数</button>
-        <button class="btn btn-success" onclick="addModel()">➕ 添加模型</button>
+        <button class="btn btn-success" onclick="showAddModelModal()">➕ 添加模型</button>
         <button class="btn btn-secondary" onclick="reloadAll()">🔄 重新加载</button>
     </div>
 
-    <!-- 全局参数设置区 -->
-    <div id="globalParamsArea" class="global-params-area">
-        <div class="global-params-header" onclick="toggleGlobalParams()">
-            <span>⚙️ 全局参数设置</span>
-            <span class="global-toggle-icon">▼</span>
+    <!-- 模型列表区域 -->
+    <div class="models-list-area">
+        <div class="models-list-header">
+            <span>📋 模型列表</span>
         </div>
-        <div class="global-params-body" id="globalParamsBody">
-            <div id="globalParamsLoading" style="padding:20px;text-align:center;color:#718096;"><div class="loading"></div> 加载全局参数...</div>
+        <div class="models-list-body" id="modelsListBody">
+            <div id="modelsListLoading" style="padding:20px;text-align:center;color:#718096;"><div class="loading"></div> 加载模型列表...</div>
         </div>
     </div>
 
-    <!-- config.ini 编辑器折叠面板 -->
+    <!-- 当前模型参数设置区 -->
+    <div id="currentModelParamsArea" class="current-model-params-area" style="display:none;">
+        <div class="current-model-params-header">
+            <span id="currentModelTitle">⚙️ 当前模型参数设置</span>
+            <span class="current-model-name" id="currentModelName"></span>
+        </div>
+        <div class="current-model-params-body" id="currentModelParamsBody">
+            <div id="currentModelParamsLoading" style="padding:20px;text-align:center;color:#718096;"><div class="loading"></div> 加载参数...</div>
+        </div>
+        <div class="current-model-params-footer">
+            <button class="btn btn-primary" onclick="saveCurrentModelParams()">💾 保存当前模型参数</button>
+        </div>
+    </div>
+
+    <!-- models.ini 编辑器折叠面板 -->
     <div class="config-ini-preview">
         <div class="config-ini-preview-header" onclick="toggleConfigIniPreview()">
-            <span>📄 config.ini 编辑器</span>
+            <span>📄 models.ini 编辑器</span>
             <span class="config-ini-toggle">▶</span>
         </div>
         <div class="config-ini-preview-body" id="configIniPreviewBody">
-            <textarea id="configIniEditor" class="config-ini-textarea" spellcheck="false" placeholder="加载 config.ini 内容..."></textarea>
+            <textarea id="configIniEditor" class="config-ini-textarea" spellcheck="false" placeholder="加载 models.ini 内容..."></textarea>
             <div class="config-ini-preview-actions">
-                <button class="btn btn-sm btn-primary" onclick="saveConfigIniContent()">💾 保存 config.ini</button>
+                <button class="btn btn-sm btn-primary" onclick="saveConfigIniContent()">💾 保存 models.ini</button>
                 <button class="btn btn-sm" onclick="refreshConfigIniPreview()">🔄 刷新</button>
-                <span class="config-ini-filepath">文件: server_configs/config.ini</span>
+                <span class="config-ini-filepath">文件：server_configs/models.ini</span>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- 模型卡片容器 -->
-    <div id="modelsContainer">
-        <div id="formLoading"><div class="loading"></div> 加载多模型配置...</div>
+<!-- 添加模型模态框 -->
+<div id="addModelModal" class="modal-overlay" style="display:none;">
+    <div class="modal-box" style="max-width:400px;">
+        <div class="modal-header">
+            <h3>➕ 添加模型</h3>
+            <button class="modal-close" onclick="closeAddModelModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom:15px;">
+                <label style="display:block;margin-bottom:5px;font-weight:500;">模型名称</label>
+                <input type="text" id="addModelNameInput" placeholder="例如：Qwen2.5-7B" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label style="display:block;margin-bottom:5px;font-weight:500;">Section 名称</label>
+                <input type="text" id="addModelSectionInput" placeholder="例如：qwen2.5-7b" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+                <small style="color:#718096;display:block;margin-top:5px;">用于 models.ini 中的 [section] 名称，建议使用英文小写</small>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeAddModelModal()">取消</button>
+            <button class="btn btn-success" onclick="confirmAddModel()">确定添加</button>
+        </div>
     </div>
 </div>
 
@@ -573,15 +605,125 @@
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+
+    /* ===== 模型列表区域 ===== */
+    .models-list-area {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        margin: 16px 0;
+        overflow: hidden;
+        background: white;
+    }
+    .models-list-header {
+        background: #f7fafc;
+        padding: 12px 18px;
+        font-weight: 600;
+        font-size: 15px;
+        color: #2d3748;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .models-list-body {
+        padding: 10px 18px;
+        min-height: 60px;
+    }
+    .models-list-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 14px;
+        margin: 6px 0;
+        background: #f7fafc;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+    }
+    .models-list-item:hover {
+        background: #edf2f7;
+        border-color: #667eea;
+    }
+    .models-list-item.active {
+        background: #e6fffa;
+        border-color: #38a169;
+    }
+    .models-list-item-name {
+        font-weight: 500;
+        color: #2d3748;
+    }
+    .models-list-item-section {
+        font-size: 11px;
+        color: #718096;
+        font-family: monospace;
+        background: #e2e8f0;
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-left: 8px;
+    }
+    .models-list-item-actions {
+        display: flex;
+        gap: 6px;
+    }
+    .btn-sm-danger {
+        padding: 4px 10px;
+        font-size: 12px;
+        background: #fed7d7;
+        color: #c53030;
+        border: 1px solid #feb2b2;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-sm-danger:hover {
+        background: #fc8181;
+        color: white;
+        border-color: #f56565;
+    }
+
+    /* ===== 当前模型参数设置区 ===== */
+    .current-model-params-area {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        margin: 16px 0;
+        overflow: hidden;
+        background: white;
+    }
+    .current-model-params-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 14px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: white;
+    }
+    .current-model-params-header #currentModelTitle {
+        font-weight: 600;
+        font-size: 15px;
+    }
+    .current-model-params-header .current-model-name {
+        font-size: 12px;
+        background: rgba(255,255,255,0.2);
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-family: monospace;
+    }
+    .current-model-params-body {
+        padding: 0;
+    }
+    .current-model-params-footer {
+        padding: 12px 18px;
+        background: #f7fafc;
+        border-top: 1px solid #e2e8f0;
+        text-align: right;
+    }
 </style>
 
 <script>
     // ==================== 全局状态 ====================
     let paramsMeta = {};
     let sections = [];
-    let models = [];      // 模型配置数组 [{_section: 'model_1', name: '...', model: '...', ...}]
-    let modelCounter = 0; // 用于生成唯一 section 名称
-    let globalParams = {}; // 全局参数值（来自 config.ini）
+    let modelsList = [];        // 模型列表 [{section: 'qwen2.5-7b', name: 'Qwen2.5-7B'}]
+    let currentModelSection = null; // 当前选中的模型 section 名称
+    let currentModelParams = {}; // 当前模型的参数值
 
     // ==================== 工具函数 ====================
     function escapeHtml(text) {
@@ -703,6 +845,201 @@
         html += `    </div>`;
         html += `</div>`;
         return html;
+    }
+
+    // ==================== 模型列表管理 ====================
+    let currentModelName = null;
+
+    function renderModelList() {
+        const container = document.getElementById('modelsListBody');
+        const loading = document.getElementById('modelsListLoading');
+        if (!container) return;
+
+        if (loading) loading.style.display = 'none';
+
+        if (models.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#718096;">📭 暂无模型配置，点击「添加模型」开始配置</div>';
+            document.getElementById('currentModelParamsArea').style.display = 'none';
+            return;
+        }
+
+        let html = '';
+        for (let i = 0; i < models.length; i++) {
+            const model = models[i];
+            const sectionName = model._section || `model_${i + 1}`;
+            const displayName = model.name || sectionName;
+            const isSelected = currentModelName === sectionName ? 'selected' : '';
+            
+            html += `<div class="model-list-item ${isSelected}" onclick="selectModel('${escapeHtml(sectionName)}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:8px;cursor:pointer;transition:all 0.2s;background:${isSelected ? '#ebf4ff' : 'white'};">`;
+            html += `    <div style="display:flex;align-items:center;gap:10px;">`;
+            html += `        <span style="font-weight:500;font-size:14px;color:#2d3748;">📋 ${escapeHtml(displayName)}</span>`;
+            html += `        <span style="font-size:11px;color:#718096;font-family:monospace;background:#f7fafc;padding:2px 6px;border-radius:4px;">[${escapeHtml(sectionName)}]</span>`;
+            html += `    </div>`;
+            html += `    <button class="btn-sm btn-sm-danger" onclick="event.stopPropagation();deleteModelByName('${escapeHtml(sectionName)}')" style="background:#e53e3e;color:white;padding:4px 10px;border:none;border-radius:5px;cursor:pointer;font-size:12px;">🗑️</button>`;
+            html += `</div>`;
+        }
+
+        container.innerHTML = html;
+    }
+
+    async function selectModel(modelName) {
+        currentModelName = modelName;
+        
+        // 更新列表选中状态
+        renderModelList();
+        
+        // 显示参数区域
+        document.getElementById('currentModelParamsArea').style.display = 'block';
+        document.getElementById('currentModelName').textContent = `[${modelName}]`;
+        
+        // 加载参数
+        await loadModelParams(modelName);
+    }
+
+    async function loadModelParams(modelName) {
+        const container = document.getElementById('currentModelParamsBody');
+        const loading = document.getElementById('currentModelParamsLoading');
+        if (!container) return;
+
+        if (loading) loading.style.display = 'block';
+        container.innerHTML = '';
+
+        try {
+            const resp = await fetch(`/api/server/model-params/${encodeURIComponent(modelName)}`);
+            const data = await resp.json();
+            
+            if (data.success) {
+                // 将参数值存入 globalParams
+                Object.assign(globalParams, data.params || {});
+                renderGlobalParams();
+            } else {
+                container.innerHTML = '<div style="color:#e53e3e;padding:20px;">❌ 加载失败：' + (data.message || '未知错误') + '</div>';
+            }
+        } catch (e) {
+            container.innerHTML = '<div style="color:#e53e3e;padding:20px;">❌ 加载失败：' + e.message + '</div>';
+        } finally {
+            if (loading) loading.style.display = 'none';
+        }
+    }
+
+    async function saveCurrentModelParams() {
+        if (!currentModelName) {
+            showToast('❌ 请先选择一个模型', 'error');
+            return;
+        }
+
+        // 从表单收集参数值
+        const params = {};
+        for (const key of Object.keys(paramsMeta)) {
+            const el = document.getElementById(`gparam-${key}`);
+            if (!el) continue;
+            
+            const param = paramsMeta[key];
+            if (param.type === 'checkbox') {
+                params[key] = el.checked ? 'true' : 'false';
+            } else {
+                params[key] = el.value.trim();
+            }
+        }
+
+        try {
+            const resp = await fetch(`/api/server/model-params/${encodeURIComponent(currentModelName)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ params })
+            });
+            const data = await resp.json();
+            
+            if (data.success) {
+                showToast('✅ ' + data.message, 'success');
+                await loadModelsConfig();
+                await refreshConfigIniPreview();
+            } else {
+                showToast('❌ ' + data.message, 'error');
+            }
+        } catch (e) {
+            showToast('❌ 保存失败：' + e.message, 'error');
+        }
+    }
+
+    async function deleteModelByName(modelName) {
+        if (!confirm(`确定要删除模型 [${modelName}] 的配置吗？此操作不可恢复！`)) {
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/api/server/model/${encodeURIComponent(modelName)}`, {
+                method: 'DELETE'
+            });
+            const data = await resp.json();
+            
+            if (data.success) {
+                showToast('✅ ' + data.message, 'success');
+                if (currentModelName === modelName) {
+                    currentModelName = null;
+                    document.getElementById('currentModelParamsArea').style.display = 'none';
+                }
+                await loadModelsConfig();
+                await refreshConfigIniPreview();
+            } else {
+                showToast('❌ ' + data.message, 'error');
+            }
+        } catch (e) {
+            showToast('❌ 删除失败：' + e.message, 'error');
+        }
+    }
+
+    function deleteModel(index) {
+        const model = models[index];
+        const modelName = model._section || `model_${index + 1}`;
+        deleteModelByName(modelName);
+    }
+
+    // ==================== 添加模型模态框 ====================
+    function showAddModelModal() {
+        document.getElementById('addModelModal').style.display = 'flex';
+        document.getElementById('addModelNameInput').value = '';
+        document.getElementById('addModelSectionInput').value = '';
+        document.getElementById('addModelNameInput').focus();
+    }
+
+    function closeAddModelModal() {
+        document.getElementById('addModelModal').style.display = 'none';
+    }
+
+    async function confirmAddModel() {
+        const nameInput = document.getElementById('addModelNameInput');
+        const sectionInput = document.getElementById('addModelSectionInput');
+        
+        const modelName = nameInput.value.trim();
+        const sectionName = sectionInput.value.trim() || modelName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+        
+        if (!modelName) {
+            showToast('❌ 请输入模型名称', 'error');
+            return;
+        }
+
+        // 检查是否已存在
+        for (const m of models) {
+            if (m._section === sectionName) {
+                showToast('❌ Section 名称已存在：' + sectionName, 'error');
+                return;
+            }
+        }
+
+        // 添加到 models 数组
+        models.push({
+            _section: sectionName,
+            name: modelName
+        });
+
+        // 保存
+        await saveModelsConfig();
+        await loadModelsConfig();
+        await refreshConfigIniPreview();
+        
+        closeAddModelModal();
+        showToast('✅ 模型已添加：' + modelName, 'success');
     }
 
     // ==================== 全局参数渲染 ====================
@@ -1064,6 +1401,41 @@
         }
 
         try {
+            const resp = await fetch('/api/server/models-ini', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: iniContent })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('✅ ' + data.message, 'success');
+            } else {
+                showToast('❌ ' + data.message, 'error');
+            }
+        } catch (e) {
+            showToast('❌ 保存失败：' + e.message, 'error');
+        }
+    }
+
+    async function loadModelsConfig() {
+        try {
+            const resp = await fetch('/api/server/models-ini');
+            const data = await resp.json();
+            if (data.success && data.content) {
+                models = parseIni(data.content);
+                renderModelList();
+            } else {
+                models = [];
+                renderModelList();
+            }
+        } catch (e) {
+            console.error('加载模型配置失败:', e);
+            models = [];
+            renderModelList();
+        }
+    }
+
+        try {
             const resp = await fetch('/api/server/models-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1110,9 +1482,63 @@
     }
 
     async function reloadAll() {
-        await Promise.all([loadGlobalParams(), loadModelsConfig()]);
+        await loadModelsConfig();
         refreshConfigIniPreview();
         showToast('🔄 全部配置已重新加载', 'success');
+    }
+
+    // ==================== models.ini 编辑器 ====================
+    function toggleConfigIniPreview() {
+        const panel = document.querySelector('.config-ini-preview');
+        if (panel) {
+            panel.classList.toggle('open');
+            if (panel.classList.contains('open')) {
+                refreshConfigIniPreview();
+            }
+        }
+    }
+
+    async function refreshConfigIniPreview() {
+        const editor = document.getElementById('configIniEditor');
+        if (!editor) return;
+        editor.placeholder = '加载中...';
+        try {
+            const resp = await fetch('/api/server/models-ini');
+            const data = await resp.json();
+            if (data.success) {
+                editor.value = data.content || '';
+                editor.placeholder = '(models.ini 文件为空)';
+            } else {
+                editor.value = '';
+                editor.placeholder = '❌ ' + (data.message || '加载失败');
+            }
+        } catch (e) {
+            editor.value = '';
+            editor.placeholder = '❌ 加载失败：' + e.message;
+        }
+    }
+
+    async function saveConfigIniContent() {
+        const editor = document.getElementById('configIniEditor');
+        if (!editor) return;
+        const content = editor.value;
+
+        try {
+            const resp = await fetch('/api/server/models-ini', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('✅ models.ini 已保存', 'success');
+                await loadModelsConfig();
+            } else {
+                showToast('❌ ' + data.message, 'error');
+            }
+        } catch (e) {
+            showToast('❌ 保存失败：' + e.message, 'error');
+        }
     }
 
     // ==================== config.ini 编辑器 ====================
@@ -1215,6 +1641,18 @@
                 paramsMeta = metaData.params;
                 sections = metaData.sections;
             }
+
+            // 加载模型配置
+            await loadModelsConfig();
+
+        } catch (e) {
+            console.error('初始化失败:', e);
+            const container = document.getElementById('modelsListBody');
+            if (container) {
+                container.innerHTML = '<div style="color:#e53e3e;padding:20px;">❌ 加载失败：' + e.message + '</div>';
+            }
+        }
+    }
 
             // 自动加载全局参数和模型配置（不显示提示）
             await loadGlobalParams();
