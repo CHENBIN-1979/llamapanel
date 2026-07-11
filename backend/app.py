@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import sys
 import subprocess
@@ -16,6 +17,12 @@ from model_manager import ModelManager
 from config import PROJECT_DIR, LOGS_DIR, ensure_dirs
 
 app = FastAPI(title="LlamaPanel", description="llama.cpp 管理面板")
+
+# 挂载静态文件目录 (CSS / JS / 图片)
+_STATIC_DIR = Path(__file__).parent / "static"
+_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
 installer = LlamaCppInstaller()
 
 # 创建全局单例 ModelManager 并设置到路由模块
@@ -440,324 +447,59 @@ HTML_PAGE = '''
     <title>LlamaPanel - llama.cpp 管理面板</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .nav-bar {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        .nav-bar a {
-            color: white;
-            text-decoration: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.2);
-            transition: all 0.3s;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .nav-bar a:hover {
-            background: rgba(255,255,255,0.3);
-        }
-        .nav-bar a.active {
-            background: white;
-            color: #667eea;
-        }
-        .card {
-            background: white;
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }
-        h1 { color: #333; margin-bottom: 8px; }
-        .subtitle { color: #666; margin-bottom: 24px; }
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-        .status-ok { background: #d4edda; color: #155724; }
-        .status-warning { background: #fff3cd; color: #856404; }
-        .status-building { background: #cce5ff; color: #004085; }
-        button {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-right: 10px;
-            margin-bottom: 10px;
-            transition: all 0.3s;
-        }
-        button:hover { background: #5a67d8; transform: translateY(-1px); }
-        button.danger { background: #e53e3e; }
-        button.danger:hover { background: #c53030; }
-        button.success { background: #38a169; }
-        button.success:hover { background: #2f855a; }
-        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-        .log-viewer {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            font-family: 'Courier New', monospace;
-            padding: 16px;
-            border-radius: 8px;
-            height: 400px;
-            overflow-y: auto;
-            font-size: 12px;
-        }
-        .log-line {
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            padding: 3px 5px;
-            border-bottom: 1px solid #2a2a2a;
-            white-space: pre-wrap;
-            word-break: break-all;
-            margin: 0;
-        }
-        .log-empty {
-            height: 5px;
-            border-bottom: none;
-        }
-        .log-error {
-            color: #ff6b6b;
-            background-color: rgba(255, 107, 107, 0.1);
-        }
-        .log-warning {
-            color: #ffd93d;
-        }
-        .log-success {
-            color: #6bcb77;
-        }
-        .log-command {
-            color: #4d9de0;
-        }
-        .log-separator {
-            color: #c9c9c9;
-            font-weight: bold;
-            border-bottom: 1px solid #555;
-            margin: 5px 0;
-            background-color: #2a2a2a;
-        }
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-top: 16px;
-        }
-        .info-item {
-            background: #f7fafc;
-            padding: 12px;
-            border-radius: 8px;
-        }
-        .info-label { font-size: 12px; color: #718096; margin-bottom: 4px; }
-        .info-value { font-size: 16px; font-weight: 600; color: #2d3748; word-break: break-all; }
-        .loading {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #e2e8f0;
-            border-top-color: #667eea;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .log-controls { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
-        .auto-refresh { font-size: 12px; color: #666; display: flex; align-items: center; gap: 5px; }
-        hr { margin: 15px 0; border: none; border-top: 1px solid #e2e8f0; }
-        
-        .log-viewer::-webkit-scrollbar {
-            width: 8px;
-        }
-        .log-viewer::-webkit-scrollbar-track {
-            background: #1e1e1e;
-            border-radius: 4px;
-        }
-        .log-viewer::-webkit-scrollbar-thumb {
-            background: #555;
-            border-radius: 4px;
-        }
-        .log-viewer::-webkit-scrollbar-thumb:hover {
-            background: #777;
-        }
-        .page-content {
-            transition: opacity 0.3s ease;
-        }
-        .hidden {
-            display: none;
-        }
-        .button-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        /* ==================== 更新日志模态框 ==================== */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.6);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(4px);
-        }
-        .modal-overlay.active {
-            display: flex;
-        }
-        .modal-box {
-            background: white;
-            border-radius: 16px;
-            padding: 24px;
-            width: 90%;
-            max-width: 900px;
-            max-height: 85vh;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
-            animation: modalIn 0.3s ease;
-        }
-        @keyframes modalIn {
-            from { opacity: 0; transform: scale(0.95) translateY(-10px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-            flex-shrink: 0;
-        }
-        .modal-header h2 {
-            font-size: 18px;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .modal-header .modal-status {
-            font-size: 13px;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-weight: 500;
-        }
-        .modal-status-running {
-            background: #cce5ff;
-            color: #004085;
-        }
-        .modal-status-success {
-            background: #d4edda;
-            color: #155724;
-        }
-        .modal-status-fail {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        .modal-close-btn {
-            background: #e2e8f0;
-            color: #4a5568;
-            border: none;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-        .modal-close-btn:hover {
-            background: #cbd5e0;
-            transform: none;
-        }
-        .modal-body {
-            flex: 1;
-            overflow-y: auto;
-            min-height: 200px;
-        }
-        .modal-footer {
-            flex-shrink: 0;
-            padding-top: 12px;
-            margin-top: 12px;
-            border-top: 1px solid #e2e8f0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 13px;
-            color: #718096;
-        }
-        .modal-footer .spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid #e2e8f0;
-            border-top-color: #667eea;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-            margin-right: 6px;
-            vertical-align: middle;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <div class="container">
-        <div class="nav-bar">
-            <a onclick="showPage('home')" id="navHome" class="active">🏠 主页</a>
-            <a onclick="showPage('download')" id="navDownload">📥 模型下载</a>
-            <a onclick="showPage('local')" id="navLocal">💾 本地模型</a>
-            <a onclick="showPage('params')" id="navParams">⚙️ 参数配置</a>
-            <a onclick="showPage('settings')" id="navSettings">🦙 llama.cpp Server</a>
-            <a onclick="showPage('system')" id="navSystem">📋 系统信息</a>
+<div class="app-layout">
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <span class="sidebar-brand-text">LlamaPanel</span>
         </div>
-        
-        <!-- 主页内容 -->
+        <nav class="sidebar-nav">
+            <a onclick="showPage('settings')" id="navSettings">llama运行</a>
+            <a onclick="showPage('download')" id="navDownload">模型下载</a>
+            <a onclick="showPage('local')" id="navLocal">管理已下载模型</a>
+            <a onclick="showPage('params')" id="navParams">参数配置</a>
+            <a onclick="showPage('home')" id="navHome" class="active">安装与编译</a>
+            <a onclick="showPage('system')" id="navSystem">系统信息</a>
+        </nav>
+    </aside>
+
+    <main class="container">
+
+        <!-- 安装与编译 内容 -->
         <div id="homePage" class="page-content">
             <div class="card">
-                <h1>🦙 LlamaPanel</h1>
-                <p class="subtitle">llama.cpp 图形化管理面板 - 无需命令行</p>
-                
+                <h1>LlamaPanel</h1>
+                <p class="subtitle">llama.cpp 图形化管理面板 · 无需命令行</p>
+
                 <div class="button-group">
-                    <button onclick="installLlama()" id="installBtn">🚀 完整安装 llama.cpp</button>
-                    <button onclick="updateLlama()" id="updateBtn">🔄 更新llama.cpp</button>
-                    <button onclick="rebuildLlama()" id="rebuildBtn">🔨 重新编译</button>
-                    <button onclick="cleanBuild()" class="danger" id="cleanBtn">🧹 清理编译</button>
-                    <button onclick="deleteAll()" class="danger" id="deleteBtn">🗑️ 删除所有</button>
-                    <button onclick="updateLlamaPanel()" class="success" id="updatePanelBtn">🔄 更新 LlamaPanel</button>
+                    <button onclick="installLlama()" id="installBtn" class="primary">完整安装 llama.cpp</button>
+                    <button onclick="updateLlama()" id="updateBtn">更新 llama.cpp</button>
+                    <button onclick="rebuildLlama()" id="rebuildBtn">重新编译</button>
+                    <button onclick="cleanBuild()" class="danger" id="cleanBtn">清理编译</button>
+                    <button onclick="deleteAll()" class="danger" id="deleteBtn">删除所有</button>
+                    <button onclick="updateLlamaPanel()" id="updatePanelBtn">更新 LlamaPanel</button>
                 </div>
             </div>
-            
+
             <div class="card">
-                <h2>📊 安装状态</h2>
+                <h2>安装状态</h2>
                 <div id="statusInfo">
-                    <div class="loading"></div> 加载中...
+                    <span class="loading"></span> 加载中…
                 </div>
             </div>
-            
+
             <div class="card">
-                <h2>📋 安装日志</h2>
+                <h2>安装日志</h2>
                 <div class="log-controls">
-                    <button onclick="refreshLog()" style="margin-bottom: 0;">🔄 刷新</button>
+                    <button onclick="refreshLog()" class="small">刷新</button>
                     <label class="auto-refresh">
                         <input type="checkbox" id="autoRefresh"> 自动刷新 (2秒)
                     </label>
                 </div>
                 <div id="logContent" class="log-viewer">
-                    加载日志中...
+                    加载日志中…
                 </div>
             </div>
         </div>
@@ -767,7 +509,7 @@ HTML_PAGE = '''
             <div class="modal-box">
                 <div class="modal-header">
                     <h2>
-                        <span>🔄 LlamaPanel 更新</span>
+                        <span>LlamaPanel 更新</span>
                         <span id="updateModalStatus" class="modal-status modal-status-running">更新中...</span>
                     </h2>
                     <button class="modal-close-btn" onclick="closeUpdateModal()" id="updateModalCloseBtn" disabled title="更新完成后可关闭">✕</button>
@@ -789,7 +531,7 @@ HTML_PAGE = '''
             <iframe src="/api/download/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
         
-        <!-- 本地模型页面容器 -->
+        <!-- 管理已下载模型 页面容器 -->
         <div id="localPage" class="page-content hidden">
             <iframe src="/api/local/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
@@ -1072,7 +814,7 @@ HTML_PAGE = '''
                 alert(result.message);
                 startMonitoring();
                 btn.disabled = false;
-                btn.innerHTML = '🚀 完整安装 llama.cpp';
+                btn.innerHTML = '完整安装 llama.cpp';
             }
         }
         
@@ -1085,7 +827,7 @@ HTML_PAGE = '''
                 alert(result.message);
                 refreshStatus();
                 btn.disabled = false;
-                btn.innerHTML = '🔄 更新llama.cpp';
+                btn.innerHTML = '更新 llama.cpp';
             }
         }
         
@@ -1098,7 +840,7 @@ HTML_PAGE = '''
                 alert(result.message);
                 refreshStatus();
                 btn.disabled = false;
-                btn.innerHTML = '🔨 重新编译';
+                btn.innerHTML = '重新编译';
             }
         }
         
@@ -1120,7 +862,7 @@ HTML_PAGE = '''
                 refreshStatus();
                 refreshLog();
                 btn.disabled = false;
-                btn.innerHTML = '🗑️ 删除所有';
+                btn.innerHTML = '删除所有';
             }
         }
         
@@ -1130,7 +872,7 @@ HTML_PAGE = '''
         let updateStartTime = null;
         
         async function updateLlamaPanel() {
-            if (confirm('🔄 更新 LlamaPanel 面板？\\n\\n将从 GitHub 拉取最新代码并更新依赖。\\n如果系统配置了 NOPASSWD sudo，服务将自动重启。\\n继续吗？')) {
+            if (confirm('更新 LlamaPanel 面板？\\n\\n将从 GitHub 拉取最新代码并更新依赖。\\n如果系统配置了 NOPASSWD sudo，服务将自动重启。\\n继续吗？')) {
                 const btn = document.getElementById('updatePanelBtn');
                 btn.disabled = true;
                 btn.innerHTML = '<span class="loading"></span> 更新中...';
@@ -1149,14 +891,14 @@ HTML_PAGE = '''
                         updateModalSetFooter('❌ ' + result.message, true);
                         enableModalCloseAfterDelay(3000);
                         btn.disabled = false;
-                        btn.innerHTML = '🔄 更新 LlamaPanel';
+                        btn.innerHTML = '更新 LlamaPanel';
                     }
                 } catch(e) {
                     updateModalSetStatus('fail', '请求失败');
                     updateModalSetFooter('❌ 请求失败: ' + e.message, true);
                     enableModalCloseAfterDelay(3000);
                     btn.disabled = false;
-                    btn.innerHTML = '🔄 更新 LlamaPanel';
+                    btn.innerHTML = '更新 LlamaPanel';
                 }
             }
         }
@@ -1184,7 +926,7 @@ HTML_PAGE = '''
             const btn = document.getElementById('updatePanelBtn');
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '🔄 更新 LlamaPanel';
+                btn.innerHTML = '更新 LlamaPanel';
             }
         }
         
@@ -1305,7 +1047,7 @@ HTML_PAGE = '''
                             enableModalCloseAfterDelay(2000);
                             if (btn) {
                                 btn.disabled = false;
-                                btn.innerHTML = '🔄 更新 LlamaPanel';
+                                btn.innerHTML = '更新 LlamaPanel';
                             }
                             // 停止状态轮询
                             stopUpdateStatusPolling();
@@ -1323,7 +1065,7 @@ HTML_PAGE = '''
                                     updateModalSetFooter('⏸ 已暂停，您可以稍后手动刷新页面', true);
                                     if (btn) {
                                         btn.disabled = false;
-                                        btn.innerHTML = '🔄 更新 LlamaPanel';
+                                        btn.innerHTML = '更新 LlamaPanel';
                                     }
                                     stopUpdateStatusPolling();
                                 }
@@ -1336,7 +1078,7 @@ HTML_PAGE = '''
                         enableModalCloseAfterDelay(5000);
                         if (btn) {
                             btn.disabled = false;
-                            btn.innerHTML = '🔄 更新 LlamaPanel';
+                            btn.innerHTML = '更新 LlamaPanel';
                         }
                         // 5秒后自动关闭模态框
                         setTimeout(() => {
@@ -1380,7 +1122,7 @@ HTML_PAGE = '''
             const btn = document.getElementById('updatePanelBtn');
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '🔄 更新 LlamaPanel';
+                btn.innerHTML = '更新 LlamaPanel';
             }
         }
         
@@ -1397,6 +1139,8 @@ HTML_PAGE = '''
         // 统一使用5秒间隔刷新状态（避免多个定时器冲突）
         setInterval(refreshStatus, 5000);
     </script>
+    </main>
+</div>
 </body>
 </html>
 '''
