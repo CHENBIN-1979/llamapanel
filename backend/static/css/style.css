@@ -494,10 +494,10 @@ main.container {
 }
 
 .sidebar-arrow {
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 700;
     color: var(--color-text-muted);
-    margin-left: auto;     /* 强制推到最右，不依赖 space-between */
+    margin-left: auto;
     padding-left: 8px;
     transition: transform 0.15s;
     user-select: none;
