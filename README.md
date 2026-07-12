@@ -63,6 +63,30 @@ python app.py
 
  http://主机IP:8000
 
+## 更新到最新版本（git pull）
+
+```bash
+# 1. 進到你的 llamapanel 安裝目錄（可能是 /opt/llamapanel 或 ~/llamapanel，看你當初裝哪）
+cd /your/llamapanel/path
+
+# 2. 第一次更新會問 dubious ownership，執行：
+sudo git config --global --add safe.directory $(pwd)
+
+# 3. 拉新代碼
+sudo git pull
+
+# 4. 重啟服務才生效（Python module import-time frozen）
+sudo systemctl restart llamapanel
+```
+
+如果「重啟後還是沒生效」—檢查 service 跑的是不是**同一個目錄**：
+```bash
+sudo systemctl show llamapanel -p WorkingDirectory   # 看服務用哪個目錄
+sudo journalctl -u llamapanel --since "1 minute ago"   # 看實際啟動的 Python 載入的 .py 路徑
+```
+
+兩者不一致 = 你 git pull 拉到的是**另一個目錄**。請確認 WorkingDirectory 是哪個目錄，然後 `cd 到那個目錄 git pull`。
+
 ## 版本更新
 
 1. 点击「更新版本」（update_llama_cpp() 只更新代码，不更新 llama-server 二进制文件）

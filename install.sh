@@ -24,13 +24,22 @@ fi
 # 创建项目目录
 sudo mkdir -p "$PROJECT_DIR"
 
-# 复制项目文件（跳过 rsync 如果已经在目标目录中）
+# 复制项目文件：优先就地安裝（PROJECT_DIR = CURRENT_DIR），
+# 避免「git clone 跟 install 跑在不同目錄」的目錄衝突問題。
 CURRENT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ "$CURRENT_DIR" = "$PROJECT_DIR" ]; then
-    echo "📁 已在 $PROJECT_DIR 目录，跳过复制"
+if [ -f "$CURRENT_DIR/backend/app.py" ]; then
+    # 偵測到 source code（backend/app.py 存在）→ 就地安裝
+    PROJECT_DIR="$CURRENT_DIR"
+    echo "✓ 偵測到 source code，將就地安裝在 $PROJECT_DIR"
+elif [ "$CURRENT_DIR" = "$PROJECT_DIR" ]; then
+    # 兼容舊邏輯：在 /opt/llamapanel 跑且沒 source code（極少見）
+    echo "📁 已在 $PROJECT_DIR 目錄，跳過複製"
 else
-    echo "📁 复制项目文件..."
-    rsync -av --exclude='venv' --exclude='logs' --exclude='data' --exclude='__pycache__' --exclude='*.py[cod]' "$CURRENT_DIR/" "$PROJECT_DIR/"
+    echo "❌ install.sh 沒找到 source code（backend/app.py 不存在）"
+    echo "   請在 git clone 出來的 llamapanel 目錄執行此腳本："
+    echo "     cd /your/path/llamapanel"
+    echo "     sudo ./install.sh"
+    exit 1
 fi
 
 # 创建数据目录（与项目代码分离）
