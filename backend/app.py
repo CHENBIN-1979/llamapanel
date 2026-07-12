@@ -943,10 +943,6 @@ HTML_PAGE = '''
         
         async function updateLlamaPanel() {
             if (confirm('更新 LlamaPanel 面板？\\n\\n将从 GitHub 拉取最新代码并更新依赖。\\n如果系统配置了 NOPASSWD sudo，服务将自动重启。\\n继续吗？')) {
-                const btn = document.getElementById('updatePanelBtn');
-                btn.disabled = true;
-                btn.innerHTML = '<span class="loading"></span> 更新中...';
-                
                 // 打开模态框
                 openUpdateModal();
                 
@@ -960,15 +956,11 @@ HTML_PAGE = '''
                         updateModalSetStatus('fail', '启动失败');
                         updateModalSetFooter('❌ ' + result.message, true);
                         enableModalCloseAfterDelay(3000);
-                        btn.disabled = false;
-                        btn.innerHTML = '更新 LlamaPanel';
                     }
                 } catch(e) {
                     updateModalSetStatus('fail', '请求失败');
                     updateModalSetFooter('❌ 请求失败: ' + e.message, true);
                     enableModalCloseAfterDelay(3000);
-                    btn.disabled = false;
-                    btn.innerHTML = '更新 LlamaPanel';
                 }
             }
         }
@@ -992,12 +984,6 @@ HTML_PAGE = '''
             if (modal) modal.classList.remove('active');
             // 停止所有轮询
             stopUpdatePolling();
-            // 恢复按钮
-            const btn = document.getElementById('updatePanelBtn');
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '更新 LlamaPanel';
-            }
         }
         
         function updateModalSetStatus(type, text) {
