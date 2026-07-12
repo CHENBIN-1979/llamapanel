@@ -505,6 +505,7 @@ HTML_PAGE = '''
                 <h2>安装日志</h2>
                 <div class="log-controls">
                     <button onclick="refreshLog()" class="small">刷新</button>
+                    <button onclick="clearLog()" class="small danger">清屏</button>
                     <label class="auto-refresh">
                         <input type="checkbox" id="autoRefresh"> 自动刷新 (2秒)
                     </label>
@@ -872,6 +873,13 @@ HTML_PAGE = '''
                 console.error('刷新日志失败:', e);
                 const logDiv = document.getElementById('logContent');
                 if (logDiv) logDiv.innerHTML = '加载日志失败: ' + e.message;
+            }
+        }
+        
+        function clearLog() {
+            const logDiv = document.getElementById('logContent');
+            if (logDiv) {
+                logDiv.innerHTML = '<div class=\"log-line\">日志已清屏</div>';
             }
         }
         

@@ -596,7 +596,7 @@ class LlamaCppInstaller:
                 self._latest_version = latest
         
         current_time_val = time.time()
-        if current_time_val - self._last_check_time > 86400:
+        if current_time_val - self._last_check_time > 2592000:  # 30天檢測一次
             self._last_check_time = current_time_val
             update_info = self.check_for_updates()
             if update_info:
