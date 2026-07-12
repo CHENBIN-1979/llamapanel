@@ -1235,6 +1235,15 @@ HTML_PAGE = '''
             if (modal) modal.classList.remove('active');
             // 停止所有轮询
             stopUpdatePolling();
+            // 恢复 iframe 内的按钮状态
+            const iframe = document.querySelector('#systemPage iframe');
+            if (iframe && iframe.contentDocument) {
+                const btn = iframe.contentDocument.getElementById('updatePanelBtn');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '更新 LlamaPanel';
+                }
+            }
         }
         
         function updateModalSetStatus(type, text) {
@@ -1333,7 +1342,6 @@ HTML_PAGE = '''
         async function refreshUpdateStatus() {
             try {
                 const status = await fetchAPI('/api/update_panel_status');
-                const btn = document.getElementById('updatePanelBtn');
                 
                 if (!status.running) {
                     // 更新已完成，停止日志轮询（但保留状态轮询用于最终状态更新）
@@ -1341,6 +1349,11 @@ HTML_PAGE = '''
                         clearInterval(updateLogRefreshInterval);
                         updateLogRefreshInterval = null;
                     }
+                    
+                    // 恢复 iframe 内的按钮状态
+                    const uiframe = document.querySelector('#systemPage iframe');
+                    const ubtn = uiframe && uiframe.contentDocument
+                        ? uiframe.contentDocument.getElementById('updatePanelBtn') : null;
                     
                     // 最后再刷新一次日志确保看到完整内容
                     await refreshUpdateLog();
@@ -1352,10 +1365,7 @@ HTML_PAGE = '''
                             updateModalSetStatus('success', '已是最新版本 ✅');
                             updateModalSetFooter('✅ 已经是最新版本，无需更新', true);
                             enableModalCloseAfterDelay(2000);
-                            if (btn) {
-                                btn.disabled = false;
-                                btn.innerHTML = '更新 LlamaPanel';
-                            }
+                            if (ubtn) { ubtn.disabled = false; ubtn.innerHTML = '更新 LlamaPanel'; }
                             // 停止状态轮询
                             stopUpdateStatusPolling();
                         } else {
@@ -1370,10 +1380,7 @@ HTML_PAGE = '''
                                     location.reload();
                                 } else {
                                     updateModalSetFooter('⏸ 已暂停，您可以稍后手动刷新页面', true);
-                                    if (btn) {
-                                        btn.disabled = false;
-                                        btn.innerHTML = '更新 LlamaPanel';
-                                    }
+                                    if (ubtn) { ubtn.disabled = false; ubtn.innerHTML = '更新 LlamaPanel'; }
                                     stopUpdateStatusPolling();
                                 }
                             }, 1500);
@@ -1383,10 +1390,7 @@ HTML_PAGE = '''
                         updateModalSetStatus('fail', '更新失败 ❌');
                         updateModalSetFooter('❌ ' + (status.message || '更新失败，请检查日志'), true);
                         enableModalCloseAfterDelay(5000);
-                        if (btn) {
-                            btn.disabled = false;
-                            btn.innerHTML = '更新 LlamaPanel';
-                        }
+                        if (ubtn) { ubtn.disabled = false; ubtn.innerHTML = '更新 LlamaPanel'; }
                         // 5秒后自动关闭模态框
                         setTimeout(() => {
                             closeUpdateModal();
