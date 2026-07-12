@@ -96,6 +96,9 @@ llamapanel ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart llamapanel
 SUDOERS
 sudo chmod 440 /etc/sudoers.d/llamapanel
 
+# 忽略 git 的檔案權限變化（避免 chown 造成 git pull 衝突）
+cd "$PROJECT_DIR" && git config core.fileMode false
+
 echo ""
 echo "✅ 安装完成！"
 echo ""
