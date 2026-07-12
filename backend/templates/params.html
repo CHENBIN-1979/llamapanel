@@ -2,19 +2,16 @@
     <h1>参数配置</h1>
     <p class="subtitle">模型参数 → models.ini</p>
 
-    <!-- 操作按钮栏 -->
-    <div class="action-bar">
-        <button class="btn btn-success" onclick="showAddModelModal()">添加模型</button>
-        <button class="btn btn-secondary" onclick="reloadAll()">重新加载</button>
-    </div>
-
-    <!-- 模型列表区域 -->
-    <div class="models-list-area">
-        <div class="models-list-header">
-            <span>模型列表</span>
-        </div>
-        <div class="models-list-body" id="modelsListBody">
-            <div id="modelsListLoading" style="padding:20px;text-align:center;color:#718096;"><div class="loading"></div> 加载模型列表...</div>
+    <!-- 模型列表（每個模型一個獨立卡片） -->
+    <div class="models-grid" id="modelsGrid">
+        <div class="model-card empty" id="emptyModelCard">
+            <div class="model-card-header">
+                <span class="model-card-title">添加新模型</span>
+            </div>
+            <div class="model-card-body">
+                <div class="model-card-placeholder">点击下方按钮添加第一个模型</div>
+                <button class="btn btn-primary" onclick="showAddModelModal()">添加模型</button>
+            </div>
         </div>
     </div>
 
@@ -118,22 +115,7 @@
         flex-wrap: wrap;
     }
 
-    /* ===== 模型卡片 ===== */
-    .model-card {
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        margin-bottom: 16px;
-        overflow: hidden;
-        background: #fff;
-    }
-    .model-card-badge {
-        display: inline-block;
-        font-size: 11px;
-        padding: 2px 8px;
-        border-radius: 6px;
-        font-weight: 500;
-        font-family: monospace;
-    }
+    .config-ini-filepath { font-size: 11px; color: #6b7280; font-family: monospace; }
 
     /* ===== 参数分区 ===== */
     .params-section {
@@ -568,7 +550,85 @@
     }
     .config-ini-filepath { font-size: 11px; color: #6b7280; font-family: monospace; }
 
-    /* ===== 模型列表区 ===== */
+    /* ===== 模型卡片網格（每個模型一格） ===== */
+    .models-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .model-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        background: #fff;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    .model-card.empty {
+        border-style: dashed;
+        background: #f9fafb;
+    }
+    .model-card-header {
+        padding: 8px 12px;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .model-card-title {
+        font-weight: 600;
+        font-size: 13px;
+        color: #1f2937;
+    }
+    .model-card-section {
+        font-size: 11px;
+        font-family: monospace;
+        color: #6b7280;
+        background: #f3f4f6;
+        padding: 1px 6px;
+        border-radius: 3px;
+    }
+    .model-card-body {
+        padding: 12px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .model-card-placeholder {
+        font-size: 12px;
+        color: #9ca3af;
+        text-align: center;
+        padding: 8px 0;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .model-card-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 4px;
+    }
+    .model-card-actions .btn {
+        flex: 1;
+        padding: 6px 8px;
+        font-size: 12px;
+    }
+    .model-card .btn-danger-card {
+        background: #fff;
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+    .model-card .btn-danger-card:hover {
+        background: #dc2626;
+        color: white;
+        border-color: #dc2626;
+    }
+
+    /* 保留舊 class 以防 JS 還用到 */
     .models-list-area {
         border: 1px solid #e5e7eb;
         border-radius: 6px;
@@ -782,35 +842,51 @@
     let currentModelName = null;
 
     function renderModelList() {
-        const container = document.getElementById('modelsListBody');
-        const loading = document.getElementById('modelsListLoading');
-        if (!container) return;
+        // 兼容舊 DOM（如果還存在）和新 DOM（modelsGrid）
+        const oldContainer = document.getElementById('modelsListBody');
+        if (oldContainer) {
+            const loading = document.getElementById('modelsListLoading');
+            if (loading) loading.style.display = 'none';
+        }
 
-        if (loading) loading.style.display = 'none';
+        const grid = document.getElementById('modelsGrid');
+        if (!grid) return;
+
+        // 保留空狀態卡片，其餘重新生成
+        const emptyCard = grid.querySelector('#emptyModelCard');
+        let html = '';
+        if (emptyCard) html += emptyCard.outerHTML;
 
         if (models.length === 0) {
-            container.innerHTML = '<div style="text-align:center;padding:40px;color:#718096;">📭 暂无模型配置，点击「添加模型」开始配置</div>';
-            document.getElementById('currentModelParamsArea').style.display = 'none';
+            grid.innerHTML = html;
+            const cma = document.getElementById('currentModelParamsArea');
+            if (cma) cma.style.display = 'none';
             return;
         }
 
-        let html = '';
         for (let i = 0; i < models.length; i++) {
             const model = models[i];
             const sectionName = model._section || `model_${i + 1}`;
             const displayName = model.name || sectionName;
-            const isSelected = currentModelName === sectionName ? 'selected' : '';
+            const isActive = currentModelName === sectionName ? 'active' : '';
             
-            html += `<div class="model-list-item ${isSelected}" onclick="selectModel('${escapeHtml(sectionName)}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:8px;cursor:pointer;transition:all 0.2s;background:${isSelected ? '#ebf4ff' : 'white'};">`;
-            html += `    <div style="display:flex;align-items:center;gap:10px;">`;
-            html += `        <span style="font-weight:500;font-size:14px;color:#2d3748;">📋 ${escapeHtml(displayName)}</span>`;
-            html += `        <span style="font-size:11px;color:#718096;font-family:monospace;background:#f7fafc;padding:2px 6px;border-radius:4px;">[${escapeHtml(sectionName)}]</span>`;
+            html += `<div class="model-card ${isActive}" onclick="selectModel('${escapeHtml(sectionName)}')">`;
+            html += `    <div class="model-card-header">`;
+            html += `        <span class="model-card-title">${escapeHtml(displayName)}</span>`;
+            html += `        <span class="model-card-section">[${escapeHtml(sectionName)}]</span>`;
             html += `    </div>`;
-            html += `    <button class="btn-sm btn-sm-danger" onclick="event.stopPropagation();deleteModelByName('${escapeHtml(sectionName)}')" style="background:#e53e3e;color:white;padding:4px 10px;border:none;border-radius:5px;cursor:pointer;font-size:12px;">🗑️</button>`;
+            html += `    <div class="model-card-body">`;
+            html += `        <div class="model-card-actions">`;
+            html += `            <button class="btn btn-primary" onclick="event.stopPropagation();editModelParams('${escapeHtml(sectionName)}')">编辑参数</button>`;
+            html += `            <button class="btn btn-danger-card" onclick="event.stopPropagation();deleteModelByName('${escapeHtml(sectionName)}')">删除</button>`;
+            html += `        </div>`;
+            html += `    </div>`;
             html += `</div>`;
         }
 
-        container.innerHTML = html;
+        grid.innerHTML = html;
+        const cma = document.getElementById('currentModelParamsArea');
+        if (cma) cma.style.display = 'none';
     }
 
     async function selectModel(modelName) {
@@ -825,6 +901,14 @@
         
         // 加载参数
         await loadModelParams(modelName);
+    }
+
+    async function editModelParams(modelName) {
+        // 點擊「编辑参数」按鈕：選中模型並載入參數
+        await selectModel(modelName);
+        // 捲動到參數區
+        const paramsArea = document.getElementById('currentModelParamsArea');
+        if (paramsArea) paramsArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     async function loadModelParams(modelName) {
