@@ -506,18 +506,18 @@
                 if (data.success) {
                     if (data.running) {
                         dot.className = 'status-dot status-dot-running';
-                        text.textContent = '🟢 运行中';
+                        text.textContent = '运行中';
                         pid.textContent = 'PID: ' + (data.pid || '?');
-                        elapsed.textContent = '⏱ 已运行: ' + (data.elapsed || '刚刚');
+                        elapsed.textContent = '已运行: ' + (data.elapsed || '刚刚');
                         path.textContent = data.server_path || '';
                         if (startBtn) startBtn.disabled = true;
                         if (stopBtn) stopBtn.disabled = false;
                     } else {
                         dot.className = 'status-dot status-dot-stopped';
-                        text.textContent = '🔴 已停止';
+                        text.textContent = '已停止';
                         pid.textContent = '';
                         elapsed.textContent = '';
-                        path.textContent = data.server_path ? '📎 ' + data.server_path : '❌ 未找到 llama-server，请先编译';
+                        path.textContent = data.server_path ? data.server_path : '未找到 llama-server，请先编译';
                         if (startBtn) startBtn.disabled = false;
                         if (stopBtn) stopBtn.disabled = true;
                     }
