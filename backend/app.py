@@ -664,6 +664,13 @@ HTML_PAGE = '''
 
         // 切换系统信息子页（path/disk/features/tips/about）
         function showSystemSubPage(sub) {
+            // 如果不在系统信息页，先切换过去
+            if (systemPage.classList.contains('hidden')) {
+                showPage('system');
+                // showPage 会再调一次 showSystemSubPage，所以这里 return
+                return;
+            }
+
             // 切換 sidebar 子導航 active 狀態
             const subnavItems = ['sysNavPaths', 'sysNavDisk', 'sysNavFeatures', 'sysNavTips', 'sysNavAbout'];
             subnavItems.forEach(id => {
