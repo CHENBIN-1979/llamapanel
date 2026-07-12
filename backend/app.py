@@ -1264,13 +1264,26 @@ async def get_log():
 
 @app.post("/api/clear_log")
 async def clear_log():
-    """清空安装日志文件"""
+    """清空安装日志文件，自动备份旧日志"""
     log_file = installer.log_file
     try:
+        # 先备份旧日志（带时间戳）
+        backup_dir = log_file.parent / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        
+        if log_file.exists() and log_file.stat().st_size > 0:
+            timestamp = time.strftime("%Y-%m-%d_%H%M%S")
+            backup_name = f"install.log.{timestamp}"
+            backup_path = backup_dir / backup_name
+            
+            import shutil
+            shutil.copy2(str(log_file), str(backup_path))
+            
         # 清空日志文件（不删除文件本身）
         with open(log_file, 'w', encoding='utf-8') as f:
             f.write("")
-        return {"success": True, "message": "日志已清空"}
+            
+        return {"success": True, "message": "日志已清空（旧日志已备份）"}
     except Exception as e:
         return {"success": False, "message": f"清空日志失败: {e}"}
 
