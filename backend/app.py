@@ -447,14 +447,14 @@ HTML_PAGE = '''
     <title>LlamaPanel - llama.cpp 管理面板</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/css/style.css?v=6">
+    <link rel="stylesheet" href="/static/css/style.css?v=7">
 </head>
 <body>
 <div class="app-layout">
     <aside class="sidebar">
         <div class="sidebar-brand">
             <span class="sidebar-brand-text">LlamaPanel</span>
-            <p class="brand-subtitle">llama.cpp 图形化管理面板 · 无需命令行</p>
+            <p class="brand-subtitle">llama.cpp 图形化管理面板</p>
         </div>
         <nav class="sidebar-nav">
             <a onclick="showPage('settings')" id="navSettings" class="active">llama运行</a>
