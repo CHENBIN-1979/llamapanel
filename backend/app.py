@@ -454,6 +454,7 @@ HTML_PAGE = '''
     <aside class="sidebar">
         <div class="sidebar-brand">
             <span class="sidebar-brand-text">LlamaPanel</span>
+            <p class="brand-subtitle">llama.cpp 图形化管理面板 · 无需命令行</p>
         </div>
         <nav class="sidebar-nav">
             <a onclick="showPage('settings')" id="navSettings" class="active">llama运行</a>
