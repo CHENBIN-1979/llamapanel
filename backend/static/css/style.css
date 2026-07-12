@@ -494,7 +494,7 @@ main.container {
 }
 
 .sidebar-arrow {
-    font-size: 18px;
+    font-size: 24px;
     font-weight: 700;
     color: var(--color-text-muted);
     margin-left: auto;
