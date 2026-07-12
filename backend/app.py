@@ -228,6 +228,62 @@ def _fix_git_permissions_writable(log_func, git_dir_path):
     return False
 
 
+def _force_fix_git_permissions(log_func, git_dir_path):
+    """強制修復 .git 目錄權限，不依賴寫測試"""
+    import pwd, grp
+    
+    # 1. 嘗試 sudo chmod -R 777 整個 .git
+    for cmd, desc in [
+        (['sudo', '-n', 'chmod', '-R', '777', git_dir_path], "sudo chmod -R 777 .git"),
+        (['chmod', '-R', '777', git_dir_path], "chmod -R 777 .git"),
+        (['sudo', '-n', 'chmod', '-R', 'a+w', git_dir_path], "sudo chmod -R a+w .git"),
+    ]:
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if r.returncode == 0:
+                log_func(f"  ✅ {desc} 成功")
+                return
+        except:
+            pass
+    
+    # 2. 嘗試 sudo chown 改為項目擁有者
+    try:
+        project_dir = os.path.dirname(os.path.abspath(git_dir_path))
+        uid = os.stat(project_dir).st_uid
+        owner = pwd.getpwuid(uid).pw_name
+        gid = os.stat(project_dir).st_gid
+        group = grp.getgrgid(gid).gr_name
+        
+        chown_cmd = ['sudo', '-n', 'chown', '-R', f'{owner}:{group}', git_dir_path]
+        r = subprocess.run(chown_cmd, capture_output=True, text=True, timeout=30)
+        if r.returncode == 0:
+            log_func(f"  ✅ sudo chown .git → {owner}:{group} 成功")
+            return
+    except Exception as e:
+        log_func(f"  ⚠️ sudo chown 失敗: {e}")
+    
+    # 3. 嘗試自動更新 sudoers 規則（sudo 組 NOPASSWD 權限）
+    rules = [
+        f'llamapanel ALL=(ALL) NOPASSWD: /bin/chmod -R 777 {git_dir_path}\n',
+        f'llamapanel ALL=(ALL) NOPASSWD: /bin/chown -R llamapanel {git_dir_path}\n',
+    ]
+    try:
+        import shlex
+        for rule in rules:
+            escaped = shlex.quote(rule).strip("'")
+            sudocmd = f'echo {shlex.quote(rule)} | sudo -n tee -a /etc/sudoers.d/llamapanel'
+            r = subprocess.run(
+                ['sudo', '-n', 'sh', '-c', sudocmd],
+                capture_output=True, text=True, timeout=15
+            )
+            if r.returncode == 0:
+                log_func(f"  ✅ 已添加 sudoers 規則")
+    except:
+        pass
+    
+    log_func("  ⚠️ 无法自动修复 .git 权限，请手动执行: sudo chmod -R 777 " + git_dir_path)
+
+
 # 更新 LlamaPanel 的函数
 def update_llamapanel():
     """更新 LlamaPanel 自身（增强版：状态跟踪 + 更好错误处理）"""
@@ -296,13 +352,12 @@ def update_llamapanel():
         # 使用实际创建临时文件来验证，确保 git 操作不会因 Permission denied 失败
         try:
             if os.path.isdir(git_dir_real):
-                git_fixed = _fix_git_permissions_writable(log_msg, git_dir_real)
-                if git_fixed:
-                    log_msg("✅ .git 目录权限正常，可以继续更新")
-                else:
-                    log_msg("⚠️ .git 目录权限可能不足，但仍将尝试继续更新")
+                # ⚡ 強制修復 .git 權限（不依賴 _can_write 檢測，直接執行）
+                log_msg("🔧 强制修复 .git 目录权限...")
+                _force_fix_git_permissions(log_msg, git_dir_real)
+                log_msg("✅ .git 目录权限已修复")
         except Exception as perm_e:
-            log_msg(f"⚠️ 检查和修复 .git 权限时出现异常（不影响更新）: {perm_e}")
+            log_msg(f"⚠️ 修复 .git 权限时出现异常（不影响更新）: {perm_e}")
         
         # 获取远程仓库地址
         remote_result = subprocess.run(
