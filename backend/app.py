@@ -77,6 +77,13 @@ def _fix_git_permissions_writable(log_func, git_dir_path):
             with open(root_test, 'w', encoding='utf-8') as f:
                 f.write("test")
             os.remove(root_test)
+            # 🔥 也驗證 .git/objects 可寫（git pull/fetch 需要建立物件檔案）
+            objects_dir = os.path.join(git_dir_path, "objects")
+            if os.path.isdir(objects_dir):
+                obj_test = os.path.join(objects_dir, ".obj_test_llamapanel")
+                with open(obj_test, 'w', encoding='utf-8') as f:
+                    f.write("test")
+                os.remove(obj_test)
             return True
         except (PermissionError, OSError):
             return False
