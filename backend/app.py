@@ -901,10 +901,14 @@ HTML_PAGE = '''
         }
         
         function clearLog() {
-            const logDiv = document.getElementById('logContent');
-            if (logDiv) {
-                logDiv.innerHTML = '<div class=\"log-line\">日志已清屏</div>';
-            }
+            fetchAPI('/api/clear_log', 'POST').then(data => {
+                const logDiv = document.getElementById('logContent');
+                if (logDiv) {
+                    logDiv.innerHTML = '<div class=\"log-line\">日志已清屏</div>';
+                }
+            }).catch(e => {
+                console.error('清屏失败:', e);
+            });
         }
         
         async function installLlama() {
@@ -1257,6 +1261,18 @@ async def get_log():
     content = content.replace('\\r\\n', '\n')
     
     return content
+
+@app.post("/api/clear_log")
+async def clear_log():
+    """清空安装日志文件"""
+    log_file = installer.log_file
+    try:
+        # 清空日志文件（不删除文件本身）
+        with open(log_file, 'w', encoding='utf-8') as f:
+            f.write("")
+        return {"success": True, "message": "日志已清空"}
+    except Exception as e:
+        return {"success": False, "message": f"清空日志失败: {e}"}
 
 @app.post("/api/install")
 async def install_llama(background_tasks: BackgroundTasks):
