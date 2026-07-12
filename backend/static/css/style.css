@@ -427,6 +427,7 @@ hr {
     transition: background 0.15s, color 0.15s;
     border-left: 2px solid transparent;
     user-select: none;
+    white-space: nowrap;        /* 禁止 sidebar nav 文字换行 */
 }
 .sidebar-nav a:hover {
     background: #f3f4f6;
@@ -487,26 +488,31 @@ main.container {
 }
 
 .sidebar-group > a {
-    /* 跟普通 nav 項目一致，但保留 arrow 的空間 */
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    /* arrow 用 margin-left:auto 推到右，不用 space-between */
 }
 
 .sidebar-arrow {
-    font-size: 10px;
-    color: var(--color-text-faint);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    margin-left: auto;     /* 强制推到最右，不依赖 space-between */
+    padding-left: 8px;
     transition: transform 0.15s;
     user-select: none;
+    line-height: 1;
 }
 
 .sidebar-subnav {
     display: flex;
     flex-direction: column;
+    flex-wrap: nowrap;          /* 强制垂直，禁止水平 wrap */
+    align-items: stretch;       /* 子項目撐滿寬度 */
     padding: 0 0 4px 0;
-    background: #f9fafb;        /* 微微區隔子導航 */
+    background: #f9fafb;
     border-left: 1px solid var(--color-border);
-    margin-left: 20px;          /* 跟父項目對齊 */
+    margin-left: 20px;
 }
 .sidebar-subnav.hidden { display: none; }
 
@@ -514,12 +520,13 @@ main.container {
     color: var(--color-text-muted);
     text-decoration: none;
     padding: 7px 16px;
-    font-size: 13px;            /* 比父項目稍小 */
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     border-left: 2px solid transparent;
     transition: background 0.15s, color 0.15s;
     user-select: none;
+    white-space: nowrap;        /* 禁止子項目文字换行 */
 }
 .sidebar-subnav a:hover {
     background: #f3f4f6;
