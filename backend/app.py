@@ -84,6 +84,20 @@ def _fix_git_permissions_writable(log_func, git_dir_path):
                 with open(obj_test, 'w', encoding='utf-8') as f:
                     f.write("test")
                 os.remove(obj_test)
+                # 🔥 也驗證可改寫現有 pack 檔案（git pull 需要）
+                pack_dir = os.path.join(objects_dir, "pack")
+                if os.path.isdir(pack_dir):
+                    pack_files = [f for f in os.listdir(pack_dir) if f.endswith('.keep')]
+                    if pack_files:
+                        pack_file = os.path.join(pack_dir, pack_files[0])
+                        try:
+                            with open(pack_file, 'a', encoding='utf-8') as f:
+                                f.write("# reachable\n")
+                            # 回退
+                            with open(pack_file, 'w', encoding='utf-8') as f:
+                                f.write("")
+                        except (PermissionError, OSError):
+                            return False
             return True
         except (PermissionError, OSError):
             return False
