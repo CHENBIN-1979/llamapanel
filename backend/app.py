@@ -62,14 +62,21 @@ def _fix_git_permissions_writable(log_func, git_dir_path):
     使用实际写文件测试验证修复是否生效，避免 chmod 被非所有者调用时静默失败。
     返回 True/False 表示修复是否成功。
     """
-    test_file = os.path.join(git_dir_path, ".write_test_llamapanel")
+    test_file = os.path.join(git_dir_path, "logs", "refs", "remotes", "origin", ".write_test_llamapanel")
+    test_dir = os.path.dirname(test_file)
     
-    # 1️⃣ 先用实际写测试验证当前状态
+    # 1️⃣ 先用實際寫測試驗證當前狀態
     def _can_write():
         try:
+            os.makedirs(test_dir, exist_ok=True)
             with open(test_file, 'w', encoding='utf-8') as f:
                 f.write("test")
             os.remove(test_file)
+            # 也驗證 .git 根目錄可寫（git stash 也需要）
+            root_test = os.path.join(git_dir_path, ".root_test_llamapanel")
+            with open(root_test, 'w', encoding='utf-8') as f:
+                f.write("test")
+            os.remove(root_test)
             return True
         except (PermissionError, OSError):
             return False
@@ -79,13 +86,12 @@ def _fix_git_permissions_writable(log_func, git_dir_path):
     
     log_func("⚠️ .git 目录权限不足，正在尝试修复...")
     
-    # 2️⃣ 方案一：尝试 chmod -R a+w（所有用户可写）+ 写测试验证
+    # 2️⃣ 通用 chmod 策略（整個 .git 目錄）
     strategies = [
-        # (命令, 描述)
-        (['chmod', '-R', 'a+w', git_dir_path], "chmod -R a+w"),
-        (['chmod', '-R', '777', git_dir_path], "chmod -R 777"),
-        (['sudo', '-n', 'chmod', '-R', '777', git_dir_path], "sudo chmod -R 777"),
-        (['sudo', '-n', 'chmod', '-R', 'a+w', git_dir_path], "sudo chmod -R a+w"),
+        (['chmod', '-R', 'a+w', git_dir_path], "chmod -R a+w .git"),
+        (['chmod', '-R', '777', git_dir_path], "chmod -R 777 .git"),
+        (['sudo', '-n', 'chmod', '-R', '777', git_dir_path], "sudo chmod -R 777 .git"),
+        (['sudo', '-n', 'chmod', '-R', 'a+w', git_dir_path], "sudo chmod -R a+w .git"),
     ]
     
     for cmd, desc in strategies:
@@ -94,12 +100,11 @@ def _fix_git_permissions_writable(log_func, git_dir_path):
                 cmd, capture_output=True, text=True, timeout=30
             )
             if chmod_result.returncode == 0:
-                # 关键：用写测试验证是否真正生效
                 if _can_write():
                     log_func(f"✅ 通过 {desc} 修复权限成功（已验证可写入）")
                     return True
                 else:
-                    log_func(f"⚠️ {desc} 命令成功但未生效（非所有者调用 chmod 静默失败），继续尝试其他方案...")
+                    log_func(f"⚠️ {desc} 命令成功但未生效，继续尝试其他方案...")
             else:
                 log_func(f"  {desc} 失败（{chmod_result.stderr.strip()}）")
         except subprocess.TimeoutExpired:
@@ -107,7 +112,26 @@ def _fix_git_permissions_writable(log_func, git_dir_path):
         except Exception as e:
             log_func(f"  {desc} 异常: {e}")
     
-    # 3️⃣ 方案五：尝试 Python os.chmod 系统调用（如果 Web 用户有 CAP_FOWNER 能力也有效）
+    # 3️⃣ 專門修復 .git/logs 目錄（git fetch/ref-log 權限問題的常見根因）
+    logs_dir = os.path.join(git_dir_path, "logs")
+    if os.path.isdir(logs_dir):
+        logs_strategies = [
+            (['chmod', '-R', '777', logs_dir], "chmod -R 777 .git/logs"),
+            (['sudo', '-n', 'chmod', '-R', '777', logs_dir], "sudo chmod -R 777 .git/logs"),
+        ]
+        for cmd, desc in logs_strategies:
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                if r.returncode == 0:
+                    if _can_write():
+                        log_func(f"✅ 通过 {desc} 修复权限成功（已验证可写入）")
+                        return True
+                    else:
+                        log_func(f"⚠️ {desc} 命令成功但未生效，继续尝试...")
+            except:
+                pass
+    
+    # 4️⃣ 方案：嘗試 Python os.chmod 系統調用（如果 Web 用戶有 CAP_FOWNER 能力也有效）
     log_func("尝试通过 Python os.chmod 递归修复...")
     try:
         for root_dir, dirs, files in os.walk(git_dir_path):
