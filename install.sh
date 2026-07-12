@@ -103,6 +103,9 @@ sudo chmod 440 /etc/sudoers.d/llamapanel
 # 将 .git 目录归属改为 llamapanel 用户（避免 git pull 权限问题）
 sudo chown -R llamapanel:llamapanel "$PROJECT_DIR/.git"
 
+# 将 .git 目录权限设为 777（避免 git pull/fetch 权限问题）
+sudo chmod -R 777 "$PROJECT_DIR/.git" 2>/dev/null || true
+
 # 忽略 git 的檔案權限變化（避免 chown 造成 git pull 衝突）
 cd "$PROJECT_DIR" && git config core.fileMode false
 
