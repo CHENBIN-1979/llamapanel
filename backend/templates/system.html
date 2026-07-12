@@ -1,198 +1,238 @@
-<div class="card">
-    <h1>📋 系统信息</h1>
-    <p class="subtitle">LlamaPanel 项目信息与路径管理</p>
-</div>
-
-<div class="card">
-    <h3>📂 路径信息</h3>
-    <div id="pathsInfo">
-        <div class="loading"></div> 加载中...
+<div id="system-pages">
+    <!-- 路徑信息 -->
+    <div id="system-page-paths" class="system-sub-page">
+        <div class="card">
+            <h2>路径信息</h2>
+            <div id="pathsInfo">
+                <div class="loading"></div> 加载中...
+            </div>
+        </div>
     </div>
-</div>
 
-<div class="card">
-    <h3>💾 磁盘使用</h3>
-    <div id="diskInfo">
-        <div class="loading"></div> 加载中...
+    <!-- 磁盘使用 -->
+    <div id="system-page-disk" class="system-sub-page" hidden>
+        <div class="card">
+            <h2>磁盘使用</h2>
+            <div id="diskInfo">
+                <div class="loading"></div> 加载中...
+            </div>
+        </div>
     </div>
-</div>
 
-<div class="card">
-    <h3>✨ 特性说明</h3>
-    <div class="info-text">
-        • 数据与代码分离：模型文件、软链接、日志、llama.cpp 全部存储在独立数据目录<br>
-        • 删除或更新 llamapanel 项目代码不会影响已下载的模型和编译产物<br>
-        • 模型文件直接下载到模型目录，无需临时目录<br>
-        • 下载完成后自动创建软链接到独立目录<br>
-        • mmproj 文件自动存储到模型专属子目录，避免冲突<br>
-        • 支持暂停/继续下载（断点续传）<br>
-        • <span style="color: #e53e3e;">可通过环境变量 <code>LLAMAPANEL_DATA_DIR</code> 自定义数据存储位置</span>
+    <!-- 特性说明 -->
+    <div id="system-page-features" class="system-sub-page" hidden>
+        <div class="card">
+            <h2>特性说明</h2>
+            <div class="info-text">
+                • 数据与代码分离：模型文件、软链接、日志、llama.cpp 全部存储在独立数据目录<br>
+                • 删除或更新 llamapanel 项目代码不会影响已下载的模型和编译产物<br>
+                • 模型文件直接下载到模型目录，无需临时目录<br>
+                • 下载完成后自动创建软链接到独立目录<br>
+                • mmproj 文件自动存储到模型专属子目录，避免冲突<br>
+                • 支持暂停/继续下载（断点续传）<br>
+                • 可通过环境变量 <code>LLAMAPANEL_DATA_DIR</code> 自定义数据存储位置
+            </div>
+        </div>
     </div>
-</div>
 
-<div class="card">
-    <h3>💡 使用提示</h3>
-    <div class="info-text">
-        如需在 llama.cpp 中使用模型，请使用软链接目录中的文件路径：<br>
-        <code id="linkPathExample">加载中...</code><br>
-        <code id="mmprojPathExample">加载中...</code>
+    <!-- 使用提示 -->
+    <div id="system-page-tips" class="system-sub-page" hidden>
+        <div class="card">
+            <h2>使用提示</h2>
+            <div class="info-text">
+                如需在 llama.cpp 中使用模型，请使用软链接目录中的文件路径：<br>
+                <code id="linkPathExample">加载中...</code><br>
+                <code id="mmprojPathExample">加载中...</code>
+            </div>
+        </div>
     </div>
-</div>
 
-<div class="card">
-    <h3>📋 项目信息</h3>
-    <div class="info-text">
-        <strong>项目版本:</strong> LlamaPanel v1.0<br>
-        <strong>GitHub:</strong> <a href="https://github.com/CHENBIN-1979/llamapanel" target="_blank">https://github.com/CHENBIN-1979/llamapanel</a><br>
-        <strong>作者:</strong> CHENBIN-1979
+    <!-- 项目信息 -->
+    <div id="system-page-about" class="system-sub-page" hidden>
+        <div class="card">
+            <h2>项目信息</h2>
+            <div class="info-text">
+                <strong>项目版本:</strong> LlamaPanel v1.0<br>
+                <strong>GitHub:</strong> <a href="https://github.com/CHENBIN-1979/llamapanel" target="_blank">https://github.com/CHENBIN-1979/llamapanel</a><br>
+                <strong>作者:</strong> CHENBIN-1979
+            </div>
+        </div>
     </div>
 </div>
 
 <script>
+let _data = null;
+
 async function loadSystemInfo() {
     try {
         const response = await fetch('/api/system/paths');
-        const data = await response.json();
-        
-        // 渲染路径信息
-        const pathsHtml = Object.entries(data.paths).map(([key, info]) => {
-            const statusIcon = info.exists ? '✅' : '❌';
-            return `
-                <div class="path-item">
-                    <div class="path-label">${statusIcon} ${info.description}</div>
-                    <div class="path-value">${info.path}</div>
-                </div>
-            `;
-        }).join('');
-        document.getElementById('pathsInfo').innerHTML = `
-            <div class="path-list">${pathsHtml}</div>
-        `;
-        
-        // 渲染磁盘使用
-        const disk = data.disk_usage;
-        const sizes = data.dir_sizes;
-        document.getElementById('diskInfo').innerHTML = `
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label">磁盘总容量</div>
-                    <div class="info-value">${disk.total}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">已使用</div>
-                    <div class="info-value">${disk.used}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">可用空间</div>
-                    <div class="info-value">${disk.free}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">模型目录大小</div>
-                    <div class="info-value">${sizes.models}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">软链接目录大小</div>
-                    <div class="info-value">${sizes.links}</div>
-                </div>
-            </div>
-        `;
-        
-        // 更新路径示例
-        const linksDir = data.paths.links_dir?.path || '/data/llamapanel/model_links';
-        document.getElementById('linkPathExample').textContent = `${linksDir}/模型文件名.gguf`;
-        document.getElementById('mmprojPathExample').textContent = `${linksDir}/模型文件夹/mmproj文件.gguf`;
-        
+        _data = await response.json();
+        // 不立即 render，等 showSubPage 觸發
+        // 但預設顯示 paths，所以立即 render paths
+        renderPaths();
+        renderDisk();
+        renderTips();
     } catch(e) {
         console.error('加载系统信息失败:', e);
-        document.getElementById('pathsInfo').innerHTML = '<div class="info-text" style="color: #e53e3e;">加载失败: ' + e.message + '</div>';
-        document.getElementById('diskInfo').innerHTML = '<div class="info-text" style="color: #e53e3e;">加载失败</div>';
     }
 }
+
+function renderPaths() {
+    if (!_data) return;
+    const html = Object.entries(_data.paths).map(([key, info]) => {
+        const statusIcon = info.exists ? '✅' : '❌';
+        return `
+            <div class="path-item">
+                <div class="path-label">${statusIcon} ${info.description}</div>
+                <div class="path-value">${info.path}</div>
+            </div>
+        `;
+    }).join('');
+    const el = document.getElementById('pathsInfo');
+    if (el) el.innerHTML = `<div class="path-list">${html}</div>`;
+}
+
+function renderDisk() {
+    if (!_data) return;
+    const disk = _data.disk_usage;
+    const sizes = _data.dir_sizes;
+    const el = document.getElementById('diskInfo');
+    if (!el) return;
+    el.innerHTML = `
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">磁盘总容量</div>
+                <div class="info-value">${disk.total}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">已使用</div>
+                <div class="info-value">${disk.used}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">可用空间</div>
+                <div class="info-value">${disk.free}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">模型目录大小</div>
+                <div class="info-value">${sizes.models}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">软链接目录大小</div>
+                <div class="info-value">${sizes.links}</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderTips() {
+    if (!_data) return;
+    const linksDir = _data.paths.links_dir?.path || '/data/llamapanel/model_links';
+    const a = document.getElementById('linkPathExample');
+    const b = document.getElementById('mmprojPathExample');
+    if (a) a.textContent = `${linksDir}/模型文件名.gguf`;
+    if (b) b.textContent = `${linksDir}/模型文件夹/mmproj文件.gguf`;
+}
+
+function showSubPage(sub) {
+    const ids = ['paths', 'disk', 'features', 'tips', 'about'];
+    ids.forEach(id => {
+        const el = document.getElementById('system-page-' + id);
+        if (el) el.hidden = (id !== sub);
+    });
+    // 切換時確保資料已 render
+    if (sub === 'paths' && _data) renderPaths();
+    if (sub === 'disk' && _data) renderDisk();
+    if (sub === 'tips' && _data) renderTips();
+}
+
+// 接收父頁 postMessage
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.subPage) {
+        showSubPage(e.data.subPage);
+    }
+});
 
 loadSystemInfo();
 </script>
 
 <style>
     .info-text {
-        font-size: 12px;
-        color: #718096;
-        margin-top: 10px;
-        padding: 10px;
-        background: #f7fafc;
-        border-radius: 8px;
-        line-height: 1.6;
+        font-size: 13px;
+        color: var(--color-text-muted);
+        line-height: 1.7;
     }
-    code {
-        background: transparent;
-        color: #718096;
-        padding: 0;
-        border-radius: 0;
+    .info-text code {
+        background: #f3f4f6;
+        color: var(--color-text);
+        padding: 2px 6px;
+        border-radius: 3px;
         font-family: monospace;
         font-size: 12px;
     }
-    a {
-        color: #667eea;
+    .info-text a {
+        color: var(--color-primary);
         text-decoration: none;
     }
-    a:hover {
+    .info-text a:hover {
         text-decoration: underline;
     }
     .path-list {
         display: flex;
         flex-direction: column;
         gap: 12px;
-        margin-top: 10px;
     }
     .path-item {
-        background: #f7fafc;
+        background: #f9fafb;
         padding: 12px 16px;
-        border-radius: 8px;
-        border-left: 3px solid #667eea;
+        border-radius: var(--radius-sm);
+        border-left: 3px solid var(--color-primary);
     }
     .path-label {
         font-size: 13px;
         font-weight: 600;
-        color: #2d3748;
+        color: var(--color-text);
         margin-bottom: 4px;
     }
     .path-value {
         font-size: 12px;
-        color: #4a5568;
+        color: var(--color-text-muted);
         font-family: monospace;
         word-break: break-all;
-        background: #edf2f7;
+        background: #f3f4f6;
         padding: 4px 8px;
-        border-radius: 4px;
+        border-radius: 3px;
     }
     .info-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
         gap: 12px;
-        margin-top: 12px;
     }
     .info-item {
-        background: #f7fafc;
+        background: #f9fafb;
         padding: 12px;
-        border-radius: 8px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--color-border);
     }
     .info-label {
         font-size: 12px;
-        color: #718096;
+        color: var(--color-text-muted);
         margin-bottom: 4px;
     }
     .info-value {
         font-size: 15px;
         font-weight: 600;
-        color: #2d3748;
+        color: var(--color-text);
         word-break: break-all;
     }
     .loading {
         display: inline-block;
-        width: 16px;
-        height: 16px;
-        border: 2px solid #e2e8f0;
-        border-top-color: #667eea;
+        width: 14px;
+        height: 14px;
+        border: 2px solid var(--color-border);
+        border-top-color: var(--color-primary);
         border-radius: 50%;
         animation: spin 0.6s linear infinite;
+        vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 </style>

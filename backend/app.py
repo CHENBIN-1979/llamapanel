@@ -634,10 +634,6 @@ HTML_PAGE = '''
             } else if (page === 'system') {
                 systemPage.classList.remove('hidden');
                 navSystem.classList.add('active');
-                const iframe = document.querySelector('#systemPage iframe');
-                if (iframe) {
-                    iframe.contentWindow.location.reload();
-                }
                 // 展开系统信息子导航，默认显示第一个子页（路径信息）
                 showSystemSubNav(true);
                 showSystemSubPage('paths');
@@ -668,9 +664,7 @@ HTML_PAGE = '''
 
         // 切换系统信息子页（path/disk/features/tips/about）
         function showSystemSubPage(sub) {
-            // 只切換主區載入的 system 子頁 iframe 的 src 是不夠的，因為內容都在 system.html 內
-            // 改用 postMessage 或把 system.html 拆成多頁 — 此處先做 placeholder，
-            // 真正的內容分離由後續 commit 處理
+            // 切換 sidebar 子導航 active 狀態
             const subnavItems = ['sysNavPaths', 'sysNavDisk', 'sysNavFeatures', 'sysNavTips', 'sysNavAbout'];
             subnavItems.forEach(id => {
                 document.getElementById(id).classList.remove('active');
@@ -681,8 +675,12 @@ HTML_PAGE = '''
             };
             if (map[sub]) document.getElementById(map[sub]).classList.add('active');
 
-            // TODO 之後的 commit：把 system.html 拆成多頁或切換可見區塊
-            // 此處暫存待分離的內容分頁狀態
+            // 透過 postMessage 通知 iframe 內的 system.html 切換子頁
+            const iframe = document.querySelector('#systemPage iframe');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage({ subPage: sub }, '*');
+            }
+
             window.__currentSystemSubPage = sub;
         }
         
