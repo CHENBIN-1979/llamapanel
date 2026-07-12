@@ -3,10 +3,10 @@
 
     <!-- 操作按钮组 -->
     <div class="action-bar">
-        <button id="btnStartServer" class="btn btn-success" onclick="startServer()">▶ 启动服务器</button>
-        <button id="btnStopServer" class="btn btn-danger" onclick="stopServer()" disabled>⏹ 停止服务器</button>
-        <button id="btnRefreshStatus" class="btn btn-secondary" onclick="refreshServerStatus()">🔄 刷新状态</button>
-        <button class="btn btn-secondary" onclick="refreshStartCommand()">🔄 刷新命令</button>
+        <button id="btnStartServer" class="btn btn-success" onclick="startServer()">启动服务器</button>
+        <button id="btnStopServer" class="btn btn-danger" onclick="stopServer()" disabled>停止服务器</button>
+        <button id="btnRefreshStatus" class="btn btn-secondary" onclick="refreshServerStatus()">刷新状态</button>
+        <button class="btn btn-secondary" onclick="refreshStartCommand()">刷新命令</button>
     </div>
 
     <!-- 服务器状态栏 -->
@@ -25,128 +25,168 @@
 
 <!-- 启动命令预览（多模型模式） -->
 <div class="card" id="commandPreviewCard">
-    <h2>📋 启动命令预览</h2>
-    <p class="subtitle">基于 <code>--models-preset</code> 多模型预设生成的完整 <strong>llama-server</strong> 启动命令</p>
-    <div id="commandMeta" style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:#555;">
-        <span id="cmdModelsCount" style="background:#ebf4ff;padding:2px 10px;border-radius:12px;">📦 模型数: -</span>
-        <span id="cmdIniPath" style="background:#f0fff4;padding:2px 10px;border-radius:12px;font-family:monospace;font-size:11px;">📄 models.ini: -</span>
-    </div>
-    <div class="command-box">
-        <code id="commandPreview"><span style="color:#888;">点击「🔄 刷新命令」查看启动命令...</span></code>
-    </div>
-    <div class="command-actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-sm" onclick="copyCommand()" style="background:#667eea;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;">📋 复制命令</button>
-        <button class="btn btn-sm" onclick="downloadCommand()" style="background:#38a169;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;">💾 导出脚本</button>
-    </div>
-    <div id="commandError" style="color:#e53e3e;font-size:13px;margin-top:8px;display:none;"></div>
+<h2>启动命令预览</h2>
+<p class="subtitle">基于 <code>--models-preset</code> 多模型预设生成的完整 <strong>llama-server</strong> 启动命令</p>
+<div class="command-meta">
+    <span id="cmdModelsCount">模型数: -</span>
+    <span id="cmdIniPath"><code>models.ini</code>: -</span>
+</div>
+<div class="command-box">
+    <code id="commandPreview"><span style="color:#888;">点击「刷新命令」查看启动命令...</span></code>
+</div>
+<div class="command-actions">
+    <button class="btn btn-sm" onclick="copyCommand()" style="background:#2563eb;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">复制命令</button>
+    <button class="btn btn-sm" onclick="downloadCommand()" style="background:#16a34a;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">导出脚本</button>
+</div>
+<div id="commandError" style="color:#dc2626;font-size:13px;margin-top:8px;display:none;"></div>
 </div>
 
 <style>
-    /* ===== 通用 ===== */
-    .btn { padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.3s; }
-    .btn:hover { transform: translateY(-1px); }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-    .btn-success { background: #38a169; color: white; }
-    .btn-success:hover { background: #2f855a; }
-    .btn-danger { background: #e53e3e; color: white; }
-    .btn-danger:hover { background: #c53030; }
-    .btn-primary { background: #667eea; color: white; }
-    .btn-primary:hover { background: #5a67d8; }
-    .btn-secondary { background: #718096; color: white; }
-    .btn-secondary:hover { background: #4a5568; }
+    /* ===== h1 標題（與安裝頁 LlamaPanel 一致） ===== */
+    .card h1 {
+        font-size: 24px;
+        font-weight: 600;
+        margin: 0 0 4px;
+        color: #1f2937;
+    }
+    .card h2 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0 0 4px;
+        color: #1f2937;
+    }
+    .card .subtitle {
+        color: #6b7280;
+        margin: 0 0 12px;
+        font-size: 13px;
+    }
+    .command-meta {
+        margin-top: 8px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        color: #6b7280;
+    }
+    .command-meta code {
+        background: #f3f4f6;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-size: 12px;
+    }
+    .command-actions {
+        margin-top: 8px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
 
-    /* ===== 状态栏 ===== */
+    /* ===== 通用按鈕（低彩度） ===== */
+    .btn { padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.15s; }
+    .btn:hover { background: #f3f4f6; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-success { background: #16a34a; color: white; border-color: #16a34a; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: #dc2626; color: white; border-color: #dc2626; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-primary { background: #2563eb; color: white; border-color: #2563eb; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #6b7280; color: white; border-color: #6b7280; }
+    .btn-secondary:hover { background: #4b5563; }
+
+    /* ===== 状态栏（簡潔） ===== */
     .status-bar {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 12px 16px;
-        background: #f7fafc;
-        border-radius: 10px;
+        padding: 12px 14px;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
         margin-top: 12px;
         flex-wrap: wrap;
         gap: 8px;
     }
-    .status-left { display: flex; align-items: center; gap: 10px; }
-    .status-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .status-left { display: flex; align-items: center; gap: 8px; }
+    .status-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .status-dot {
-        width: 14px; height: 14px; border-radius: 50%; display: inline-block;
+        width: 12px; height: 12px; border-radius: 50%; display: inline-block;
         transition: background 0.3s;
     }
-    .status-dot-stopped { background: #e53e3e; box-shadow: 0 0 6px rgba(229,62,62,0.5); }
-    .status-dot-running { background: #38a169; box-shadow: 0 0 6px rgba(56,161,105,0.5); animation: pulse 1.5s infinite; }
-    .status-dot-loading { background: #dd6b20; box-shadow: 0 0 6px rgba(221,107,32,0.5); animation: pulse 1s infinite; }
+    .status-dot-stopped { background: #dc2626; }
+    .status-dot-running { background: #16a34a; animation: pulse 1.5s infinite; }
+    .status-dot-loading { background: #d97706; animation: pulse 1s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-    .status-text { font-weight: 600; font-size: 15px; color: #2d3748; }
-    .status-detail { font-size: 12px; color: #718096; }
+    .status-text { font-weight: 500; font-size: 14px; color: #1f2937; }
+    .status-detail { font-size: 12px; color: #6b7280; }
 
     /* ===== 操作按钮组 ===== */
     .action-bar {
         display: flex;
-        gap: 10px;
-        margin-top: 16px;
+        gap: 8px;
+        margin-top: 12px;
         flex-wrap: wrap;
     }
 
     /* ===== 参数表单 ===== */
     .params-section {
-        margin-bottom: 24px;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
+        margin-bottom: 20px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
         overflow: hidden;
     }
     .params-section-header {
-        background: #f7fafc;
-        padding: 12px 16px;
+        background: #f9fafb;
+        padding: 10px 14px;
         font-weight: 600;
-        font-size: 15px;
-        color: #2d3748;
+        font-size: 14px;
+        color: #1f2937;
         cursor: pointer;
         display: flex;
         justify-content: space-between;
         align-items: center;
         user-select: none;
-        transition: background 0.2s;
+        transition: background 0.15s;
     }
-    .params-section-header:hover { background: #edf2f7; }
-    .params-section-header .section-toggle { font-size: 12px; color: #a0aec0; transition: transform 0.2s; }
-    .params-section-body { padding: 16px; display: block; }
+    .params-section-header:hover { background: #f3f4f6; }
+    .params-section-header .section-toggle { font-size: 12px; color: #9ca3af; transition: transform 0.2s; }
+    .params-section-body { padding: 14px; display: block; }
     .params-section.collapsed .params-section-body { display: none; }
     .params-section.collapsed .section-toggle { transform: rotate(-90deg); }
 
     .param-row {
         display: flex;
         flex-direction: column;
-        padding: 12px 0;
-        border-bottom: 1px solid #f0f0f0;
+        padding: 10px 0;
+        border-bottom: 1px solid #f3f4f6;
     }
     .param-row:last-child { border-bottom: none; }
     .param-top-row {
         display: flex;
         align-items: flex-start;
-        gap: 16px;
+        gap: 14px;
     }
     .param-label {
-        flex: 0 0 240px;
-        min-width: 180px;
+        flex: 0 0 220px;
+        min-width: 160px;
     }
     .param-label label {
         font-weight: 600;
         font-size: 13px;
-        color: #2d3748;
+        color: #1f2937;
     }
     .param-label .param-flag {
         font-family: monospace;
         font-size: 11px;
-        color: #667eea;
-        background: #ebf4ff;
+        color: #2563eb;
+        background: #eff6ff;
         padding: 1px 6px;
         border-radius: 4px;
         margin-left: 4px;
     }
     .param-desc {
         font-size: 13px;
-        color: #718096;
+        color: #6b7280;
         margin-top: 6px;
         padding-left: 2px;
         line-height: 1.5;
@@ -154,7 +194,7 @@
     }
     .param-ref {
         font-size: 11px;
-        color: #000000;
+        color: #4b5563;
         margin-left: 8px;
         white-space: nowrap;
     }
@@ -164,30 +204,30 @@
     .param-input select {
         width: 100%;
         max-width: 160px;
-        padding: 8px 12px;
-        border: 1px solid #e2e8f0;
+        padding: 6px 10px;
+        border: 1px solid #e5e7eb;
         border-radius: 6px;
         font-size: 13px;
         font-family: monospace;
-        transition: border-color 0.2s;
+        transition: border-color 0.15s;
     }
     .param-input input:focus,
     .param-input select:focus {
         outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
     }
     .param-input input[type="checkbox"] {
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
         cursor: pointer;
-        accent-color: #667eea;
+        accent-color: #2563eb;
     }
     .param-input .param-checkbox {
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
         cursor: pointer;
-        accent-color: #667eea;
+        accent-color: #2563eb;
         margin-right: 6px;
         vertical-align: middle;
     }
@@ -195,57 +235,57 @@
     .param-input select:disabled {
         opacity: 0.5;
         cursor: not-allowed;
-        background: #f7fafc;
+        background: #f9fafb;
     }
     .param-input .checkbox-label {
         font-size: 13px;
-        color: #4a5568;
+        color: #4b5563;
         cursor: pointer;
         margin-left: 6px;
     }
     .param-required {
-        color: #e53e3e;
+        color: #dc2626;
         font-weight: bold;
     }
 
     /* ===== 日志 ===== */
     .log-controls {
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         display: flex;
-        gap: 10px;
+        gap: 8px;
         align-items: center;
         flex-wrap: wrap;
     }
     .log-controls button {
-        background: #667eea;
+        background: #2563eb;
         color: white;
         border: none;
-        padding: 6px 14px;
+        padding: 6px 12px;
         border-radius: 6px;
         cursor: pointer;
         font-size: 12px;
-        transition: all 0.3s;
+        transition: background 0.15s;
     }
-    .log-controls button:hover { background: #5a67d8; }
+    .log-controls button:hover { background: #1d4ed8; }
     .btn-small-danger {
-        background: #e53e3e !important;
+        background: #dc2626 !important;
     }
-    .btn-small-danger:hover { background: #c53030 !important; }
-    .auto-refresh { font-size: 12px; color: #718096; display: flex; align-items: center; gap: 5px; }
+    .btn-small-danger:hover { background: #b91c1c !important; }
+    .auto-refresh { font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 4px; }
     .log-viewer {
         background: #1e1e1e;
         color: #d4d4d4;
         font-family: 'Courier New', monospace;
-        padding: 16px;
-        border-radius: 8px;
-        height: 300px;
+        padding: 12px 14px;
+        border-radius: 6px;
+        height: 280px;
         overflow-y: auto;
         font-size: 12px;
     }
     .log-line {
         font-family: 'Courier New', monospace;
         font-size: 12px;
-        padding: 3px 5px;
+        padding: 2px 4px;
         border-bottom: 1px solid #2a2a2a;
         white-space: pre-wrap;
         word-break: break-all;
@@ -261,9 +301,9 @@
     /* ===== 命令预览 ===== */
     .command-box {
         background: #1e1e1e;
-        padding: 14px 18px;
-        border-radius: 8px;
-        margin-top: 8px;
+        padding: 12px 14px;
+        border-radius: 6px;
+        margin-top: 6px;
         overflow-x: auto;
     }
     .command-box code {
