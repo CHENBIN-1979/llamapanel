@@ -88,13 +88,20 @@ SERVICE
 # 重新加载 systemd
 sudo systemctl daemon-reload
 
-# 配置 sudoers 权限（允许 llamapanel 用户重启自身服务，用于面板更新功能）
+# 配置 sudoers 权限（允许 llamapanel 用户重启自身服务 + 修复 .git 权限）
 echo "🔐 配置 sudoers 权限..."
 sudo tee /etc/sudoers.d/llamapanel > /dev/null << 'SUDOERS'
 # LlamaPanel 用户重启自身服务的权限
 llamapanel ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart llamapanel
+# 允许更新时自动修复 .git 目录权限（无需用户手动操作）
+llamapanel ALL=(ALL) NOPASSWD: /bin/chmod -R 777 $PROJECT_DIR/.git
+# 允许更新时自动修复 .git 目录归属（一劳永逸解决权限问题）
+llamapanel ALL=(ALL) NOPASSWD: /bin/chown -R llamapanel $PROJECT_DIR/.git
 SUDOERS
 sudo chmod 440 /etc/sudoers.d/llamapanel
+
+# 将 .git 目录归属改为 llamapanel 用户（避免 git pull 权限问题）
+sudo chown -R llamapanel:llamapanel "$PROJECT_DIR/.git"
 
 # 忽略 git 的檔案權限變化（避免 chown 造成 git pull 衝突）
 cd "$PROJECT_DIR" && git config core.fileMode false

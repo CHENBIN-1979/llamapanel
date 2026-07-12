@@ -146,7 +146,59 @@ def _fix_git_permissions_writable(log_func, git_dir_path):
     except Exception as e:
         log_func(f"  os.chmod 异常: {e}")
     
-    # 4️⃣ 所有方案均失败，给出手动修复提示
+    # 5️⃣ 方案：嘗試 sudo chown 將 .git 目錄改為項目擁有者（一勞永逸）
+    log_func("尝试通过 sudo chown 修复 .git 归属...")
+    try:
+        project_dir = os.path.dirname(os.path.abspath(git_dir_path))
+        if os.path.isdir(project_dir):
+            uid = os.stat(project_dir).st_uid
+            import pwd
+            owner_name = pwd.getpwuid(uid).pw_name
+            chown_result = subprocess.run(
+                ['sudo', '-n', 'chown', '-R', f'{owner_name}:{owner_name}', git_dir_path],
+                capture_output=True, text=True, timeout=30
+            )
+            if chown_result.returncode == 0:
+                if _can_write():
+                    log_func(f"✅ 通过 sudo chown 将 .git 归属改为 {owner_name}，修复成功")
+                    log_func("💡 以后所有 git 操作都不会再出现权限问题")
+                    return True
+                else:
+                    log_func(f"⚠️ sudo chown 命令成功但 .git 仍不可写（可能文件系统 ACL 限制）")
+            else:
+                log_func(f"  sudo chown 失败（{chown_result.stderr.strip() or 'sudoers 未允许 chown 命令'}）")
+    except Exception as e:
+        log_func(f"  sudo chown 异常: {e}")
+    
+    # 6️⃣ 方案：嘗試自動將 chmod/chown 加到 sudoers（適用於 sudo 組 NOPASSWD 配置）
+    log_func("尝试自动添加 .git 权限修复命令到 sudoers...")
+    try:
+        sudoers_file = "/etc/sudoers.d/llamapanel"
+        chmod_rule = f'llamapanel ALL=(ALL) NOPASSWD: /bin/chmod -R 777 {git_dir_path}\n'
+        chown_rule = f'llamapanel ALL=(ALL) NOPASSWD: /bin/chown -R llamapanel {git_dir_path}\n'
+        # 先用 sudo -n sh 嘗試追加規則（部分系統 sudo 組有 NOPASSWD ALL 權限）
+        import shlex
+        append_cmd = f'echo "{shlex.quote(chmod_rule)}{shlex.quote(chown_rule)}" | sudo -n tee -a {sudoers_file}'
+        sudoresult = subprocess.run(
+            ['sudo', '-n', 'sh', '-c', append_cmd],
+            capture_output=True, text=True, timeout=15
+        )
+        if sudoresult.returncode == 0:
+            log_func("✅ 成功添加 chmod/chown 到 sudoers")
+            # 再试 chmod 777
+            retry = subprocess.run(
+                ['sudo', '-n', 'chmod', '-R', '777', git_dir_path],
+                capture_output=True, text=True, timeout=30
+            )
+            if retry.returncode == 0 and _can_write():
+                log_func("✅ 通过 sudo chmod -R 777 修复权限成功")
+                return True
+        else:
+            log_func(f"  自动添加 sudoers 规则失败（用户可能没有 NOPASSWD ALL 权限）")
+    except Exception as e:
+        log_func(f"  自动添加 sudoers 异常: {e}")
+    
+    # 7️⃣ 所有方案均失败，给出手动修复提示
     log_func("⚠️ 所有自动修复方案均失败")
     log_func("💡 请在服务器上执行以下任一命令修复：")
     log_func(f"   1. sudo chown -R $(whoami):$(whoami) {git_dir_path}")
