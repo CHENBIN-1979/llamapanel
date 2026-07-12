@@ -284,6 +284,86 @@ def _force_fix_git_permissions(log_func, git_dir_path):
     log_func("  ⚠️ 无法自动修复 .git 权限，请手动执行: sudo chmod -R 777 " + git_dir_path)
 
 
+def _update_via_zip(log_func, repo_path, branch="main"):
+    """從 GitHub 直接下載 ZIP 壓縮包更新（繞過 .git 權限問題）"""
+    import urllib.request, zipfile, tempfile, shutil
+    
+    repo_url = f"https://github.com/CHENBIN-1979/llamapanel/archive/refs/heads/{branch}.zip"
+    log_func(f"📦 从 GitHub 下载 ZIP 更新 ({branch} 分支)...")
+    
+    try:
+        # 下載 ZIP 到臨時文件
+        req = urllib.request.Request(repo_url, headers={'User-Agent': 'LlamaPanel/1.0'})
+        tmp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        tmp_zip_path = tmp_zip.name
+        tmp_zip.close()
+        
+        with urllib.request.urlopen(req, timeout=60) as response:
+            with open(tmp_zip_path, 'wb') as f:
+                shutil.copyfileobj(response, f)
+        
+        log_func(f"  ✅ ZIP 下载完成 ({os.path.getsize(tmp_zip_path) / 1024:.0f} KB)")
+        
+        # 解壓到臨時目錄
+        extract_dir = tempfile.mkdtemp(prefix="llamapanel_update_")
+        with zipfile.ZipFile(tmp_zip_path, 'r') as zf:
+            zf.extractall(extract_dir)
+        
+        os.unlink(tmp_zip_path)
+        
+        # ZIP 內的路徑是 llamapanel-main/ 或 llamapanel-branch/
+        extracted_items = os.listdir(extract_dir)
+        if not extracted_items:
+            log_func("  ❌ ZIP 解壓後目錄為空")
+            shutil.rmtree(extract_dir)
+            return False
+        
+        src_dir = os.path.join(extract_dir, extracted_items[0])
+        if not os.path.isdir(src_dir):
+            log_func("  ❌ 解壓後找不到項目目錄")
+            shutil.rmtree(extract_dir)
+            return False
+        
+        log_func(f"  解壓目錄: {src_dir}")
+        
+        # 複製文件（排除 .git 和 .gitignore 避免覆蓋權限配置）
+        exclude_names = {'.git', '.gitignore', '.gitattributes'}
+        file_count = 0
+        
+        # 先複製 backend/ 目錄
+        for item in os.listdir(src_dir):
+            if item in exclude_names:
+                continue
+            src_item = os.path.join(src_dir, item)
+            dst_item = os.path.join(repo_path, item)
+            
+            if os.path.isdir(src_item):
+                if os.path.exists(dst_item):
+                    shutil.rmtree(dst_item)
+                shutil.copytree(src_item, dst_item, ignore=lambda d, files: exclude_names & set(files))
+            else:
+                shutil.copy2(src_item, dst_item)
+            file_count += 1
+        
+        log_func(f"  ✅ 已更新 {file_count} 個文件/目錄")
+        shutil.rmtree(extract_dir)
+        
+        # 還原 git config（保留原有的 core.fileMode 設定）
+        try:
+            subprocess.run(['git', 'config', 'core.fileMode', 'false'],
+                         cwd=repo_path, capture_output=True, timeout=10)
+        except:
+            pass
+        
+        return True
+        
+    except Exception as e:
+        log_func(f"  ❌ ZIP 更新失敗: {e}")
+        import traceback
+        log_func(f"  {traceback.format_exc()}")
+        return False
+
+
 # 更新 LlamaPanel 的函数
 def update_llamapanel():
     """更新 LlamaPanel 自身（增强版：状态跟踪 + 更好错误处理）"""
@@ -468,9 +548,16 @@ def update_llamapanel():
                         log_msg(f"fetch 错误: {fetch_result.stderr}")
                 
                 if fetch_result.returncode != 0:
-                    log_msg("❌ git fetch 最终失败，网络可能不通或权限仍不足")
-                    _set_update_status(running=False, success=False, message="网络连接失败，无法获取更新")
-                    return False
+                    log_msg("❌ git fetch 最终失败，将尝试从 GitHub 直接下载 ZIP 更新...")
+                    # 降级方案：直接下载 GitHub ZIP 包（绕过 .git 权限问题）
+                    zip_ok = _update_via_zip(log_msg, repo_path, current_branch)
+                    if zip_ok:
+                        log_msg("✅ ZIP 更新成功，继续后续步骤...")
+                        already_uptodate = False
+                        result = type('obj', (object,), {'returncode': 0})()
+                    else:
+                        _set_update_status(running=False, success=False, message="Git 和 ZIP 更新均失败")
+                        return False
             else:
                 # fetch 成功后先检查是否有新提交
                 log_msg("检查远程是否有新提交...")
