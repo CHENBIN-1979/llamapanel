@@ -505,10 +505,7 @@ main.container {
 }
 
 .sidebar-subnav {
-    display: flex;
-    flex-direction: column;
-    flex-wrap: nowrap;          /* 强制垂直，禁止水平 wrap */
-    align-items: stretch;       /* 子項目撐滿寬度 */
+    display: block;             /* 不用 flex，直接用 block 垂直排列 */
     padding: 0 0 4px 0;
     background: #f9fafb;
     border-left: 1px solid var(--color-border);
@@ -517,6 +514,7 @@ main.container {
 .sidebar-subnav.hidden { display: none; }
 
 .sidebar-subnav a {
+    display: block;             /* 强制垂直排列，避免 inline 换行 */
     color: var(--color-text-muted);
     text-decoration: none;
     padding: 7px 16px;
@@ -526,7 +524,9 @@ main.container {
     border-left: 2px solid transparent;
     transition: background 0.15s, color 0.15s;
     user-select: none;
-    white-space: nowrap;        /* 禁止子項目文字换行 */
+    white-space: nowrap;
+    width: 100%;                /* 撑满整行 */
+    box-sizing: border-box;
 }
 .sidebar-subnav a:hover {
     background: #f3f4f6;
