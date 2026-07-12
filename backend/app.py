@@ -456,11 +456,11 @@ HTML_PAGE = '''
             <span class="sidebar-brand-text">LlamaPanel</span>
         </div>
         <nav class="sidebar-nav">
-            <a onclick="showPage('settings')" id="navSettings">llama运行</a>
+            <a onclick="showPage('settings')" id="navSettings" class="active">llama运行</a>
             <a onclick="showPage('download')" id="navDownload">模型下载</a>
             <a onclick="showPage('local')" id="navLocal">管理已下载模型</a>
             <a onclick="showPage('params')" id="navParams">参数配置</a>
-            <a onclick="showPage('home')" id="navHome" class="active">安装与编译</a>
+            <a onclick="showPage('home')" id="navHome">安装与编译</a>
             <a onclick="showPage('system')" id="navSystem">系统信息</a>
         </nav>
     </aside>
@@ -468,7 +468,7 @@ HTML_PAGE = '''
     <main class="container">
 
         <!-- 安装与编译 内容 -->
-        <div id="homePage" class="page-content">
+        <div id="homePage" class="page-content hidden">
             <div class="card">
                 <h1>LlamaPanel</h1>
                 <p class="subtitle">llama.cpp 图形化管理面板 · 无需命令行</p>
@@ -542,7 +542,7 @@ HTML_PAGE = '''
         </div>
     
         <!-- 服务器设置页面容器 -->
-        <div id="settingsPage" class="page-content hidden">
+        <div id="settingsPage" class="page-content">
             <iframe src="/api/server/settings-page" style="width: 100%; min-height: 800px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
 

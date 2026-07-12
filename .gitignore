@@ -20,3 +20,6 @@ models/
 .vscode/
 .idea/
 *.swp
+
+# Test screenshots (created during UI development)
+screenshots/
