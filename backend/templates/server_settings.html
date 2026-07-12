@@ -3,8 +3,8 @@
 
     <!-- 操作按钮组 -->
     <div class="action-bar">
-        <button id="btnStartServer" class="btn btn-success" onclick="startServer()">启动服务器</button>
-        <button id="btnStopServer" class="btn btn-danger" onclick="stopServer()" disabled>停止服务器</button>
+        <button id="btnStartServer" class="btn btn-start btn-active" onclick="startServer()">启动服务器</button>
+        <button id="btnStopServer" class="btn btn-stop" onclick="stopServer()" disabled>停止服务器</button>
         <button id="btnRefreshStatus" class="btn btn-secondary" onclick="refreshServerStatus()">刷新状态</button>
         <button class="btn btn-secondary" onclick="refreshStartCommand()">刷新命令</button>
     </div>
@@ -81,18 +81,18 @@
         flex-wrap: wrap;
     }
 
-    /* ===== 通用按鈕（低彩度） ===== */
-    .btn { padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.15s; }
+    /* ===== 通用按鈕（預設無色，與安裝頁一致） ===== */
+    .btn { padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 14px; background: #fff; color: #374151; transition: background 0.15s; }
     .btn:hover { background: #f3f4f6; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-success { background: #16a34a; color: white; border-color: #16a34a; }
-    .btn-success:hover { background: #15803d; }
-    .btn-danger { background: #dc2626; color: white; border-color: #dc2626; }
-    .btn-danger:hover { background: #b91c1c; }
-    .btn-primary { background: #2563eb; color: white; border-color: #2563eb; }
-    .btn-primary:hover { background: #1d4ed8; }
-    .btn-secondary { background: #6b7280; color: white; border-color: #6b7280; }
-    .btn-secondary:hover { background: #4b5563; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; background: #fff; color: #9ca3af; }
+    .btn-secondary { background: #fff; color: #374151; border-color: #d1d5db; }
+    .btn-secondary:hover { background: #f3f4f6; }
+    .btn-start { background: #fff; color: #6b7280; border-color: #d1d5db; }
+    .btn-start.btn-active { background: #16a34a; color: white; border-color: #16a34a; }
+    .btn-start.btn-active:hover { background: #15803d; }
+    .btn-stop { background: #fff; color: #6b7280; border-color: #d1d5db; }
+    .btn-stop.btn-active { background: #dc2626; color: white; border-color: #dc2626; }
+    .btn-stop.btn-active:hover { background: #b91c1c; }
 
     /* ===== 状态栏（簡潔） ===== */
     .status-bar {
@@ -510,16 +510,16 @@
                         pid.textContent = 'PID: ' + (data.pid || '?');
                         elapsed.textContent = '已运行: ' + (data.elapsed || '刚刚');
                         path.textContent = data.server_path || '';
-                        if (startBtn) startBtn.disabled = true;
-                        if (stopBtn) stopBtn.disabled = false;
+                        if (startBtn) { startBtn.disabled = true; startBtn.classList.remove('btn-active'); }
+                        if (stopBtn) { stopBtn.disabled = false; stopBtn.classList.add('btn-active'); }
                     } else {
                         dot.className = 'status-dot status-dot-stopped';
                         text.textContent = '已停止';
                         pid.textContent = '';
                         elapsed.textContent = '';
                         path.textContent = data.server_path ? data.server_path : '未找到 llama-server，请先编译';
-                        if (startBtn) startBtn.disabled = false;
-                        if (stopBtn) stopBtn.disabled = true;
+                        if (startBtn) { startBtn.disabled = false; startBtn.classList.add('btn-active'); }
+                        if (stopBtn) { stopBtn.disabled = true; stopBtn.classList.remove('btn-active'); }
                     }
                 }
             } catch(e) {
