@@ -1,17 +1,17 @@
 <div class="card">
-    <h1>⚙️ 参数配置</h1>
+    <h1>参数配置</h1>
     <p class="subtitle">模型参数 → models.ini</p>
 
     <!-- 操作按钮栏 -->
     <div class="action-bar">
-        <button class="btn btn-success" onclick="showAddModelModal()">➕ 添加模型</button>
-        <button class="btn btn-secondary" onclick="reloadAll()">🔄 重新加载</button>
+        <button class="btn btn-success" onclick="showAddModelModal()">添加模型</button>
+        <button class="btn btn-secondary" onclick="reloadAll()">重新加载</button>
     </div>
 
     <!-- 模型列表区域 -->
     <div class="models-list-area">
         <div class="models-list-header">
-            <span>📋 模型列表</span>
+            <span>模型列表</span>
         </div>
         <div class="models-list-body" id="modelsListBody">
             <div id="modelsListLoading" style="padding:20px;text-align:center;color:#718096;"><div class="loading"></div> 加载模型列表...</div>
@@ -21,28 +21,28 @@
     <!-- 当前模型参数设置区 -->
     <div id="currentModelParamsArea" class="current-model-params-area" style="display:none;">
         <div class="current-model-params-header">
-            <span id="currentModelTitle">⚙️ 当前模型参数设置</span>
+            <span id="currentModelTitle">当前模型参数设置</span>
             <span class="current-model-name" id="currentModelName"></span>
         </div>
         <div class="current-model-params-body" id="currentModelParamsBody">
             <div id="currentModelParamsLoading" style="padding:20px;text-align:center;color:#718096;"><div class="loading"></div> 加载参数...</div>
         </div>
         <div class="current-model-params-footer">
-            <button class="btn btn-primary" onclick="saveCurrentModelParams()">💾 保存当前模型参数</button>
+            <button class="btn btn-primary" onclick="saveCurrentModelParams()">保存当前模型参数</button>
         </div>
     </div>
 
     <!-- models.ini 编辑器折叠面板 -->
     <div class="config-ini-preview">
         <div class="config-ini-preview-header" onclick="toggleConfigIniPreview()">
-            <span>📄 models.ini 编辑器</span>
-            <span class="config-ini-toggle">▶</span>
+            <span>models.ini 编辑器</span>
+            <span class="config-ini-toggle">▸</span>
         </div>
         <div class="config-ini-preview-body" id="configIniPreviewBody">
             <textarea id="configIniEditor" class="config-ini-textarea" spellcheck="false" placeholder="加载 models.ini 内容..."></textarea>
             <div class="config-ini-preview-actions">
-                <button class="btn btn-sm btn-primary" onclick="saveConfigIniContent()">💾 保存 models.ini</button>
-                <button class="btn btn-sm" onclick="refreshConfigIniPreview()">🔄 刷新</button>
+                <button class="btn btn-sm btn-primary" onclick="saveConfigIniContent()">保存 models.ini</button>
+                <button class="btn btn-sm" onclick="refreshConfigIniPreview()">刷新</button>
                 <span class="config-ini-filepath">文件：server_configs/models.ini</span>
             </div>
         </div>
@@ -53,7 +53,7 @@
 <div id="addModelModal" class="modal-overlay" style="display:none;">
     <div class="modal-box" style="max-width:400px;">
         <div class="modal-header">
-            <h3>➕ 添加模型</h3>
+            <h3>添加模型</h3>
             <button class="modal-close" onclick="closeAddModelModal()">✕</button>
         </div>
         <div class="modal-body">
@@ -75,88 +75,92 @@
 </div>
 
 <style>
-    /* ===== 通用 ===== */
-    .btn {
-        padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
-        font-size: 14px; transition: all 0.3s;
+    /* ===== h1 標題（與安裝頁一致） ===== */
+    .card h1 {
+        font-size: 24px;
+        font-weight: 600;
+        margin: 0 0 4px;
+        color: #1f2937;
     }
-    .btn:hover { transform: translateY(-1px); }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-    .btn-success { background: #38a169; color: white; }
-    .btn-success:hover { background: #2f855a; }
-    .btn-danger { background: #e53e3e; color: white; }
-    .btn-danger:hover { background: #c53030; }
-    .btn-primary { background: #667eea; color: white; }
-    .btn-primary:hover { background: #5a67d8; }
-    .btn-secondary { background: #718096; color: white; }
-    .btn-secondary:hover { background: #4a5568; }
+    .card .subtitle {
+        color: #6b7280;
+        margin: 0 0 12px;
+        font-size: 13px;
+    }
+    .card h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; color: #1f2937; }
+
+    /* ===== 通用按鈕 ===== */
+    .btn {
+        padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer;
+        font-size: 14px; background: #fff; color: #374151; transition: background 0.15s;
+    }
+    .btn:hover { background: #f3f4f6; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-success { background: #16a34a; color: white; border-color: #16a34a; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: #dc2626; color: white; border-color: #dc2626; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-primary { background: #2563eb; color: white; border-color: #2563eb; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #6b7280; color: white; border-color: #6b7280; }
+    .btn-secondary:hover { background: #4b5563; }
+    .btn-sm {
+        padding: 5px 10px; font-size: 12px; border: 1px solid #d1d5db; border-radius: 5px;
+        cursor: pointer; background: #fff; color: #374151; transition: background 0.15s;
+    }
+    .btn-sm:hover { background: #f3f4f6; }
 
     /* ===== 操作按钮栏 ===== */
     .action-bar {
         display: flex;
-        gap: 10px;
-        margin: 16px 0;
+        gap: 8px;
+        margin: 12px 0;
         flex-wrap: wrap;
     }
 
     /* ===== 模型卡片 ===== */
     .model-card {
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        margin-bottom: 20px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        margin-bottom: 16px;
         overflow: hidden;
-        background: white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        transition: box-shadow 0.3s;
-    }
-    .model-card:hover {
-        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        background: #fff;
     }
     .model-card-badge {
         display: inline-block;
         font-size: 11px;
         padding: 2px 8px;
-        border-radius: 8px;
+        border-radius: 6px;
         font-weight: 500;
         font-family: monospace;
     }
-    .btn-sm {
-        padding: 5px 10px;
-        font-size: 12px;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: background 0.2s;
-    }
 
-    /* ===== 参数分区（在卡片内） ===== */
+    /* ===== 参数分区 ===== */
     .params-section {
         margin: 0;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid #e5e7eb;
     }
-    .params-section:last-child {
-        border-bottom: none;
-    }
+    .params-section:last-child { border-bottom: none; }
     .params-section-header {
-        background: #f7fafc;
-        padding: 10px 18px;
+        background: #f9fafb;
+        padding: 10px 14px;
         font-weight: 600;
         font-size: 14px;
-        color: #2d3748;
+        color: #1f2937;
         cursor: pointer;
         display: flex;
         justify-content: space-between;
         align-items: center;
         user-select: none;
-        transition: background 0.2s;
+        transition: background 0.15s;
     }
-    .params-section-header:hover { background: #edf2f7; }
+    .params-section-header:hover { background: #f3f4f6; }
     .params-section-header .section-toggle {
         font-size: 11px;
-        color: #a0aec0;
+        color: #9ca3af;
         transition: transform 0.2s;
     }
-    .params-section-body { padding: 8px 18px 12px; display: none; }
+    .params-section-body { padding: 8px 14px 12px; display: none; }
     .params-section.expanded .params-section-body { display: block; }
     .params-section.expanded .section-toggle { transform: rotate(0deg); }
     .params-section:not(.expanded) .section-toggle { transform: rotate(-90deg); }
@@ -165,7 +169,7 @@
         display: flex;
         flex-direction: column;
         padding: 8px 0;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid #f3f4f6;
     }
     .param-row:last-child { border-bottom: none; }
     .param-top-row {
@@ -174,26 +178,26 @@
         gap: 12px;
     }
     .param-label {
-        flex: 0 0 240px;
-        min-width: 180px;
+        flex: 0 0 220px;
+        min-width: 160px;
     }
     .param-label label {
         font-weight: 600;
         font-size: 13px;
-        color: #2d3748;
+        color: #1f2937;
     }
     .param-label .param-flag {
         font-family: monospace;
         font-size: 11px;
-        color: #667eea;
-        background: #ebf4ff;
+        color: #2563eb;
+        background: #eff6ff;
         padding: 1px 5px;
         border-radius: 3px;
         margin-left: 4px;
     }
     .param-desc {
         font-size: 13px;
-        color: #718096;
+        color: #6b7280;
         margin-top: 6px;
         padding-left: 2px;
         line-height: 1.5;
@@ -206,47 +210,44 @@
         width: 100%;
         max-width: 140px;
         padding: 6px 10px;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #e5e7eb;
         border-radius: 5px;
         font-size: 12px;
         font-family: monospace;
-        transition: border-color 0.2s;
+        transition: border-color 0.15s;
     }
     .param-input input:focus,
     .param-input select:focus {
         outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
     }
     .param-input input[type="checkbox"] {
         width: 16px;
         height: 16px;
         cursor: pointer;
-        accent-color: #667eea;
+        accent-color: #2563eb;
     }
     .param-input .checkbox-label {
         font-size: 12px;
-        color: #4a5568;
+        color: #4b5563;
         cursor: pointer;
         margin-left: 4px;
     }
-    .param-required {
-        color: #e53e3e;
-        font-weight: bold;
-    }
+    .param-required { color: #dc2626; font-weight: bold; }
     .param-ref {
-	        font-size: 11px;
-	        color: #000000;
-	        margin-left: 8px;
-	        white-space: nowrap;
-	    }
+        font-size: 11px;
+        color: #4b5563;
+        margin-left: 8px;
+        white-space: nowrap;
+    }
 
     /* ===== 参数建议提示 ===== */
     .param-tip {
         font-size: 12px;
-        color: #856404;
-        background: #fff8e1;
-        border-left: 3px solid #ffc107;
+        color: #92400e;
+        background: #fffbeb;
+        border-left: 3px solid #d97706;
         padding: 4px 10px;
         margin-top: 6px;
         border-radius: 0 4px 4px 0;
@@ -256,52 +257,50 @@
     /* ===== 文件选择按钮 ===== */
     .btn-file-select {
         padding: 4px 12px !important;
-        background: #667eea !important;
+        background: #2563eb !important;
         color: white !important;
         border: none !important;
         border-radius: 5px !important;
         cursor: pointer !important;
         font-size: 12px !important;
         white-space: nowrap !important;
-        transition: background 0.2s !important;
+        transition: background 0.15s !important;
     }
-    .btn-file-select:hover {
-        background: #5a67d8 !important;
-    }
+    .btn-file-select:hover { background: #1d4ed8 !important; }
 
     /* ===== 加载动画 ===== */
     .loading {
         display: inline-block;
-        width: 16px;
-        height: 16px;
-        border: 2px solid #e2e8f0;
-        border-top-color: #667eea;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #e5e7eb;
+        border-top-color: #2563eb;
         border-radius: 50%;
         animation: spin 0.6s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ===== 服务端文件选择模态框 ===== */
+    /* ===== Modal ===== */
     .modal-overlay {
         display: none;
         position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.5);
+        inset: 0;
+        background: rgba(0,0,0,0.4);
         z-index: 1000;
         justify-content: center;
         align-items: center;
     }
     .modal-overlay.active { display: flex; }
     .modal-box {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
+        background: #fff;
+        border-radius: 8px;
+        padding: 20px 24px;
         width: 90%;
         max-width: 700px;
         max-height: 80vh;
         display: flex;
         flex-direction: column;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
     }
     .modal-header {
         display: flex;
@@ -312,73 +311,73 @@
     }
     .modal-header h3 { font-size: 16px; margin: 0; white-space: nowrap; }
     .modal-close {
-        background: #e2e8f0;
-        border: none;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
         width: 28px;
         height: 28px;
-        border-radius: 50%;
+        border-radius: 6px;
         cursor: pointer;
-        font-size: 16px;
+        font-size: 14px;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
     }
-    .modal-close:hover { background: #d1d5db; }
+    .modal-close:hover { background: #e5e7eb; }
     .modal-search { margin-bottom: 12px; }
     .modal-search input {
         width: 100%;
         padding: 8px 12px;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #e5e7eb;
         border-radius: 6px;
         font-size: 13px;
         box-sizing: border-box;
     }
     .modal-search input:focus {
         outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
     }
     .modal-list {
         flex: 1;
         overflow-y: auto;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
         max-height: 50vh;
     }
     .modal-list-item {
         padding: 8px 12px;
         cursor: pointer;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid #f3f4f6;
         font-family: monospace;
         font-size: 12px;
-        transition: background 0.2s;
+        transition: background 0.15s;
     }
-    .modal-list-item:hover { background: #ebf4ff; }
+    .modal-list-item:hover { background: #eff6ff; }
     .modal-list-item .item-size {
         float: right;
-        color: #718096;
+        color: #6b7280;
         font-size: 11px;
     }
     .modal-list-folder {
         padding: 6px 12px;
         font-size: 12px;
         font-weight: 600;
-        color: #667eea;
-        background: #f7fafc;
-        border-bottom: 1px solid #e2e8f0;
+        color: #2563eb;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
         position: sticky;
         top: 0;
     }
     .modal-list-empty {
         padding: 30px 20px;
         text-align: center;
-        color: #718096;
+        color: #6b7280;
         font-size: 13px;
         line-height: 1.8;
     }
     .modal-list-empty code {
-        background: #edf2f7;
+        background: #f3f4f6;
         padding: 2px 6px;
         border-radius: 4px;
         font-family: monospace;
@@ -387,88 +386,74 @@
 
     /* ===== 全局参数设置区 ===== */
     .global-params-area {
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        margin-bottom: 20px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        margin-bottom: 16px;
         overflow: hidden;
-        background: white;
+        background: #fff;
     }
-    .global-params-area.open .global-params-body {
-        display: block;
-    }
+    .global-params-area.open .global-params-body { display: block; }
     .global-params-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 12px 16px;
-        background: #ebf4ff;
+        padding: 10px 14px;
+        background: #f9fafb;
         cursor: pointer;
         font-size: 14px;
         font-weight: 600;
-        color: #2b6cb0;
+        color: #1f2937;
         user-select: none;
-        transition: background 0.2s;
-        border-bottom: 1px solid #e2e8f0;
+        transition: background 0.15s;
+        border-bottom: 1px solid #e5e7eb;
     }
-    .global-params-header:hover {
-        background: #dbeafe;
-    }
+    .global-params-header:hover { background: #f3f4f6; }
     .global-toggle-icon {
         font-size: 11px;
-        color: #63b3ed;
+        color: #9ca3af;
         transition: transform 0.3s;
     }
-    .global-params-area.open .global-toggle-icon {
-        transform: rotate(180deg);
-    }
-    .global-params-body {
-        display: block;
-    }
+    .global-params-area.open .global-toggle-icon { transform: rotate(180deg); }
+    .global-params-body { display: block; }
 
     /* ===== config.ini 编辑器折叠面板 ===== */
     .config-ini-preview {
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        margin-bottom: 20px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        margin-bottom: 16px;
         overflow: hidden;
-        background: white;
+        background: #fff;
     }
-    .config-ini-preview.open .config-ini-preview-body {
-        display: block;
-    }
+    .config-ini-preview.open .config-ini-preview-body { display: block; }
     .config-ini-preview-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 12px 16px;
-        background: #f7fafc;
+        padding: 10px 14px;
+        background: #f9fafb;
         cursor: pointer;
         font-size: 14px;
         font-weight: 600;
-        color: #2d3748;
+        color: #1f2937;
         user-select: none;
-        transition: background 0.2s;
+        transition: background 0.15s;
     }
-    .config-ini-preview-header:hover {
-        background: #edf2f7;
-    }
+    .config-ini-preview-header:hover { background: #f3f4f6; }
     .config-ini-toggle {
         font-size: 12px;
-        color: #a0aec0;
+        color: #9ca3af;
         transition: transform 0.3s;
     }
-    .config-ini-preview.open .config-ini-toggle {
-        transform: rotate(90deg);
-    }
+    .config-ini-preview.open .config-ini-toggle { transform: rotate(90deg); }
     .config-ini-preview-body {
         display: none;
-        border-top: 1px solid #e2e8f0;
+        border-top: 1px solid #e5e7eb;
     }
     .config-ini-textarea {
         width: 100%;
         min-height: 300px;
         max-height: 500px;
-        padding: 14px 16px;
+        padding: 12px 14px;
         background: #1a202c;
         color: #e2e8f0;
         font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
@@ -482,74 +467,59 @@
         white-space: pre;
         overflow: auto;
     }
-    .config-ini-textarea::placeholder {
-        color: #718096;
-    }
-    .config-ini-textarea:focus {
-        box-shadow: inset 0 0 0 1px #667eea;
-    }
+    .config-ini-textarea::placeholder { color: #6b7280; }
+    .config-ini-textarea:focus { box-shadow: inset 0 0 0 1px #2563eb; }
     .config-ini-preview-actions {
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 8px 16px;
-        background: #f7fafc;
-        border-top: 1px solid #e2e8f0;
+        padding: 8px 14px;
+        background: #f9fafb;
+        border-top: 1px solid #e5e7eb;
         flex-wrap: wrap;
     }
-    .config-ini-preview-actions .btn-sm {
-        padding: 5px 12px;
-        border: 1px solid #e2e8f0;
+    .config-ini-filepath { font-size: 11px; color: #6b7280; font-family: monospace; }
+
+    /* ===== 模型列表区 ===== */
+    .models-list-area {
+        border: 1px solid #e5e7eb;
         border-radius: 6px;
-        background: white;
-        color: #4a5568;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .config-ini-preview-actions .btn-sm:hover {
-        background: #edf2f7;
-        border-color: #cbd5e0;
-    }
-    .config-ini-preview-actions .btn-primary {
-        background: #667eea;
-        color: white;
-        border: none;
-    }
-    .config-ini-preview-actions .btn-primary:hover {
-        background: #5a67d8;
-    }
-    .config-ini-filepath {
-        font-size: 11px;
-        color: #a0aec0;
-        font-family: monospace;
+        margin-bottom: 16px;
         overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        margin-left: auto;
     }
-    .config-ini-preview-header {
+    .models-list-header {
+        padding: 10px 14px;
+        background: #f9fafb;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1f2937;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .models-list-body { padding: 0; }
+    .current-model-params-area {
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+    .current-model-params-header {
+        padding: 10px 14px;
+        background: #f9fafb;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1f2937;
+        border-bottom: 1px solid #e5e7eb;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 10px 16px;
-        background: #f7fafc;
-        cursor: pointer;
-        user-select: none;
-        font-weight: 600;
-        font-size: 14px;
-        color: #2d3748;
-        transition: background 0.2s;
     }
-    .config-ini-preview-header:hover {
-        background: #edf2f7;
+    .current-model-name { font-size: 12px; font-weight: 400; color: #6b7280; }
+    .current-model-params-body { padding: 8px 14px; }
+    .current-model-params-footer {
+        padding: 8px 14px;
+        background: #f9fafb;
+        border-top: 1px solid #e5e7eb;
     }
-    .config-ini-toggle {
-        font-size: 12px;
-        color: #a0aec0;
-        transition: transform 0.2s;
-    }
-    .config-ini-preview.open .config-ini-toggle {
-        transform: rotate(90deg);
     }
     .config-ini-preview-body {
         display: none;
@@ -597,107 +567,70 @@
         background: #edf2f7;
         border-color: #cbd5e0;
     }
-    .config-ini-filepath {
-        font-size: 11px;
-        color: #a0aec0;
-        font-family: monospace;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
+    .config-ini-filepath { font-size: 11px; color: #6b7280; font-family: monospace; }
 
-    /* ===== 模型列表区域 ===== */
+    /* ===== 模型列表区 ===== */
     .models-list-area {
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        margin: 16px 0;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        margin-bottom: 16px;
         overflow: hidden;
-        background: white;
     }
     .models-list-header {
-        background: #f7fafc;
-        padding: 12px 18px;
+        padding: 10px 14px;
+        background: #f9fafb;
+        font-size: 13px;
         font-weight: 600;
-        font-size: 15px;
-        color: #2d3748;
-        border-bottom: 1px solid #e2e8f0;
+        color: #1f2937;
+        border-bottom: 1px solid #e5e7eb;
     }
-    .models-list-body {
-        padding: 10px 18px;
-        min-height: 60px;
-    }
+    .models-list-body { padding: 0; }
+
+    /* ===== 模型列表项 ===== */
     .models-list-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 10px 14px;
-        margin: 6px 0;
-        background: #f7fafc;
-        border-radius: 8px;
+        padding: 8px 14px;
+        margin: 0;
+        background: #fff;
+        border-bottom: 1px solid #f3f4f6;
         cursor: pointer;
-        transition: all 0.2s;
-        border: 2px solid transparent;
+        transition: background 0.15s;
+        border-left: 2px solid transparent;
     }
-    .models-list-item:hover {
-        background: #edf2f7;
-        border-color: #667eea;
-    }
-    .models-list-item.active {
-        background: #e6fffa;
-        border-color: #38a169;
-    }
-    .models-list-item-name {
-        font-weight: 500;
-        color: #2d3748;
-    }
-    .models-list-item-section {
-        font-size: 11px;
-        color: #718096;
-        font-family: monospace;
-        background: #e2e8f0;
-        padding: 2px 6px;
-        border-radius: 4px;
-        margin-left: 8px;
-    }
-    .models-list-item-actions {
-        display: flex;
-        gap: 6px;
-    }
+    .models-list-item:last-child { border-bottom: none; }
+    .models-list-item:hover { background: #f9fafb; border-color: #2563eb; }
+    .models-list-item.active { background: #eff6ff; border-color: #2563eb; }
+    .models-list-item-name { font-weight: 500; font-size: 13px; color: #1f2937; }
+    .models-list-item-section { font-size: 11px; color: #6b7280; font-family: monospace; background: #f3f4f6; padding: 1px 6px; border-radius: 3px; margin-left: 8px; }
+    .models-list-item-actions { display: flex; gap: 6px; }
     .btn-sm-danger {
-        padding: 4px 10px;
-        font-size: 12px;
-        background: #fed7d7;
-        color: #c53030;
-        border: 1px solid #feb2b2;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: all 0.2s;
+        padding: 3px 8px; font-size: 11px; background: #fef2f2; color: #dc2626;
+        border: 1px solid #fecaca; border-radius: 4px; cursor: pointer; transition: all 0.15s;
     }
-    .btn-sm-danger:hover {
-        background: #fc8181;
-        color: white;
-        border-color: #f56565;
-    }
+    .btn-sm-danger:hover { background: #dc2626; color: white; border-color: #dc2626; }
 
     /* ===== 当前模型参数设置区 ===== */
     .current-model-params-area {
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
         margin: 16px 0;
         overflow: hidden;
-        background: white;
     }
     .current-model-params-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 14px 18px;
+        padding: 10px 14px;
+        background: #f9fafb;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        color: white;
+        border-bottom: 1px solid #e5e7eb;
     }
     .current-model-params-header #currentModelTitle {
         font-weight: 600;
-        font-size: 15px;
+        font-size: 14px;
+        color: #1f2937;
+    }
     }
     .current-model-params-header .current-model-name {
         font-size: 12px;
