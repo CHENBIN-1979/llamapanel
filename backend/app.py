@@ -597,6 +597,15 @@ HTML_PAGE = '''
             navParams.classList.remove('active');
             navSettings.classList.remove('active');
             navSystem.classList.remove('active');
+            // 同时清除系统信息子导航的 active
+            document.querySelectorAll('.sidebar-subnav a').forEach(el => el.classList.remove('active'));
+            // 收起系统信息子导航
+            if (page !== 'system') {
+                const subnav = document.getElementById('systemSubNav');
+                if (subnav && !subnav.classList.contains('hidden')) {
+                    showSystemSubNav(false);
+                }
+            }
             
             if (page === 'home') {
                 homePage.classList.remove('hidden');
