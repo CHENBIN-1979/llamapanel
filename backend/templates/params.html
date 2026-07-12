@@ -2,20 +2,20 @@
     <h1>参数配置</h1>
     <p class="subtitle">模型参数 → models.ini</p>
 
-    <!-- 模型列表（每個模型一個獨立卡片） -->
+    <!-- 顶部操作按钮：新增卡片用 -->
+    <div class="action-bar">
+        <button class="btn btn-primary" onclick="addEmptyCard()">添加模型</button>
+        <button class="btn btn-secondary" onclick="reloadAll()">重新加载</button>
+    </div>
+
+    <!-- 模型列表（每個模型一個獨立卡片；空狀態顯示提示） -->
     <div class="models-grid" id="modelsGrid">
-        <div class="model-card empty" id="emptyModelCard">
-            <div class="model-card-header">
-                <span class="model-card-title">添加新模型</span>
-            </div>
-            <div class="model-card-body">
-                <div class="model-card-placeholder">点击下方按钮添加第一个模型</div>
-                <button class="btn btn-primary" onclick="showAddModelModal()">添加模型</button>
-            </div>
+        <div class="model-card-empty" id="emptyState">
+            暂无模型，点击顶部「添加模型」开始配置
         </div>
     </div>
 
-    <!-- 当前模型参数设置区 -->
+    <!-- 当前模型参数设置区（保留兼容，隱藏顯示） -->
     <div id="currentModelParamsArea" class="current-model-params-area" style="display:none;">
         <div class="current-model-params-header">
             <span id="currentModelTitle">当前模型参数设置</span>
@@ -565,9 +565,15 @@
         display: flex;
         flex-direction: column;
     }
-    .model-card.empty {
-        border-style: dashed;
+    .model-card-empty {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 28px 12px;
+        font-size: 13px;
+        color: #6b7280;
         background: #f9fafb;
+        border: 1px dashed #d1d5db;
+        border-radius: 6px;
     }
     .model-card-header {
         padding: 8px 12px;
@@ -626,6 +632,46 @@
         background: #dc2626;
         color: white;
         border-color: #dc2626;
+    }
+
+    /* ===== 卡片內參數面板 ===== */
+    .card-params-form {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .card-param-row {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .card-param-row label {
+        font-size: 11px;
+        color: #6b7280;
+        font-weight: 500;
+    }
+    .card-param-row input {
+        padding: 5px 8px;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        font-size: 12px;
+        font-family: monospace;
+        transition: border-color 0.15s;
+    }
+    .card-param-row input:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 1px rgba(37,99,235,0.15);
+    }
+    .card-params-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 6px;
+    }
+    .card-params-actions .btn {
+        flex: 1;
+        padding: 5px 8px;
+        font-size: 12px;
     }
 
     /* 保留舊 class 以防 JS 還用到 */
@@ -842,51 +888,108 @@
     let currentModelName = null;
 
     function renderModelList() {
-        // 兼容舊 DOM（如果還存在）和新 DOM（modelsGrid）
-        const oldContainer = document.getElementById('modelsListBody');
-        if (oldContainer) {
-            const loading = document.getElementById('modelsListLoading');
-            if (loading) loading.style.display = 'none';
-        }
-
         const grid = document.getElementById('modelsGrid');
         if (!grid) return;
 
-        // 保留空狀態卡片，其餘重新生成
-        const emptyCard = grid.querySelector('#emptyModelCard');
-        let html = '';
-        if (emptyCard) html += emptyCard.outerHTML;
-
         if (models.length === 0) {
-            grid.innerHTML = html;
-            const cma = document.getElementById('currentModelParamsArea');
-            if (cma) cma.style.display = 'none';
+            grid.innerHTML = '<div class="model-card-empty" id="emptyState">暂无模型，点击顶部「添加模型」开始配置</div>';
             return;
         }
 
+        let html = '';
         for (let i = 0; i < models.length; i++) {
             const model = models[i];
-            const sectionName = model._section || `model_${i + 1}`;
+            const sectionName = model._section || ('model_' + (i + 1));
             const displayName = model.name || sectionName;
-            const isActive = currentModelName === sectionName ? 'active' : '';
-            
-            html += `<div class="model-card ${isActive}" onclick="selectModel('${escapeHtml(sectionName)}')">`;
-            html += `    <div class="model-card-header">`;
-            html += `        <span class="model-card-title">${escapeHtml(displayName)}</span>`;
-            html += `        <span class="model-card-section">[${escapeHtml(sectionName)}]</span>`;
-            html += `    </div>`;
-            html += `    <div class="model-card-body">`;
-            html += `        <div class="model-card-actions">`;
-            html += `            <button class="btn btn-primary" onclick="event.stopPropagation();editModelParams('${escapeHtml(sectionName)}')">编辑参数</button>`;
-            html += `            <button class="btn btn-danger-card" onclick="event.stopPropagation();deleteModelByName('${escapeHtml(sectionName)}')">删除</button>`;
-            html += `        </div>`;
-            html += `    </div>`;
-            html += `</div>`;
+            const expanded = model._expanded === true;
+
+            html += '<div class="model-card" id="card-' + escapeHtml(sectionName) + '">';
+            html += '  <div class="model-card-header" onclick="toggleCardParams('${escapeHtml(sectionName)}')">';
+            html += '    <span class="model-card-title">' + escapeHtml(displayName) + '</span>';
+            html += '    <span class="model-card-section">[' + escapeHtml(sectionName) + ']</span>';
+            html += '  </div>';
+            html += '  <div class="model-card-body">';
+
+            if (expanded) {
+                html += renderCardParamsHTML(model);
+            } else {
+                html += '    <div class="model-card-actions">';
+                html += '      <button class="btn btn-primary" onclick="event.stopPropagation();toggleCardParams('${escapeHtml(sectionName)}')">添加模型</button>';
+                html += '      <button class="btn btn-danger-card" onclick="event.stopPropagation();deleteModelByName('${escapeHtml(sectionName)}')">删除</button>';
+                html += '    </div>';
+            }
+
+            html += '  </div>';
+            html += '</div>';
         }
 
         grid.innerHTML = html;
-        const cma = document.getElementById('currentModelParamsArea');
-        if (cma) cma.style.display = 'none';
+    }
+
+    function addEmptyCard() {
+        // 頂部「添加模型」按鈕：在列表加入一個新模型，並立即展開參數面板
+        const idx = models.length;
+        const sectionName = 'model_' + (idx + 1);
+        models.push({ _section: sectionName, name: '', _expanded: true });
+        renderModelList();
+    }
+
+    function toggleCardParams(sectionName) {
+        const model = models.find(m => (m._section || '') === sectionName);
+        if (!model) return;
+        model._expanded = !model._expanded;
+        renderModelList();
+    }
+
+    function renderCardParamsHTML(model) {
+        const fields = [
+            { key: 'name', label: '模型名称', type: 'text', placeholder: '例如：Qwen2.5-7B' },
+            { key: '_section', label: 'Section 名称', type: 'text', placeholder: '例如：qwen2.5-7b' },
+            { key: 'model', label: '模型文件路径 (--model)', type: 'text', placeholder: '/data/llamapanel/model_links/xxx.gguf' },
+            { key: 'ctx_size', label: '上下文大小 (--ctx-size)', type: 'number', placeholder: '4096' },
+            { key: 'n_gpu_layers', label: 'GPU 加速层数 (--n-gpu-layers)', type: 'number', placeholder: '0' },
+            { key: 'temp', label: '温度 (--temp)', type: 'number', placeholder: '0.8' },
+            { key: 'top_k', label: 'Top-K', type: 'number', placeholder: '40' },
+            { key: 'top_p', label: 'Top-P', type: 'number', placeholder: '0.95' },
+            { key: 'host', label: '监听地址 (--host)', type: 'text', placeholder: '127.0.0.1' },
+            { key: 'port', label: '监听端口 (--port)', type: 'number', placeholder: '8080' }
+        ];
+        const sectionName = model._section || '';
+        let html = '<div class="card-params-form">';
+        for (const f of fields) {
+            const value = model[f.key] || '';
+            html += '<div class="card-param-row">';
+            html += '  <label>' + escapeHtml(f.label) + '</label>';
+            html += '  <input type="' + f.type + '" id="card-input-' + escapeHtml(sectionName) + '-' + f.key + '" placeholder="' + escapeHtml(f.placeholder) + '" value="' + escapeHtml(String(value)) + '" />';
+            html += '</div>';
+        }
+        html += '<div class="card-params-actions">';
+        html += '  <button class="btn btn-success" onclick="event.stopPropagation();saveCardParams('${escapeHtml(sectionName)}')">保存参数</button>';
+        html += '  <button class="btn btn-secondary" onclick="event.stopPropagation();toggleCardParams('${escapeHtml(sectionName)}')">收起</button>';
+        html += '</div>';
+        html += '</div>';
+        return html;
+    }
+
+    async function saveCardParams(sectionName) {
+        const model = models.find(m => (m._section || '') === sectionName);
+        if (!model) return;
+        const fields = ['name', '_section', 'model', 'ctx_size', 'n_gpu_layers', 'temp', 'top_k', 'top_p', 'host', 'port'];
+        let newSection = sectionName;
+        for (const f of fields) {
+            const el = document.getElementById('card-input-' + sectionName + '-' + f);
+            if (!el) continue;
+            const v = el.value.trim();
+            if (v) model[f] = v;
+            else delete model[f];
+            if (f === '_section' && v) newSection = v;
+        }
+        // 同步更新 section 名稱（避免重複時出錯）
+        model._section = newSection;
+        model._expanded = false;
+        await saveModelsConfig();
+        await loadModelsConfig();
+        showToast('✅ 模型参数已保存', 'success');
     }
 
     async function selectModel(modelName) {
