@@ -281,6 +281,17 @@ def _force_fix_git_permissions(log_func, git_dir_path):
     except:
         pass
     
+    # 最後檢查：.git 是否真的不可寫？
+    try:
+        test_file = os.path.join(git_dir_path, ".fix_test_llamapanel")
+        with open(test_file, 'w', encoding='utf-8') as f:
+            f.write("test")
+        os.remove(test_file)
+        # 可寫，不需要警告
+        return
+    except (PermissionError, OSError):
+        pass
+    
     log_func("  ⚠️ 无法自动修复 .git 权限，请手动执行: sudo chmod -R 777 " + git_dir_path)
 
 
