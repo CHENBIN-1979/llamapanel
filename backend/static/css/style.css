@@ -475,3 +475,58 @@ main.container {
     .sidebar-nav a.active { border-bottom-color: var(--color-primary); }
     main.container { padding: 16px; }
 }
+
+
+/* ================================================================
+   Sidebar Sub-Navigation (展開/收起 + 子項目)
+   ================================================================ */
+
+.sidebar-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-group > a {
+    /* 跟普通 nav 項目一致，但保留 arrow 的空間 */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sidebar-arrow {
+    font-size: 10px;
+    color: var(--color-text-faint);
+    transition: transform 0.15s;
+    user-select: none;
+}
+
+.sidebar-subnav {
+    display: flex;
+    flex-direction: column;
+    padding: 0 0 4px 0;
+    background: #f9fafb;        /* 微微區隔子導航 */
+    border-left: 1px solid var(--color-border);
+    margin-left: 20px;          /* 跟父項目對齊 */
+}
+.sidebar-subnav.hidden { display: none; }
+
+.sidebar-subnav a {
+    color: var(--color-text-muted);
+    text-decoration: none;
+    padding: 7px 16px;
+    font-size: 13px;            /* 比父項目稍小 */
+    font-weight: 500;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: background 0.15s, color 0.15s;
+    user-select: none;
+}
+.sidebar-subnav a:hover {
+    background: #f3f4f6;
+    color: var(--color-text);
+}
+.sidebar-subnav a.active {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+    border-left-color: var(--color-primary);
+}

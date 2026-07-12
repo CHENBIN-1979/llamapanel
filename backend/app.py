@@ -461,7 +461,18 @@ HTML_PAGE = '''
             <a onclick="showPage('local')" id="navLocal">管理已下载模型</a>
             <a onclick="showPage('params')" id="navParams">参数配置</a>
             <a onclick="showPage('home')" id="navHome">安装与编译</a>
-            <a onclick="showPage('system')" id="navSystem">系统信息</a>
+
+            <!-- 系统信息（可展开，带子导航） -->
+            <div class="sidebar-group">
+                <a onclick="toggleSystemGroup()" id="navSystem">系统信息 <span id="systemArrow" class="sidebar-arrow">▸</span></a>
+                <div id="systemSubNav" class="sidebar-subnav hidden">
+                    <a onclick="showSystemSubPage('paths')" id="sysNavPaths">路径信息</a>
+                    <a onclick="showSystemSubPage('disk')" id="sysNavDisk">磁盘使用</a>
+                    <a onclick="showSystemSubPage('features')" id="sysNavFeatures">特性说明</a>
+                    <a onclick="showSystemSubPage('tips')" id="sysNavTips">使用提示</a>
+                    <a onclick="showSystemSubPage('about')" id="sysNavAbout">项目信息</a>
+                </div>
+            </div>
         </nav>
     </aside>
 
@@ -627,7 +638,52 @@ HTML_PAGE = '''
                 if (iframe) {
                     iframe.contentWindow.location.reload();
                 }
+                // 展开系统信息子导航，默认显示第一个子页（路径信息）
+                showSystemSubNav(true);
+                showSystemSubPage('paths');
             }
+        }
+
+        // 展开/收起系统信息子导航
+        function toggleSystemGroup() {
+            const subnav = document.getElementById('systemSubNav');
+            const arrow = document.getElementById('systemArrow');
+            if (subnav.classList.contains('hidden')) {
+                showSystemSubNav(true);
+            } else {
+                showSystemSubNav(false);
+            }
+        }
+        function showSystemSubNav(show) {
+            const subnav = document.getElementById('systemSubNav');
+            const arrow = document.getElementById('systemArrow');
+            if (show) {
+                subnav.classList.remove('hidden');
+                arrow.textContent = '▾';
+            } else {
+                subnav.classList.add('hidden');
+                arrow.textContent = '▸';
+            }
+        }
+
+        // 切换系统信息子页（path/disk/features/tips/about）
+        function showSystemSubPage(sub) {
+            // 只切換主區載入的 system 子頁 iframe 的 src 是不夠的，因為內容都在 system.html 內
+            // 改用 postMessage 或把 system.html 拆成多頁 — 此處先做 placeholder，
+            // 真正的內容分離由後續 commit 處理
+            const subnavItems = ['sysNavPaths', 'sysNavDisk', 'sysNavFeatures', 'sysNavTips', 'sysNavAbout'];
+            subnavItems.forEach(id => {
+                document.getElementById(id).classList.remove('active');
+            });
+            const map = {
+                'paths': 'sysNavPaths', 'disk': 'sysNavDisk',
+                'features': 'sysNavFeatures', 'tips': 'sysNavTips', 'about': 'sysNavAbout'
+            };
+            if (map[sub]) document.getElementById(map[sub]).classList.add('active');
+
+            // TODO 之後的 commit：把 system.html 拆成多頁或切換可見區塊
+            // 此處暫存待分離的內容分頁狀態
+            window.__currentSystemSubPage = sub;
         }
         
         function startAutoRefresh() {
