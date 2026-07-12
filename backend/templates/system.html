@@ -52,12 +52,14 @@
         <div class="card">
             <h2>项目信息</h2>
             <div class="about-header">
-                <div class="about-version">
-                    <strong>项目版本:</strong> LlamaPanel v1.0<br>
-                    <strong>GitHub:</strong> <a href="https://github.com/CHENBIN-1979/llamapanel" target="_blank">https://github.com/CHENBIN-1979/llamapanel</a><br>
-                    <strong>作者:</strong> CHENBIN-1979
+                <div class="version-row">
+                    <span><strong>项目版本:</strong> LlamaPanel v1.0</span>
+                    <button onclick="parent.updateLlamaPanel()" class="small" id="updatePanelBtn">更新 LlamaPanel</button>
                 </div>
-                <button onclick="parent.updateLlamaPanel()" class="small" id="updatePanelBtn">更新 LlamaPanel</button>
+            </div>
+            <div class="about-info">
+                <strong>GitHub:</strong> <a href="https://github.com/CHENBIN-1979/llamapanel" target="_blank">https://github.com/CHENBIN-1979/llamapanel</a><br>
+                <strong>作者:</strong> CHENBIN-1979
             </div>
         </div>
     </div>
@@ -159,25 +161,26 @@ loadSystemInfo();
 </script>
 
 <style>
-    .about-header {
+    .version-row {
         display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
+        align-items: center;
+        gap: 8ch;
+        flex-wrap: wrap;
     }
-    .about-version {
+    .about-info {
         font-size: 13px;
         color: var(--color-text-muted);
         line-height: 1.7;
+        margin-top: 8px;
     }
-    .about-version strong {
+    .about-info strong {
         color: var(--color-text);
     }
-    .about-version a {
+    .about-info a {
         color: var(--color-primary);
         text-decoration: none;
     }
-    .about-version a:hover {
+    .about-info a:hover {
         text-decoration: underline;
     }
     .info-text {
