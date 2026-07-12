@@ -434,10 +434,9 @@ hr {
     color: var(--color-text);
 }
 .sidebar-nav a.active {
-    /* 跟普通項目一樣的樣式，靠標題層的視覺區別 (例如主區 H1) 標示當前頁 */
-    background: transparent;
-    color: var(--color-text-muted);
-    border-left-color: transparent;
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+    border-left-color: var(--color-primary);
 }
 
 /* container 變成 main 區塊，要配合 sidebar */
