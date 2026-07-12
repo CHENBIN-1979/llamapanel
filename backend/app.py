@@ -523,7 +523,7 @@ HTML_PAGE = '''
     <title>LlamaPanel - llama.cpp 管理面板</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/css/style.css?v=7">
+    <link rel="stylesheet" href="/static/css/style.css?v=8">
 </head>
 <body>
 <div class="app-layout">

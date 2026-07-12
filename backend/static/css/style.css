@@ -101,7 +101,7 @@ body {
     box-shadow: var(--shadow-sm);
 }
 .card h1 {
-    font-size: 20px;
+    font-size: 24px;
     font-weight: 600;
     margin: 0 0 4px;
     color: var(--color-text);
