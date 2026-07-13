@@ -46,21 +46,39 @@ fi
 echo "📂 创建数据目录..."
 sudo mkdir -p "$DATA_DIR"/{models,model_links,logs,llama.cpp/build}
 
-# 自動偵測當前用戶和 PROJECT_DIR
-# 不再強制把目錄 chown 給 llamapanel 用戶，而是用實際安裝用戶
-SUDO_USER_REAL=$(logname 2>/dev/null || echo "$SUDO_USER" || whoami)
+# 自動偵測當前用戶和 PROJECT_DIR（修正版）
+# 優先順序：SUDO_USER > who am i > stat PROJECT_DIR owner > whoami
+SUDO_USER_REAL=""
+
+# 從環境變數取得
+[ -n "$SUDO_USER" ] && SUDO_USER_REAL="$SUDO_USER"
+
+# 從 who am i 取得（登入 session 的原始用戶）
 if [ -z "$SUDO_USER_REAL" ] || [ "$SUDO_USER_REAL" = "root" ]; then
-    SUDO_USER_REAL=$(whoami)
+    WHOAMI_USER=$(who am i 2>/dev/null | awk '{print $1}' | head -1)
+    [ -n "$WHOAMI_USER" ] && SUDO_USER_REAL="$WHOAMI_USER"
 fi
 
-# 如果 PROJECT_DIR 在當前用戶的 home 目錄下，就不該被 root 強佔
-# 例如：用戶 chenbin 把 ll clone 到 /home/chenbin/ll，則 PROJECT_DIR = /home/chenbin/ll
+# 從 PROJECT_DIR 擁有者取得（最可靠）
+if [ -z "$SUDO_USER_REAL" ] || [ "$SUDO_USER_REAL" = "root" ]; then
+    if [ -d "$PROJECT_DIR" ]; then
+        DIR_OWNER=$(stat -c '%U' "$PROJECT_DIR")
+        if [ "$DIR_OWNER" != "root" ] && [ "$DIR_OWNER" != "llamapanel" ]; then
+            SUDO_USER_REAL="$DIR_OWNER"
+        fi
+    fi
+fi
+
+# fallback
+[ -z "$SUDO_USER_REAL" ] && SUDO_USER_REAL=$(whoami)
+
+# 如果 PROJECT_DIR 在當前用戶的 home 目錄下，就用戶模式安裝
 USER_HOME=$(eval echo "~$SUDO_USER_REAL")
-if [[ "$PROJECT_DIR" == "$USER_HOME"* ]] && [ "$SUDO_USER_REAL" != "root" ]; then
+if [[ "$PROJECT_DIR" == "$USER_HOME"* ]] && [ "$SUDO_USER_REAL" != "root" ] && id "$SUDO_USER_REAL" &>/dev/null; then
     echo "📁 檢測到用戶模式安裝（$SUDO_USER_REAL → $PROJECT_DIR）"
     RUN_USER="$SUDO_USER_REAL"
 else
-    echo "📁 檢測到 root 模式安裝（$SUDO_USER_REAL → $PROJECT_DIR）"
+    echo "📁 檢測到系統模式安裝（$SUDO_USER_REAL → $PROJECT_DIR）"
     RUN_USER="llamapanel"
 fi
 
