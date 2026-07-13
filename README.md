@@ -5,14 +5,15 @@
 
 ## 功能
 
-- 🚀 一键安装 llama.cpp
-- 🔄 自动检测硬件（CPU核心数、GPU）
-- 📊 实时编译进度显示
-- 📋 彩色日志输出
-- 🧹 清理编译产物
-- 📥 模型搜索下载（从 HuggingFace）
-- 💾 本地模型管理（断点续传）
-- ⚙️ 智能使用一半CPU核心编译，不影响Web服务
+- 一键安装 llama.cpp
+- 自动检测硬件（CPU核心数、GPU）
+- 实时编译进度显示
+- 彩色日志输出
+- 清理编译产物
+- 模型搜索下载（从 HuggingFace）
+- 本地模型管理（断点续传）
+- 智能使用一半CPU核心编译，不影响Web服务
+- Web UI 一键更新 LlamaPanel（无需手动 git pull）
 
 ## 系统要求
 
@@ -23,13 +24,30 @@
 
 ## 一键安装（服务器）
 
+### 方式 A：用普通用户安装（推荐）
+
 ```bash
+# 用你的普通用户（如 chenbin）登入
+cd ~
 git clone https://github.com/CHENBIN-1979/llamapanel.git
 cd llamapanel
 chmod +x install.sh
 sudo ./install.sh
 sudo systemctl start llamapanel
 ```
+
+### 方式 B：用 root 安装
+
+```bash
+cd /root
+git clone https://github.com/CHENBIN-1979/llamapanel.git
+cd llamapanel
+chmod +x install.sh
+./install.sh
+sudo systemctl start llamapanel
+```
+
+> install.sh 会自动侦测当前用户，**不需要手动 chown**。
 
 ## 本地开发
 
@@ -61,31 +79,56 @@ python app.py
 
 ## 访问地址
 
- http://主机IP:8000
+- 默认端口: `http://主机IP:8000`
+- 如使用 1Panel 等面板，请记得在防火墙放行 8000 端口
 
-## 更新到最新版本（git pull）
+## Web UI 更新
+
+**推荐方式：直接在 LlamaPanel 面板内点击「更新 LlamaPanel」按钮**
+
+- 自动 git pull
+- 自动修复 .git 权限
+- 自动安装 Python 依赖
+- 自动重启服务
+
+## 命令行手动更新
 
 ```bash
-# 1. 進到你的 llamapanel 安裝目錄（可能是 /opt/llamapanel 或 ~/llamapanel，看你當初裝哪）
+# 1. 進到你的 llamapanel 安裝目錄
 cd /your/llamapanel/path
 
-# 2. 第一次更新會問 dubious ownership，執行：
+# 2. 如果遇到 dubious ownership 错误，先执行：
 sudo git config --global --add safe.directory $(pwd)
 
-# 3. 拉新代碼
+# 3. 拉新代码
 sudo git pull
 
-# 4. 重啟服務才生效（Python module import-time frozen）
+# 4. 重启服务才生效
 sudo systemctl restart llamapanel
 ```
 
-如果「重啟後還是沒生效」—檢查 service 跑的是不是**同一個目錄**：
+## .git 权限问题
+
+如果更新时遇到 `insufficient permission` 错误：
+
 ```bash
-sudo systemctl show llamapanel -p WorkingDirectory   # 看服務用哪個目錄
-sudo journalctl -u llamapanel --since "1 minute ago"   # 看實際啟動的 Python 載入的 .py 路徑
+# 一次性解决（将 .git 设为所有用户可写）
+sudo chmod -R 777 /your/llamapanel/.git
 ```
 
-兩者不一致 = 你 git pull 拉到的是**另一個目錄**。請確認 WorkingDirectory 是哪個目錄，然後 `cd 到那個目錄 git pull`。
+之后更新按钮就能正常拉取新代码。
+
+## 故障排查
+
+```bash
+# 查看服务实际使用的目录
+sudo systemctl show llamapanel -p WorkingDirectory
+
+# 查看最近的错误日志
+sudo journalctl -u llamapanel --since "5 minutes ago"
+```
+
+如果服务 WorkingDirectory 和你 git pull 的目录不一致，需要调整安装路径。
 
 ## 版本更新
 
@@ -94,6 +137,7 @@ sudo journalctl -u llamapanel --since "1 minute ago"   # 看實際啟動的 Pyth
 
 ## 注意事项
 
-- 面板更新功能需要 `llamapanel` 用户有 sudo 权限重启服务（安装脚本已自动配置）
+- 面板更新功能需要服务运行用户有 sudo 权限（安装脚本已自动配置）
 - 模型下载支持断点续传和暂停/继续
 - 删除或更新 llama.cpp 目录不会影响已下载的模型
+- 数据存储在 `/data/llamapanel/`，与代码完全分离
