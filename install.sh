@@ -107,7 +107,9 @@ sudo chown -R llamapanel:llamapanel "$PROJECT_DIR/.git"
 sudo chmod -R 777 "$PROJECT_DIR/.git" 2>/dev/null || true
 
 # 忽略 git 的檔案權限變化（避免 chown 造成 git pull 衝突）
-cd "$PROJECT_DIR" && git config core.fileMode false
+if [ -d "$PROJECT_DIR/.git" ]; then
+    cd "$PROJECT_DIR" && git config core.fileMode false
+fi
 
 echo ""
 echo "✅ 安装完成！"
