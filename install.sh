@@ -46,9 +46,32 @@ fi
 echo "📂 创建数据目录..."
 sudo mkdir -p "$DATA_DIR"/{models,model_links,logs,llama.cpp/build}
 
-# 设置目录权限（llamapanel 用户拥有）
-sudo chown -R llamapanel:llamapanel "$PROJECT_DIR"
-sudo chown -R llamapanel:llamapanel "$DATA_DIR"
+# 自動偵測當前用戶和 PROJECT_DIR
+# 不再強制把目錄 chown 給 llamapanel 用戶，而是用實際安裝用戶
+SUDO_USER_REAL=$(logname 2>/dev/null || echo "$SUDO_USER" || whoami)
+if [ -z "$SUDO_USER_REAL" ] || [ "$SUDO_USER_REAL" = "root" ]; then
+    SUDO_USER_REAL=$(whoami)
+fi
+
+# 如果 PROJECT_DIR 在當前用戶的 home 目錄下，就不該被 root 強佔
+# 例如：用戶 chenbin 把 ll clone 到 /home/chenbin/ll，則 PROJECT_DIR = /home/chenbin/ll
+USER_HOME=$(eval echo "~$SUDO_USER_REAL")
+if [[ "$PROJECT_DIR" == "$USER_HOME"* ]] && [ "$SUDO_USER_REAL" != "root" ]; then
+    echo "📁 檢測到用戶模式安裝（$SUDO_USER_REAL → $PROJECT_DIR）"
+    RUN_USER="$SUDO_USER_REAL"
+else
+    echo "📁 檢測到 root 模式安裝（$SUDO_USER_REAL → $PROJECT_DIR）"
+    RUN_USER="llamapanel"
+fi
+
+# 設置目錄權限
+if [ "$RUN_USER" = "llamapanel" ]; then
+    sudo chown -R llamapanel:llamapanel "$PROJECT_DIR" 2>/dev/null || true
+else
+    # 用戶模式：不 chown，但確保當前用戶有讀寫權限
+    sudo chown -R "$RUN_USER:$RUN_USER" "$PROJECT_DIR" 2>/dev/null || true
+fi
+sudo chown -R "$RUN_USER:$RUN_USER" "$DATA_DIR" 2>/dev/null || true
 sudo chmod 755 "$PROJECT_DIR"
 sudo chmod 755 "$DATA_DIR"
 
@@ -72,8 +95,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=llamapanel
-Group=llamapanel
+User=$RUN_USER
+Group=$RUN_USER
 WorkingDirectory=$PROJECT_DIR
 Environment="PATH=$PROJECT_DIR/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="LLAMAPANEL_DATA_DIR=$DATA_DIR"
@@ -88,20 +111,20 @@ SERVICE
 # 重新加载 systemd
 sudo systemctl daemon-reload
 
-# 配置 sudoers 权限（允许 llamapanel 用户重启自身服务 + 修复 .git 权限）
+# 配置 sudoers 权限（允许服務運行用戶重启自身服务 + 修复 .git 权限）
 echo "🔐 配置 sudoers 权限..."
-sudo tee /etc/sudoers.d/llamapanel > /dev/null << 'SUDOERS'
-# LlamaPanel 用户重启自身服务的权限
-llamapanel ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart llamapanel
+sudo tee /etc/sudoers.d/llamapanel > /dev/null << SUDOERS
+# LlamaPanel 服务运行用户重启自身服务的权限
+$RUN_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart llamapanel
 # 允许更新时自动修复 .git 目录权限（无需用户手动操作）
-llamapanel ALL=(ALL) NOPASSWD: /bin/chmod -R 777 $PROJECT_DIR/.git
+$RUN_USER ALL=(ALL) NOPASSWD: /bin/chmod -R 777 $PROJECT_DIR/.git
 # 允许更新时自动修复 .git 目录归属（一劳永逸解决权限问题）
-llamapanel ALL=(ALL) NOPASSWD: /bin/chown -R llamapanel $PROJECT_DIR/.git
+$RUN_USER ALL=(ALL) NOPASSWD: /bin/chown -R $RUN_USER $PROJECT_DIR/.git
 SUDOERS
 sudo chmod 440 /etc/sudoers.d/llamapanel
 
-# 将 .git 目录归属改为 llamapanel 用户（避免 git pull 权限问题）
-sudo chown -R llamapanel:llamapanel "$PROJECT_DIR/.git"
+# 将 .git 目录归属改为运行用戶（避免 git pull 权限问题）
+sudo chown -R "$RUN_USER:$RUN_USER" "$PROJECT_DIR/.git" 2>/dev/null || true
 
 # 将 .git 目录权限设为 777（避免 git pull/fetch 权限问题）
 sudo chmod -R 777 "$PROJECT_DIR/.git" 2>/dev/null || true
