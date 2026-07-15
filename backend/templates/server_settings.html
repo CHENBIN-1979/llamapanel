@@ -344,9 +344,6 @@
                 // 刷新服务器状态
                 await refreshServerStatus();
 
-                // 刷新命令预览
-                await refreshStartCommand();
-
                 // 启动定时刷新
                 startPeriodicRefresh();
 
@@ -358,29 +355,7 @@
         // ==================== 命令预览（多模型模式） ====================
         let _lastCommandData = null;
 
-        async function refreshStartCommand() {
-            const preview = document.getElementById('commandPreview');
-            const errorDiv = document.getElementById('commandError');
-            const metaCount = document.getElementById('cmdModelsCount');
-            const metaPath = document.getElementById('cmdIniPath');
-            if (!preview) return;
-
-            preview.innerHTML = '<span class="loading"></span> 正在生成命令...';
-            if (errorDiv) errorDiv.style.display = 'none';
-            if (metaCount) metaCount.textContent = '📦 模型数: 加载中...';
-            if (metaPath) metaPath.textContent = '📄 models.ini: -';
-
-            try {
-                const resp = await fetch('/api/server/start-command');
-                const data = await resp.json();
-
-                if (data.success && data.command) {
-                    preview.textContent = data.command;
-                    if (errorDiv) errorDiv.style.display = 'none';
-                    if (metaCount) metaCount.textContent = '📦 模型数: ' + (data.models_count || '?') + ' 个';
-                    if (metaPath) metaPath.textContent = '📄 ' + (data.models_ini_path || '');
-                    _lastCommandData = data;
-                } else {
+ else {
                     preview.innerHTML = '<span style="color:#e53e3e;">⚠️ ' + escapeHtml(data.message || '无法生成启动命令') + '</span>';
                     if (metaCount) metaCount.textContent = '📦 模型数: -';
                     if (metaPath) metaPath.textContent = '📄 models.ini: 未配置';
