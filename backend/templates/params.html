@@ -1789,33 +1789,6 @@
     }
 
     // ==================== 初始化 ====================
-        async function loadStartCommand() {
-        const preview = document.getElementById('startCommandPreview');
-        if (!preview) return;
-        
-        // 設置 5 秒 timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        
-        try {
-            const resp = await fetch('/api/server/start-command', { signal: controller.signal });
-            clearTimeout(timeoutId);
-            const data = await resp.json();
-            if (data.success && data.command) {
-                preview.textContent = data.command;
-            } else {
-                preview.textContent = '⚠️ ' + (data.message || '无法生成启动命令');
-            }
-        } catch (e) {
-            clearTimeout(timeoutId);
-            if (e.name === 'AbortError') {
-                preview.textContent = '⚠️ 生成启动命令超时（5秒）。请检查 llama.cpp 是否已编译：未编译时无法生成完整启动命令。';
-            } else {
-                preview.textContent = '❌ 获取命令失败: ' + e.message;
-            }
-        }
-    }
-
     async function initPage() {
         try {
             // 加载参数元数据
@@ -1828,7 +1801,6 @@
 
             // 加载模型配置
             await loadModelsConfig();
-            await loadStartCommand();
 
         } catch (e) {
             console.error('初始化失败:', e);
