@@ -31,7 +31,7 @@
     <span id="cmdIniPath"><code>models.ini</code>: -</span>
 </div>
 <div class="command-box">
-    <code id="commandPreview"><span style="color:#888;">点击「刷新命令」查看启动命令...</span></code>
+    <code id="commandPreview"><span style="color:#888;">点击「刷新状态」查看启动服务状态</span></code>
 </div>
 <div class="command-actions">
     <button class="btn btn-sm" onclick="copyCommand()" style="background:#2563eb;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">复制命令</button>
@@ -377,7 +377,7 @@
         // ==================== 命令复制与导出 ====================
         function copyCommand() {
             if (!_lastCommandData || !_lastCommandData.command_single) {
-                showToast('⚠️ 没有可复制的命令，请先刷新命令', 'info');
+                showToast('⚠️ 没有可复制的命令，请先在参数配置页面生成 systemd 服务', 'info');
                 return;
             }
             navigator.clipboard.writeText(_lastCommandData.command_single).then(() => {
@@ -396,7 +396,7 @@
 
         function downloadCommand() {
             if (!_lastCommandData || !_lastCommandData.command_single) {
-                showToast('⚠️ 没有可导出的命令，请先刷新命令', 'info');
+                showToast('⚠️ 没有可导出的命令，请先在参数配置页面生成 systemd 服务', 'info');
                 return;
             }
             const content = '#!/bin/bash\n# llama-server 启动脚本\n# 由 LlamaPanel 自动生成\n\n' + _lastCommandData.command_single + '\n';
