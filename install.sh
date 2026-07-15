@@ -129,11 +129,20 @@ SERVICE
 # 重新加载 systemd
 sudo systemctl daemon-reload
 
-# 配置 sudoers 权限（允许服務運行用戶重启自身服务 + 修复 .git 权限）
+# 配置 sudoers 权限（允许服務運行用戶重启自身服务 + 修复 .git 权限 + 管理 llama-server）
 echo "🔐 配置 sudoers 权限..."
 sudo tee /etc/sudoers.d/llamapanel > /dev/null << SUDOERS
 # LlamaPanel 服务运行用户重启自身服务的权限
 $RUN_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart llamapanel
+# 允许 llama运行 页面通过 systemctl 启动/停止 llama-server
+$RUN_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl start llama-server
+$RUN_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop llama-server
+$RUN_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl status llama-server
+$RUN_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active llama-server
+# 允许参数配置页面生成 llama-server.service（写入 /etc/systemd/system/）
+$RUN_USER ALL=(ALL) NOPASSWD: /bin/cp * /etc/systemd/system/llama-server.service
+$RUN_USER ALL=(ALL) NOPASSWD: /bin/chmod 644 /etc/systemd/system/llama-server.service
+$RUN_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl daemon-reload
 # 允许更新时自动修复 .git 目录权限（无需用户手动操作）
 $RUN_USER ALL=(ALL) NOPASSWD: /bin/chmod -R 777 $PROJECT_DIR/.git
 # 允许更新时自动修复 .git 目录归属（一劳永逸解决权限问题）

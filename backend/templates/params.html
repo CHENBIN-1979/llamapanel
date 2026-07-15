@@ -6,6 +6,8 @@
     <div class="action-bar">
         <button class="btn btn-primary" onclick="addEmptyCard()">添加模型</button>
         <button class="btn btn-secondary" onclick="reloadAll()">重新加载</button>
+        <button class="btn btn-secondary" onclick="saveGlobalParams()">保存参数</button>
+        <button class="btn btn-secondary" onclick="saveAsService()">保存为 systemd 服务</button>
     </div>
 
     <!-- 模型列表（每個模型一個獨立卡片；空狀態顯示提示） -->
@@ -1819,6 +1821,47 @@
             console.error('初始化失败:', e);
             document.getElementById('formLoading').innerHTML =
                 '<div style="color:#e53e3e;">❌ 加载失败: ' + e.message + '</div>';
+        }
+    }
+
+    async function saveAsService() {
+        // 调后端生成 llama-server.service
+        const btn = event.target;
+        const oldText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '生成中...';
+        try {
+            const resp = await fetch('/api/server/save-as-service', { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                // 弹窗显示生成的 service 内容
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay active';
+                modal.innerHTML = `
+                    <div class="modal-box" style="max-width:700px;">
+                        <div class="modal-header">
+                            <h3>✅ llama-server.service 已生成</h3>
+                            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <p style="color:#16a34a;margin-bottom:8px;">service 文件已写入 /etc/systemd/system/llama-server.service</p>
+                            <p style="color:#6b7280;margin-bottom:12px;font-size:12px;">后续可点击 llama运行 页面的「启动服务」按钮，通过 systemctl 启动</p>
+                            <pre style="background:#1a202c;color:#e2e8f0;padding:12px;border-radius:6px;font-family:monospace;font-size:12px;overflow-x:auto;white-space:pre-wrap;">${data.service_content.replace(/</g, '&lt;')}</pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-primary" onclick="this.closest('.modal-overlay').remove()">关闭</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            } else {
+                alert('❌ ' + (data.message || '生成失败'));
+            }
+        } catch (e) {
+            alert('❌ 生成失败: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = oldText;
         }
     }
 
