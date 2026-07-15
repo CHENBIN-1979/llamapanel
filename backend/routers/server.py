@@ -711,6 +711,230 @@ def save_config(config: Dict[str, Any]) -> bool:
         return False
 
 
+@router.post("/save-as-service")
+async def save_as_service():
+    """根据当前配置生成 /etc/systemd/system/llama-server.service"""
+    try:
+        from config import PROJECT_DIR, DATA_DIR, LINKS_DIR
+
+        config = load_config()
+
+        host = config.get("host", "127.0.0.1")
+        port = config.get("port", "8080")
+        models_max = config.get("models_max", "10")
+
+        models_dir = str(LINKS_DIR) if LINKS_DIR.exists() else str(DATA_DIR)
+        models_ini = get_models_ini_path()
+
+        # 查找 llama-server 二进位文件
+        server_path = find_llama_server()
+        if not server_path:
+            return {"success": False, "message": "未找到 llama-server 可执行文件，请先编译 llama.cpp"}
+
+        # 推断运行用户（优先用当前 web 服务的用户，但用 SUDO_USER 替換）
+        # 因为 sudo 模式下需要知道原始用户
+        import os as os_module
+        import pwd
+        run_user = "chenbin"
+        try:
+            sudo_user = os_module.environ.get("SUDO_USER", "")
+            if sudo_user and sudo_user != "root":
+                run_user = sudo_user
+            else:
+                # 用 pwd 查询当前有效用户
+                run_user = pwd.getpwuid(os_module.getuid()).pw_name
+        except:
+            pass
+
+        # 推断 WorkingDirectory（llama-server 二进位的上層目錄）
+        # 例如 /data/llamapanel/llama.cpp/build/bin/llama-server → /data/llamapanel/llama.cpp
+        from pathlib import Path as Pathlib
+        sp = Pathlib(server_path).resolve()
+        llama_dir = str(sp.parent.parent)  # bin → llama.cpp
+
+        # 生成 service 内容
+        service_content = f"""[Unit]
+Description=llama.cpp server with GPU and MTP
+After=network.target
+
+[Service]
+Type=simple
+User={run_user}
+Group=video
+SupplementaryGroups=render
+WorkingDirectory={llama_dir}
+
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="OMP_NUM_THREADS=8"
+Environment="LLAMAPANEL_DATA_DIR={DATA_DIR}"
+
+ExecStart={server_path} --models-dir {models_dir} --models-max {models_max} --models-preset {models_ini} --host {host} --port {port} --webui-mcp-proxy
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/llama-server.log
+StandardError=append:/var/log/llama-server-error.log
+
+[Install]
+WantedBy=multi-user.target
+"""
+
+        # 写入 /etc/systemd/system/llama-server.service
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".service") as tmp:
+            tmp.write(service_content)
+            tmp_path = tmp.name
+
+        # 用 sudo 复制到 /etc/systemd/system/
+        result = subprocess.run(
+            ["sudo", "-n", "cp", tmp_path, "/etc/systemd/system/llama-server.service"],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            # 如果 sudo -n 失敗（無 NOPASSWD），返回錯誤
+            return {
+                "success": False,
+                "message": f"無法寫入 /etc/systemd/system/llama-server.service（需要 sudo 權限）：{result.stderr}",
+                "service_content": service_content,
+            }
+
+        # 設置權限
+        subprocess.run(["sudo", "-n", "chmod", "644", "/etc/systemd/system/llama-server.service"])
+
+        # daemon-reload
+        subprocess.run(["sudo", "-n", "systemctl", "daemon-reload"], capture_output=True, text=True)
+
+        os.unlink(tmp_path)
+
+        return {
+            "success": True,
+            "message": f"✅ llama-server.service 已生成\n\n{service_content}",
+            "service_content": service_content,
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "message": f"生成 service 失敗: {e}\n{traceback.format_exc()}",
+        }
+
+
+@router.post("/start")
+async def start_server_api():
+    """通过 systemctl 启动 llama-server"""
+    try:
+        # 检查 service 是否存在
+        check = subprocess.run(
+            ["systemctl", "cat", "llama-server.service"],
+            capture_output=True, text=True, timeout=5
+        )
+        if check.returncode != 0:
+            return {
+                "success": False,
+                "message": "llama-server.service 不存在。请先在「参数配置」页面点击「保存為 systemd 服務」按鈕。",
+            }
+
+        # 检查是否已在运行
+        status = subprocess.run(
+            ["systemctl", "is-active", "llama-server.service"],
+            capture_output=True, text=True, timeout=5
+        )
+        if status.stdout.strip() == "active":
+            return {"success": False, "message": "服务器已在运行中"}
+
+        # 启动
+        result = subprocess.run(
+            ["sudo", "-n", "systemctl", "start", "llama-server.service"],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            return {"success": True, "message": "✅ 启动成功"}
+        else:
+            return {"success": False, "message": f"啟動失敗: {result.stderr}"}
+    except Exception as e:
+        return {"success": False, "message": f"啟動失敗: {e}"}
+
+
+@router.post("/stop")
+async def stop_server_api():
+    """通过 systemctl 停止 llama-server"""
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "systemctl", "stop", "llama-server.service"],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            return {"success": True, "message": "✅ 停止成功"}
+        else:
+            return {"success": False, "message": f"停止失敗: {result.stderr}"}
+    except Exception as e:
+        return {"success": False, "message": f"停止失敗: {e}"}
+
+
+@router.get("/status")
+async def get_server_status_api():
+    """通过 systemctl 獲取 llama-server 狀態"""
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", "llama-server.service"],
+            capture_output=True, text=True, timeout=5
+        )
+        is_active = result.stdout.strip() == "active"
+
+        # 獲取 PID
+        pid_result = subprocess.run(
+            ["systemctl", "show", "llama-server.service", "--property=MainPID"],
+            capture_output=True, text=True, timeout=5
+        )
+        pid = ""
+        if pid_result.returncode == 0:
+            for line in pid_result.stdout.split("\n"):
+                if line.startswith("MainPID="):
+                    pid = line.split("=")[1].strip()
+                    if pid == "0":
+                        pid = ""
+                    break
+
+        # 獲取 uptime
+        elapsed = ""
+        active_result = subprocess.run(
+            ["systemctl", "show", "llama-server.service", "--property=ActiveEnterTimestamp"],
+            capture_output=True, text=True, timeout=5
+        )
+        if active_result.returncode == 0:
+            import time
+            for line in active_result.stdout.split("\n"):
+                if line.startswith("ActiveEnterTimestamp="):
+                    ts_str = line.split("=")[1].strip()
+                    if ts_str:
+                        try:
+                            from datetime import datetime
+                            ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                            delta = datetime.now(ts.tzinfo) - ts
+                            secs = int(delta.total_seconds())
+                            if secs < 60:
+                                elapsed = "刚刚"
+                            elif secs < 3600:
+                                elapsed = f"{secs // 60} 分钟"
+                            else:
+                                elapsed = f"{secs // 3600} 小时 {(secs % 3600) // 60} 分钟"
+                        except:
+                            pass
+                    break
+
+        server_path = find_llama_server() or "未找到 llama-server，请先编译"
+
+        return {
+            "success": True,
+            "running": is_active,
+            "pid": pid,
+            "elapsed": elapsed,
+            "server_path": server_path,
+        }
+    except Exception as e:
+        return {"success": False, "running": False, "message": str(e)}
+
+
 def _check_flag_supported(server_path: str, flag: str) -> bool:
     """检查 llama-server 是否支持某个命令行参数"""
     try:
