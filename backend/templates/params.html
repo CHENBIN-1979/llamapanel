@@ -29,16 +29,25 @@
         </div>
     </div>
 
-    <!-- 启动命令预览 -->
+    <!-- 启动命令预览（静态显示，不调用 API） -->
     <div class="card" id="commandPreviewCard">
         <h2>启动命令预览</h2>
-        <p class="subtitle">LlamaPanel 生成的完整 llama-server 启动命令</p>
+        <p class="subtitle">LlamaPanel 生成的完整 llama-server 启动命令（参考）</p>
         <div class="command-box">
-            <code id="startCommandPreview"><span class="loading"></span> 正在生成启动命令...</code>
+            <code id="startCommandPreview">llama-server \
+  --models-dir /data/llamapanel/model_links \
+  --models-max 10 \
+  --models-preset /data/llamapanel/server_configs/models.ini \
+  --host 127.0.0.1 \
+  --port 8080 \
+  -np 1 \
+  --timeout 600 \
+  -cb \
+  --webui-mcp-proxy</code>
         </div>
-        <div style="margin-top: 8px; text-align: right;">
-            <button class="btn btn-sm" onclick="loadStartCommand()">重新生成</button>
-        </div>
+        <p class="subtitle" style="margin-top: 8px; font-size: 11px;">
+            注：实际启动命令可在「llama运行」页查看并执行。
+        </p>
     </div>
 
     <!-- models.ini 编辑器折叠面板 -->
