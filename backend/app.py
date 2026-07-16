@@ -814,6 +814,19 @@ HTML_PAGE = '''
         </div>
     
     <script>
+        // 全域函數：讓 iframe 內按鈕可呼叫 parent.openAddModelPopup() 開瀏覽器彈窗
+        window.openAddModelPopup = function() {
+            const w = 950;
+            const h = 800;
+            const left = Math.max(0, Math.round((screen.width - w) / 2));
+            const top = Math.max(0, Math.round((screen.height - h) / 2));
+            window.open(
+                '/api/params/add-model-page',
+                'AddModelPopup',
+                `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
+            );
+        };
+
         let autoRefreshInterval = null;
         let statusInterval = null;
         

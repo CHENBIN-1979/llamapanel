@@ -4,7 +4,7 @@
 
     <!-- 顶部操作按钮：新增卡片用 -->
     <div class="action-bar">
-        <a href="/api/params/add-model-page" target="_blank" class="btn btn-primary">添加模型</a>
+        <button class="btn btn-primary" onclick="parent.openAddModelPopup()">添加模型</button>
         <button class="btn btn-secondary" onclick="reloadAll()">重新加载</button>
         <button class="btn btn-secondary" onclick="saveGlobalParams()">保存参数</button>
         <button class="btn btn-secondary" onclick="saveAsService()">保存为 systemd 服务</button>
