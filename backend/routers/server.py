@@ -105,6 +105,7 @@ SERVER_PARAMS_META = {
     # ===== 模型与路径 =====
     "model": {
         "section": "模型与路径",
+        "category": "config",
         "flag": "-m",
         "type": "file_picker",
         "label": "模型文件路径 (GGUF)",
@@ -116,6 +117,7 @@ SERVER_PARAMS_META = {
     },
     "mmproj": {
         "section": "模型与路径",
+        "category": "config",
         "flag": "--mmproj",
         "type": "file_picker",
         "label": "多模态投影文件 (mmproj)",
@@ -126,6 +128,7 @@ SERVER_PARAMS_META = {
     },
     "lora": {
         "section": "模型与路径",
+        "category": "config",
         "flag": "--lora",
         "type": "text",
         "label": "LoRA 适配器",
@@ -135,6 +138,7 @@ SERVER_PARAMS_META = {
     },
     "lora_base": {
         "section": "模型与路径",
+        "category": "config",
         "flag": "--lora-base",
         "type": "text",
         "label": "LoRA 基座模型",
@@ -146,6 +150,7 @@ SERVER_PARAMS_META = {
     # ===== GPU 与加速 =====
     "n_gpu_layers": {
         "section": "GPU 与加速",
+        "category": "config",
         "flag": "-ngl",
         "type": "number",
         "label": "GPU 加速层数 (-ngl)",
@@ -158,6 +163,7 @@ SERVER_PARAMS_META = {
     },
     "no_kv_offload": {
         "section": "GPU 与加速",
+        "category": "config",
         "flag": "--no-kv-offload",
         "type": "checkbox",
         "label": "禁用 KV 缓存 GPU 加速",
@@ -167,6 +173,7 @@ SERVER_PARAMS_META = {
     },
     "cache_type_k": {
         "section": "GPU 与加速",
+        "category": "config",
         "flag": "--cache-type-k",
         "type": "select",
         "label": "K 缓存压缩类型",
@@ -182,6 +189,7 @@ SERVER_PARAMS_META = {
     },
     "cache_type_v": {
         "section": "GPU 与加速",
+        "category": "config",
         "flag": "--cache-type-v",
         "type": "select",
         "label": "V 缓存压缩类型",
@@ -197,6 +205,7 @@ SERVER_PARAMS_META = {
     },
     "no_unload": {
         "section": "GPU 与加速",
+        "category": "config",
         "flag": "--no-unload",
         "type": "checkbox",
         "label": "模型常驻 GPU 显存",
@@ -206,6 +215,7 @@ SERVER_PARAMS_META = {
     },
     "tensor_split": {
         "section": "GPU 与加速",
+        "category": "config",
         "flag": "-ts",
         "type": "text",
         "label": "多显卡分工比例",
@@ -216,6 +226,7 @@ SERVER_PARAMS_META = {
     },
     "mlock": {
         "section": "GPU 与加速",
+        "category": "config",
         "flag": "--mlock",
         "type": "checkbox",
         "label": "锁定到物理内存",
@@ -225,6 +236,7 @@ SERVER_PARAMS_META = {
     },
     "no_mmap": {
         "section": "GPU 与加速",
+        "category": "config",
         "flag": "--no-mmap",
         "type": "checkbox",
         "label": "禁用内存映射加载",
@@ -236,6 +248,7 @@ SERVER_PARAMS_META = {
     # ===== 上下文与内存 =====
     "ctx_size": {
         "section": "上下文与内存",
+        "category": "config",
         "flag": "-c",
         "type": "number",
         "label": "上下文大小 (ctx-size)",
@@ -249,6 +262,7 @@ SERVER_PARAMS_META = {
     },
     "rope_freq_base": {
         "section": "上下文与内存",
+        "category": "config",
         "flag": "--rope-freq-base",
         "type": "number",
         "label": "RoPE 频率基数",
@@ -260,6 +274,7 @@ SERVER_PARAMS_META = {
     },
     "rope_freq_scale": {
         "section": "上下文与内存",
+        "category": "config",
         "flag": "--rope-freq-scale",
         "type": "number",
         "label": "RoPE 频率缩放",
@@ -271,6 +286,7 @@ SERVER_PARAMS_META = {
     },
     "rope_scaling": {
         "section": "上下文与内存",
+        "category": "config",
         "flag": "--rope-scaling",
         "type": "select",
         "label": "RoPE 缩放类型",
@@ -284,6 +300,7 @@ SERVER_PARAMS_META = {
     },
     "rope_scale": {
         "section": "上下文与内存",
+        "category": "config",
         "flag": "--rope-scale",
         "type": "number",
         "label": "RoPE 上下文缩放",
@@ -296,6 +313,7 @@ SERVER_PARAMS_META = {
     },
     "yarn_orig_ctx": {
         "section": "上下文与内存",
+        "category": "config",
         "flag": "--yarn-orig-ctx",
         "type": "number",
         "label": "YaRN 原始上下文大小",
@@ -311,6 +329,7 @@ SERVER_PARAMS_META = {
     # ===== 采样参数 =====
     "temp": {
         "section": "采样参数",
+        "category": "config",
         "flag": "--temp",
         "type": "number",
         "label": "温度 (Temperature)",
@@ -324,6 +343,7 @@ SERVER_PARAMS_META = {
     },
     "top_k": {
         "section": "采样参数",
+        "category": "config",
         "flag": "--top-k",
         "type": "number",
         "label": "Top-K",
@@ -336,6 +356,7 @@ SERVER_PARAMS_META = {
     },
     "top_p": {
         "section": "采样参数",
+        "category": "config",
         "flag": "--top-p",
         "type": "number",
         "label": "Top-P (核采样)",
@@ -349,6 +370,7 @@ SERVER_PARAMS_META = {
     },
     "min_p": {
         "section": "采样参数",
+        "category": "config",
         "flag": "--min-p",
         "type": "number",
         "label": "Min-P",
@@ -362,6 +384,7 @@ SERVER_PARAMS_META = {
     },
     "repeat_penalty": {
         "section": "采样参数",
+        "category": "config",
         "flag": "--repeat-penalty",
         "type": "number",
         "label": "重复惩罚",
@@ -375,6 +398,7 @@ SERVER_PARAMS_META = {
     },
     "repeat_last_n": {
         "section": "采样参数",
+        "category": "config",
         "flag": "--repeat-last-n",
         "type": "number",
         "label": "重复惩罚窗口",
@@ -387,6 +411,7 @@ SERVER_PARAMS_META = {
     },
     "presence_penalty": {
         "section": "采样参数",
+        "category": "config",
         "flag": "--presence-penalty",
         "type": "number",
         "label": "存在惩罚 (presence-penalty)",
@@ -402,6 +427,7 @@ SERVER_PARAMS_META = {
     # ===== 服务器设置 =====
     "host": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "--host",
         "type": "text",
         "label": "监听地址 (Host)",
@@ -411,6 +437,7 @@ SERVER_PARAMS_META = {
     },
     "port": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "--port",
         "type": "number",
         "label": "监听端口 (Port)",
@@ -422,6 +449,7 @@ SERVER_PARAMS_META = {
     },
     "timeout": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "--timeout",
         "type": "number",
         "label": "模型自动卸载空闲超时 (秒)",
@@ -433,6 +461,7 @@ SERVER_PARAMS_META = {
     },
     "parallel": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "-np",
         "type": "number",
         "label": "并行序列数",
@@ -444,6 +473,7 @@ SERVER_PARAMS_META = {
     },
     "cont_batching": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "-cb",
         "type": "checkbox",
         "label": "启用持续批处理",
@@ -452,6 +482,7 @@ SERVER_PARAMS_META = {
     },
     "slots": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "--slots",
         "type": "number",
         "label": "最大 slots 数",
@@ -463,6 +494,7 @@ SERVER_PARAMS_META = {
     },
     "slot_save_path": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "--slot-save-path",
         "type": "text",
         "label": "Slot KV 缓存保存路径",
@@ -472,6 +504,7 @@ SERVER_PARAMS_META = {
     },
     "embeddings": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "--embeddings",
         "type": "checkbox",
         "label": "启用嵌入模式",
@@ -480,6 +513,7 @@ SERVER_PARAMS_META = {
     },
     "no_webui": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "--no-webui",
         "type": "checkbox",
         "label": "禁用 WebUI",
@@ -488,6 +522,7 @@ SERVER_PARAMS_META = {
     },
     "jinja": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "--jinja",
         "type": "checkbox",
         "label": "启用 Jinja2 模板",
@@ -496,6 +531,7 @@ SERVER_PARAMS_META = {
     },
     "mcp": {
         "section": "服务器设置",
+        "category": "server",
         "flag": "--webui-mcp-proxy",
         "type": "checkbox",
         "label": "启用 WebUI MCP Proxy",
@@ -506,6 +542,7 @@ SERVER_PARAMS_META = {
     # ===== 线程与性能 =====
     "threads": {
         "section": "线程与性能",
+        "category": "config",
         "flag": "-t",
         "type": "number",
         "label": "生成线程数",
@@ -518,6 +555,7 @@ SERVER_PARAMS_META = {
     },
     "threads_batch": {
         "section": "线程与性能",
+        "category": "config",
         "flag": "--threads-batch",
         "type": "number",
         "label": "批处理线程数",
@@ -530,6 +568,7 @@ SERVER_PARAMS_META = {
     },
     "batch_size": {
         "section": "线程与性能",
+        "category": "config",
         "flag": "-b",
         "type": "number",
         "label": "批处理大小 (batch-size)",
@@ -542,6 +581,7 @@ SERVER_PARAMS_META = {
     },
     "ubatch_size": {
         "section": "线程与性能",
+        "category": "config",
         "flag": "-ub",
         "type": "number",
         "label": "物理批处理大小 (ubatch-size)",
@@ -554,6 +594,7 @@ SERVER_PARAMS_META = {
     },
     "flash_attn": {
         "section": "线程与性能",
+        "category": "config",
         "flag": "--flash-attn",
         "type": "select",
         "label": "Flash Attention 加速",
@@ -568,6 +609,7 @@ SERVER_PARAMS_META = {
     },
     "n_cpu_moe": {
         "section": "线程与性能",
+        "category": "config",
         "flag": "--n-cpu-moe",
         "type": "number",
         "label": "MoE 专家 CPU 核心数",
@@ -589,6 +631,13 @@ SERVER_PARAMS_SECTIONS = [
     "服务器设置",
     "线程与性能",
 ]
+
+
+# Llama-server 启动参数（host、port、parallel 等），从 SERVER_PARAMS_META 中筛选
+LLAMA_SERVER_PARAMS_META = {
+    key: meta for key, meta in SERVER_PARAMS_META.items()
+    if meta.get("category") == "server"
+}
 
 # ==================== 辅助函数 ====================
 

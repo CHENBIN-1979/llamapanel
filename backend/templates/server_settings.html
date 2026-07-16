@@ -22,6 +22,17 @@
     </div>
 </div>
 
+<!-- 启动参数设置（host、port、parallel 等） -->
+<div class="card" id="llamaServerParamsCard">
+    <h2>启动参数设置</h2>
+    <p class="subtitle">llama-server 启动时使用的参数（11 个）</p>
+    <div id="llamaServerParamsBody">
+        <div style="padding:20px;text-align:center;color:#718096;">
+            <div class="loading"></div> 加载参数...
+        </div>
+    </div>
+</div>
+
 <!-- 启动命令预览（多模型模式） -->
 <div class="card" id="commandPreviewCard">
 <h2>启动命令预览</h2>
@@ -327,6 +338,7 @@
 </style>
 
     <script>
+    let llamaServerParams = __LLAMA_SERVER_PARAMS_PLACEHOLDER__;
         // ==================== 全局状态 ====================
         let serverStatusInterval = null;
 
@@ -354,25 +366,6 @@
 
         // ==================== 命令预览（多模型模式） ====================
         let _lastCommandData = null;
-
- else {
-                    preview.innerHTML = '<span style="color:#e53e3e;">⚠️ ' + escapeHtml(data.message || '无法生成启动命令') + '</span>';
-                    if (metaCount) metaCount.textContent = '📦 模型数: -';
-                    if (metaPath) metaPath.textContent = '📄 models.ini: 未配置';
-                    if (errorDiv) {
-                        const hint = data.message && data.message.includes('参数配置')
-                            ? '💡 请先前往「⚙️ 参数配置」页面添加模型并保存'
-                            : '💡 提示：' + escapeHtml(data.message || '请先配置模型');
-                        errorDiv.textContent = hint;
-                        errorDiv.style.display = 'block';
-                    }
-                    _lastCommandData = null;
-                }
-            } catch(e) {
-                preview.innerHTML = '<span style="color:#e53e3e;">❌ 获取命令失败: ' + escapeHtml(e.message) + '</span>';
-                _lastCommandData = null;
-            }
-        }
 
         // ==================== 命令复制与导出 ====================
         function copyCommand() {
@@ -545,4 +538,40 @@
 
         // ==================== 启动 ====================
         document.addEventListener('DOMContentLoaded', initPage);
+    
+        // ==================== 啟動參數渲染 ====================
+        function renderLlamaServerParams() {
+            const container = document.getElementById('llamaServerParamsBody');
+            if (!container) return;
+
+            let html = '';
+            for (const [key, param] of Object.entries(llamaServerParams)) {
+                const flagHtml = param.flag 
+                    ? '<code style="background:#eff6ff;color:#2563eb;padding:1px 6px;border-radius:3px;font-size:11px;">' + escapeHtml(param.flag) + '</code>'
+                    : '';
+                const desc = param.description ? escapeHtml(param.description) : '';
+                const def = param.default !== undefined && param.default !== '' && param.default !== null
+                    ? '<span style="color:#6b7280;font-size:11px;"> 默認：<code>' + escapeHtml(String(param.default)) + '</code></span>'
+                    : '';
+                
+                html += '<div style="padding:10px 0;border-bottom:1px solid #f3f4f6;">';
+                html += '  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+                html += '    <strong style="font-size:13px;">' + escapeHtml(param.label || key) + '</strong>';
+                html += '    ' + flagHtml;
+                html += '    <code style="color:#6b7280;font-size:11px;">' + escapeHtml(key) + '</code>';
+                html += '  </div>';
+                if (desc) html += '  <div style="font-size:12px;color:#6b7280;line-height:1.6;">' + desc + '</div>';
+                if (def) html += '  <div style="margin-top:4px;">' + def + '</div>';
+                html += '</div>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        // 頁面載入時直接渲染（llamaServerParams 已從後端注入）
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', renderLlamaServerParams);
+        } else {
+            renderLlamaServerParams();
+        }
     </script>

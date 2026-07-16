@@ -12,7 +12,7 @@ import threading
 # 动态获取 backend 目录路径，支持本地开发和服务器部署
 sys.path.append(str(Path(__file__).parent))
 from installer import LlamaCppInstaller
-from routers.server import SERVER_PARAMS_META, SERVER_PARAMS_SECTIONS
+from routers.server import SERVER_PARAMS_META, SERVER_PARAMS_SECTIONS, LLAMA_SERVER_PARAMS_META
 from routers import download_router, local_router, progress_router, system_router, server_router, set_model_manager
 from model_manager import ModelManager
 from config import PROJECT_DIR, LOGS_DIR, ensure_dirs
@@ -30,6 +30,13 @@ if _PARAMS_HTML_PATH.exists():
     PARAMS_HTML_CONTENT = _PARAMS_HTML_PATH.read_text("utf-8")
 else:
     PARAMS_HTML_CONTENT = "<div class='card'><h1>加载失败</h1><p>params.html 文件未找到</p></div>"
+
+# 读取 server_settings.html 内容，直接嵌入 llama运行页（不用 iframe）
+_SERVER_SETTINGS_HTML_PATH = Path(__file__).parent / "templates" / "server_settings.html"
+if _SERVER_SETTINGS_HTML_PATH.exists():
+    SERVER_SETTINGS_HTML_CONTENT = _SERVER_SETTINGS_HTML_PATH.read_text("utf-8")
+else:
+    SERVER_SETTINGS_HTML_CONTENT = "<div class='card'><h1>加载失败</h1><p>server_settings.html 文件未找到</p></div>"
 
 installer = LlamaCppInstaller()
 
@@ -813,7 +820,7 @@ HTML_PAGE = '''
     
         <!-- 服务器设置页面容器 -->
         <div id="settingsPage" class="page-content">
-            <iframe src="/api/server/settings-page" style="width: 100%; min-height: 800px; border: none; border-radius: 16px; background: white;"></iframe>
+            __SERVER_SETTINGS_HTML_INJECT__
         </div>
 
         <!-- 系统信息页面容器 -->
@@ -1476,15 +1483,22 @@ HTML_PAGE = '''
 
 @app.get("/")
 async def root():
-    # 嵌入 params.html 內容（取代 iframe + 移除啟動命令預覽）
+    # 嵌入 params.html 與 server_settings.html 內容（取代 iframe）
     import json
     params_meta_json = json.dumps(SERVER_PARAMS_META, ensure_ascii=False)
     params_sections_json = json.dumps(SERVER_PARAMS_SECTIONS, ensure_ascii=False)
-    # 先把 params.html 內的佔位符替換掉（這些佔位符只存在於 PARAMS_HTML_CONTENT，不存在於 HTML_PAGE）
+    llama_server_params_json = json.dumps(LLAMA_SERVER_PARAMS_META, ensure_ascii=False)
+
+    # 先把 params.html 內的佔位符替換掉
     params_content = PARAMS_HTML_CONTENT.replace("__PARAMS_META_PLACEHOLDER__", params_meta_json)
     params_content = params_content.replace("__PARAMS_SECTIONS_PLACEHOLDER__", params_sections_json)
-    # 再把處理過的 params.html 塞進主頁
+
+    # 把 server_settings.html 內的 llamaServerParams 佔位符替換掉
+    settings_content = SERVER_SETTINGS_HTML_CONTENT.replace("__LLAMA_SERVER_PARAMS_PLACEHOLDER__", llama_server_params_json)
+
+    # 再把兩個處理過的內容塞進主頁
     html = HTML_PAGE.replace("__PARAMS_HTML_INJECT__", params_content)
+    html = html.replace("__SERVER_SETTINGS_HTML_INJECT__", settings_content)
     return HTMLResponse(content=html)
 
 @app.get("/api/status")

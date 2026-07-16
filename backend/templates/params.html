@@ -1622,10 +1622,13 @@
         const container = document.getElementById('globalParamsBody');
         if (!container) return;
 
+        // 只顯示 category = "config" 的參數（啟動參數 host/port/parallel 等放在 llama运行頁）
+        const configEntries = Object.entries(paramsMeta)
+            .filter(([key, p]) => p.category === 'config');
+
         let html = '';
         for (const sectionName of sections) {
-            const sectionParams = Object.entries(paramsMeta)
-                .filter(([key, p]) => p.section === sectionName);
+            const sectionParams = configEntries.filter(([key, p]) => p.section === sectionName);
             if (sectionParams.length === 0) continue;
 
             html += '<div class="card" style="margin-bottom:12px;">';
