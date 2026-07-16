@@ -9,6 +9,11 @@
         <button class="btn btn-secondary" onclick="saveGlobalParams()">保存参数</button>
         <button class="btn btn-secondary" onclick="saveAsService()">保存为 systemd 服务</button>
     </div>
+    
+    <!-- 提示信息：弹窗被阻止时的说明 -->
+    <div id="popupWarning" style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:12px;margin:12px 0;display:none;">
+        <strong>注意：</strong> 点击按钮后请允许弹窗（可能需要在浏览器地址栏点击"阻止"图标），然后选择"始终允许此站点打开弹窗"。
+    </div>
 
     <!-- 模型列表（每個模型一個獨立卡片；空狀態顯示提示） -->
     <div class="models-grid" id="modelsGrid">
@@ -1872,6 +1877,12 @@
 
     // ==================== 初始化 ====================
     function openAddModelPopup() {
+        // 显示弹窗提示
+        const warning = document.getElementById('popupWarning');
+        if (warning) {
+            warning.style.display = 'block';
+        }
+        
         // 開啟瀏覽器彈出視窗顯示 42 個參數表單
         const w = 950;
         const h = 800;
@@ -1882,35 +1893,7 @@
             'AddModelPopup',
             `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
         );
-    }
-
-    async function initPage() {
-        try {
-            // 加载参数元数据
-            const metaResp = await fetch('/api/server/params-meta');
-            const metaData = await metaResp.json();
-            if (metaData.success) {
-                paramsMeta = metaData.params;
-                sections = metaData.sections;
-            }
-
-            // 加载模型配置
-            await loadModelsConfig();
-
-        } catch (e) {
-            console.error('初始化失败:', e);
-            const container = document.getElementById('modelsListBody');
-            if (container) {
-                container.innerHTML = '<div style="color:#e53e3e;padding:20px;">❌ 加载失败：' + e.message + '</div>';
-            }
-        }
-    }
-
-            // 自动加载全局参数和模型配置（不显示提示）
-            await loadGlobalParams();
-            await loadModelsConfig();
-
-        } catch (e) {
+    } catch (e) {
             console.error('初始化失败:', e);
             document.getElementById('formLoading').innerHTML =
                 '<div style="color:#e53e3e;">❌ 加载失败: ' + e.message + '</div>';
