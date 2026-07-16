@@ -12,6 +12,7 @@ import threading
 # 动态获取 backend 目录路径，支持本地开发和服务器部署
 sys.path.append(str(Path(__file__).parent))
 from installer import LlamaCppInstaller
+from routers.server import SERVER_PARAMS_META
 from routers import download_router, local_router, progress_router, system_router, server_router, set_model_manager
 from model_manager import ModelManager
 from config import PROJECT_DIR, LOGS_DIR, ensure_dirs
@@ -1476,7 +1477,10 @@ HTML_PAGE = '''
 @app.get("/")
 async def root():
     # 嵌入 params.html 內容（取代 iframe + 移除啟動命令預覽）
+    import json
+    params_meta_json = json.dumps(SERVER_PARAMS_META, ensure_ascii=False)
     html = HTML_PAGE.replace("__PARAMS_HTML_INJECT__", PARAMS_HTML_CONTENT)
+    html = html.replace("__PARAMS_META_PLACEHOLDER__", params_meta_json)
     return HTMLResponse(content=html)
 
 @app.get("/api/status")
