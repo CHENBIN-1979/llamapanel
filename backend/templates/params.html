@@ -4,7 +4,7 @@
 
     <!-- 顶部操作按钮：新增卡片用 -->
     <div class="action-bar">
-        <button class="btn btn-primary" onclick="addEmptyCard()">添加模型</button>
+        <button class="btn btn-primary" onclick="openAddModelPopup()">添加模型</button>
         <button class="btn btn-secondary" onclick="reloadAll()">重新加载</button>
         <button class="btn btn-secondary" onclick="saveGlobalParams()">保存参数</button>
         <button class="btn btn-secondary" onclick="saveAsService()">保存为 systemd 服务</button>
@@ -1871,6 +1871,19 @@
     }
 
     // ==================== 初始化 ====================
+    function openAddModelPopup() {
+        // 開啟瀏覽器彈出視窗顯示 42 個參數表單
+        const w = 950;
+        const h = 800;
+        const left = (screen.width - w) / 2;
+        const top = (screen.height - h) / 2;
+        window.open(
+            '/api/params/add-model-page',
+            'AddModelPopup',
+            `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+    }
+
     async function initPage() {
         try {
             // 加载参数元数据

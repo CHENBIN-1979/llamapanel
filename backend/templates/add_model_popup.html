@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>添加模型 - LlamaPanel</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=8">
+    <style>
+        body { margin: 0; padding: 0; background: #f7f8fa; }
+        .popup-container { max-width: 900px; margin: 0 auto; padding: 16px; }
+        .popup-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 12px 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; }
+        .popup-header h2 { margin: 0; font-size: 18px; color: #1f2937; }
+        .popup-close { background: none; border: 1px solid #e5e7eb; border-radius: 4px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; color: #6b7280; }
+        .popup-close:hover { background: #f3f4f6; }
+        .popup-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px; margin-bottom: 12px; }
+        .popup-section h3 { font-size: 14px; font-weight: 600; color: #1f2937; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
+        .form-row { display: grid; grid-template-columns: 180px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .form-row label { font-size: 12px; color: #4b5563; }
+        .form-row label .required { color: #dc2626; }
+        .form-row label .desc { display: block; font-size: 11px; color: #9ca3af; margin-top: 2px; }
+        .form-row input[type="text"], .form-row input[type="number"], .form-row select {
+            width: 100%; padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;
+            font-family: monospace;
+        }
+        .form-row input:focus, .form-row select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 1px rgba(37,99,235,0.15); }
+        .form-row .checkbox-wrap { display: flex; align-items: center; gap: 6px; }
+        .form-row .checkbox-wrap input { width: auto; }
+        .section-group { margin-bottom: 12px; }
+        .section-group-title { font-size: 12px; font-weight: 600; color: #6b7280; padding: 6px 0; border-bottom: 1px solid #e5e7eb; margin-bottom: 8px; }
+        .popup-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; position: sticky; bottom: 0; }
+        .btn { padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 14px; background: #fff; color: #374151; }
+        .btn:hover { background: #f3f4f6; }
+        .btn-primary { background: #2563eb; color: white; border-color: #2563eb; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-success { background: #16a34a; color: white; border-color: #16a34a; }
+        .btn-success:hover { background: #15803d; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+<div class="popup-container">
+    <div class="popup-header">
+        <h2>添加模型</h2>
+        <button class="popup-close" onclick="window.close()" title="关闭">×</button>
+    </div>
+
+    <div class="popup-section">
+        <h3>基础信息</h3>
+        <div class="form-row">
+            <label>模型名称 <span class="required">*</span></label>
+            <input type="text" id="modelName" placeholder="例如：Qwen2.5-7B" autofocus>
+        </div>
+        <div class="form-row">
+            <label>Section 名称</label>
+            <input type="text" id="sectionName" placeholder="例如：qwen2.5-7b（留空将自动从名称生成）">
+        </div>
+        <div style="font-size:11px;color:#6b7280;margin-top:-4px;margin-bottom:8px;">Section 名称用於 models.ini 中的 [section] 名称，建议使用英文小写</div>
+    </div>
+
+    <div class="popup-section">
+        <h3>服务器参数（42 个，來自 SERVER_PARAMS_META）</h3>
+        <div id="paramsContainer">加载中...</div>
+    </div>
+
+    <div class="popup-footer">
+        <button class="btn" onclick="window.close()">取消</button>
+        <button class="btn btn-primary" onclick="saveModel()">确定保存</button>
+    </div>
+</div>
+
+<script>
+let paramsMeta = {};
+let sections = [];
+
+async function init() {
+    // 从主视窗获取 SERVER_PARAMS_META
+    if (window.opener && !window.opener.closed && window.opener.paramsMeta) {
+        paramsMeta = window.opener.paramsMeta;
+        sections = window.opener.sections || [];
+    } else {
+        // 备选：从后端 API 加载
+        try {
+            const resp = await fetch('/api/server/params-meta');
+            const data = await resp.json();
+            if (data.success) {
+                paramsMeta = data.params;
+                sections = data.sections || [];
+            }
+        } catch (e) {
+            console.error('加载参数元数据失败:', e);
+        }
+    }
+    renderParams();
+}
+
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
+function renderParams() {
+    const container = document.getElementById('paramsContainer');
+    if (!container) return;
+    if (Object.keys(paramsMeta).length === 0) {
+        container.innerHTML = '<div style="color:#dc2626;padding:12px;">無法載入參數，請關閉視窗重試</div>';
+        return;
+    }
+    let html = '';
+    let currentSection = '';
+    for (const key of Object.keys(paramsMeta)) {
+        const param = paramsMeta[key];
+        if (param.section !== currentSection) {
+            if (currentSection) html += '</div>';
+            currentSection = param.section;
+            html += `<div class="section-group"><div class="section-group-title">${escapeHtml(currentSection)}</div>`;
+        }
+        html += renderParamField(key, param);
+    }
+    if (currentSection) html += '</div>';
+    container.innerHTML = html;
+}
+
+function renderParamField(key, param) {
+    const id = `param-${key}`;
+    const defaultVal = param.default !== undefined ? param.default : '';
+    const refHtml = param.ref_scenario 
+        ? `<span class="desc">${escapeHtml(param.ref_scenario)}</span>` 
+        : (param.description ? `<span class="desc">${escapeHtml(param.description)}</span>` : '');
+    
+    let inputHtml = '';
+    if (param.type === 'checkbox') {
+        const checked = defaultVal === true || defaultVal === 'true' ? 'checked' : '';
+        inputHtml = `<div class="checkbox-wrap"><input type="checkbox" id="${id}" data-key="${key}" ${checked}><span style="font-size:12px;">${escapeHtml(param.label)}</span></div>`;
+    } else if (param.type === 'select' && param.options) {
+        const opts = param.options.map(o => 
+            `<option value="${escapeHtml(o.value)}" ${o.value === defaultVal ? 'selected' : ''}>${escapeHtml(o.label)}</option>`
+        ).join('');
+        inputHtml = `<select id="${id}" data-key="${key}">${opts}</select>`;
+    } else if (param.type === 'file_picker') {
+        inputHtml = `<input type="text" id="${id}" data-key="${key}" value="${escapeHtml(String(defaultVal))}" placeholder="${escapeHtml(param.placeholder || '')}">`;
+    } else {
+        const inputType = param.type === 'number' ? 'number' : 'text';
+        inputHtml = `<input type="${inputType}" id="${id}" data-key="${key}" value="${escapeHtml(String(defaultVal))}" placeholder="${escapeHtml(param.placeholder || '')}">`;
+    }
+    
+    const requiredMark = param.required ? '<span class="required">*</span>' : '';
+    return `<div class="form-row">
+        <label>${escapeHtml(param.label)}${requiredMark}${refHtml}</label>
+        ${inputHtml}
+    </div>`;
+}
+
+async function saveModel() {
+    const modelName = document.getElementById('modelName').value.trim();
+    const sectionName = document.getElementById('sectionName').value.trim() 
+        || modelName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+    
+    if (!modelName) {
+        alert('❌ 请输入模型名称');
+        return;
+    }
+    
+    // 收集所有 42 個參數
+    const params = {};
+    for (const key of Object.keys(paramsMeta)) {
+        const el = document.getElementById(`param-${key}`);
+        if (!el) continue;
+        const param = paramsMeta[key];
+        if (param.type === 'checkbox') {
+            params[key] = el.checked;
+        } else {
+            params[key] = el.value.trim();
+        }
+    }
+    
+    // 通知主视窗保存
+    try {
+        const resp = await fetch('/api/params/add-model', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                _section: sectionName,
+                name: modelName,
+                params: params
+            })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            // 通知主视窗更新列表
+            if (window.opener && !window.opener.closed && window.opener.loadModelsConfig) {
+                await window.opener.loadModelsConfig();
+                if (window.opener.renderModelList) window.opener.renderModelList();
+            }
+            alert('✅ 模型已添加：' + modelName);
+            window.close();
+        } else {
+            alert('❌ ' + (data.message || '保存失败'));
+        }
+    } catch (e) {
+        alert('❌ 保存失败: ' + e.message);
+    }
+}
+
+init();
+</script>
+</body>
+</html>

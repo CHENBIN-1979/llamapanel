@@ -77,6 +77,7 @@ def get_config_ini_path() -> Path:
 # ==================== 读取 HTML 模板（含错误包容） ====================
 PARAMS_HTML = "<h1>页面加载失败</h1>"
 SERVER_SETTINGS_HTML = "<h1>页面加载失败</h1>"
+ADD_MODEL_POPUP_HTML = "<h1>添加模型弹窗加载失败</h1>"
 try:
     base_path = Path(__file__).parent.parent / "templates"
     # 参数配置页面
@@ -89,8 +90,14 @@ try:
     if settings_path.exists():
         with open(settings_path, 'r', encoding='utf-8') as f:
             SERVER_SETTINGS_HTML = f.read()
+    # 弹窗页面（添加模型）
+    popup_path = base_path / "add_model_popup.html"
+    if popup_path.exists():
+        with open(popup_path, 'r', encoding='utf-8') as f:
+            ADD_MODEL_POPUP_HTML = f.read()
 except Exception as e:
     print(f"[server] ⚠️ 读取模板失败: {e}")
+    ADD_MODEL_POPUP_HTML = "<h1>添加模型弹窗加载失败</h1>"
 
 # ==================== llama-server 所有可用参数定义 ====================
 # 这些参数用于前端表单的自动生成和验证
@@ -1818,3 +1825,55 @@ async def get_start_command():
         "models_ini_path": str(models_ini),
         "models_count": len(parser.sections()),
     }
+
+
+@router.get("/params/add-model-page")
+async def get_add_model_page():
+    """添加模型弹窗页面（独立 HTML 页面）"""
+    return HTMLResponse(content=ADD_MODEL_POPUP_HTML)
+
+
+@router.post("/params/add-model")
+async def add_model_via_popup(request: Request):
+    """弹窗保存新模型到 models.ini"""
+    try:
+        data = await request.json()
+        section_name = data.get("_section", "").strip()
+        model_name = data.get("name", "").strip()
+        params = data.get("params", {})
+        
+        if not model_name:
+            return {"success": False, "message": "请输入模型名称"}
+        if not section_name:
+            import re as _re
+            section_name = _re.sub(r"[^a-zA-Z0-9_-]", "_", model_name).lower()
+        
+        models_ini = get_models_ini_path()
+        config = configparser.ConfigParser()
+        if models_ini.exists():
+            config.read(models_ini, encoding="utf-8")
+        
+        if config.has_section(section_name):
+            return {"success": False, "message": f"Section 名称已存在: {section_name}"}
+        
+        config.add_section(section_name)
+        config.set(section_name, "name", model_name)
+        
+        # 寫入用戶設定的 42 個參數
+        for key, val in params.items():
+            if val is None or val == "":
+                continue
+            if isinstance(val, bool):
+                config.set(section_name, key, "true" if val else "false")
+            else:
+                config.set(section_name, key, str(val))
+        
+        # 確保目錄存在
+        models_ini.parent.mkdir(parents=True, exist_ok=True)
+        with open(models_ini, "w", encoding="utf-8") as f:
+            config.write(f)
+        
+        return {"success": True, "message": f"模型 {model_name} 已添加", "_section": section_name}
+    except Exception as e:
+        import traceback
+        return {"success": False, "message": f"保存失败: {e}\n{traceback.format_exc()}"}
