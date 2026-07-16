@@ -812,9 +812,23 @@ HTML_PAGE = '''
         <div id="systemPage" class="page-content hidden">
             <iframe src="/api/system/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
-    </div>
     
     <script>
+        // 監聽 iframe 的 postMessage 請求（如參數頁面要求開彈窗）
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'openAddModelPopup') {
+                const w = 950;
+                const h = 800;
+                const left = (screen.width - w) / 2;
+                const top = (screen.height - h) / 2;
+                window.open(
+                    '/api/params/add-model-page',
+                    'AddModelPopup',
+                    `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
+                );
+            }
+        });
+        
         let autoRefreshInterval = null;
         let statusInterval = null;
         
