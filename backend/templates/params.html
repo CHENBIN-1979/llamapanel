@@ -931,7 +931,7 @@
             const expanded = model._expanded === true;
 
             html += '<div class="model-card" id="card-' + escapeHtml(sectionName) + '">';
-            html += '  <div class="model-card-header" onclick="toggleCardParams('${escapeHtml(sectionName)}')">';
+            html += `  <div class="model-card-header" onclick="toggleCardParams('${escapeHtml(sectionName)}')">`;
             html += '    <span class="model-card-title">' + escapeHtml(displayName) + '</span>';
             html += '    <span class="model-card-section">[' + escapeHtml(sectionName) + ']</span>';
             html += '  </div>';
@@ -941,8 +941,8 @@
                 html += renderCardParamsHTML(model);
             } else {
                 html += '    <div class="model-card-actions">';
-                html += '      <button class="btn btn-primary" onclick="event.stopPropagation();toggleCardParams('${escapeHtml(sectionName)}')">添加模型</button>';
-                html += '      <button class="btn btn-danger-card" onclick="event.stopPropagation();deleteModelByName('${escapeHtml(sectionName)}')">删除</button>';
+                html += `      <button class="btn btn-primary" onclick="event.stopPropagation();toggleCardParams('${escapeHtml(sectionName)}')">添加模型</button>`;
+                html += `      <button class="btn btn-danger-card" onclick="event.stopPropagation();deleteModelByName('${escapeHtml(sectionName)}')">删除</button>`;
                 html += '    </div>';
             }
 
@@ -991,8 +991,8 @@
             html += '</div>';
         }
         html += '<div class="card-params-actions">';
-        html += '  <button class="btn btn-success" onclick="event.stopPropagation();saveCardParams('${escapeHtml(sectionName)}')">保存参数</button>';
-        html += '  <button class="btn btn-secondary" onclick="event.stopPropagation();toggleCardParams('${escapeHtml(sectionName)}')">收起</button>';
+        html += `  <button class="btn btn-success" onclick="event.stopPropagation();saveCardParams('${escapeHtml(sectionName)}')">保存参数</button>`;
+        html += `  <button class="btn btn-secondary" onclick="event.stopPropagation();toggleCardParams('${escapeHtml(sectionName)}')">收起</button>`;
         html += '</div>';
         html += '</div>';
         return html;
