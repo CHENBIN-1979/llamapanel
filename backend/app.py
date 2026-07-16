@@ -725,7 +725,7 @@ HTML_PAGE = '''
             <a onclick="showPage('settings')" id="navSettings" class="active">llama运行</a>
             <a onclick="showPage('download')" id="navDownload">模型下载</a>
             <a onclick="showPage('local')" id="navLocal">管理已下载模型</a>
-            <a onclick="showPage('params')" id="navParams">参数配置</a>
+            <a onclick="showPage('params')" id="navParams">模型参数设定</a>
             <a onclick="showPage('home')" id="navHome">安装与编译</a>
 
             <!-- 系统信息（可展开，带子导航） -->
