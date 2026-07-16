@@ -48,6 +48,19 @@
     </div>
 </div>
 
+<!-- 全局参数设定区（42 个服务器参数） -->
+<div class="global-params-area open" id="globalParamsArea">
+    <div class="global-params-header" onclick="toggleGlobalParams()">
+        <span>服务器参数设置（42 个）</span>
+        <span class="global-toggle-icon">▼</span>
+    </div>
+    <div class="global-params-body" id="globalParamsBody">
+        <div id="globalParamsLoading" style="padding:20px;text-align:center;color:#718096;">
+            <div class="loading"></div> 加载参数...
+        </div>
+    </div>
+</div>
+
 <!-- 添加模型模态框 -->
 <div id="addModelModal" class="modal-overlay" style="display:none;">
     <div class="modal-box" style="max-width:800px; max-height:85vh; width:90%;">
@@ -771,7 +784,7 @@
 <script>
     // ==================== 全局状态 ====================
     let paramsMeta = __PARAMS_META_PLACEHOLDER__;
-    let sections = [];
+    let sections = __PARAMS_SECTIONS_PLACEHOLDER__;
     let modelsList = [];        // 模型列表 [{section: 'qwen2.5-7b', name: 'Qwen2.5-7B'}]
     let currentModelSection = null; // 当前选中的模型 section 名称
     let currentModelParams = {}; // 当前模型的参数值
@@ -1874,5 +1887,20 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', initPage);
+    
+    // ==================== 初始化 ====================
+    async function initPage() {
+        // 參數 SERVER_PARAMS_META 已在頁面載入時直接注入，不需 API 請求
+        // 只需要加載 models.ini 和全局參數
+        try {
+            // 加載全局參數設定
+            await loadGlobalParams();
+            // 加載模型配置
+            await loadModelsConfig();
+        } catch (e) {
+            console.error('初始化失败:', e);
+        }
+    }
+    
+document.addEventListener('DOMContentLoaded', initPage);
 </script>
