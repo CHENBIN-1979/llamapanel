@@ -797,19 +797,7 @@
         return div.innerHTML;
     }
 
-    function getSectionIcon(name) {
-        const icons = {
-            '模型与路径': '📁',
-            'GPU 与加速': '🎮',
-            '上下文与内存': '🧠',
-            '采样参数': '🎯',
-            '服务器设置': '🌐',
-            '线程与性能': '⚡',
-        };
-        return icons[name] || '📋';
-    }
-
-    // ==================== INI 解析器 ====================
+        // ==================== INI 解析器 ====================
     function parseIni(text) {
         const lines = text.split('\n');
         const result = [];
@@ -1134,13 +1122,7 @@
         }
     }
 
-    function deleteModel(index) {
-        const model = models[index];
-        const modelName = model._section || `model_${index + 1}`;
-        deleteModelByName(modelName);
-    }
-
-    // ==================== 添加模型模态框 ====================
+        // ==================== 添加模型模态框 ====================
     function showAddModelModal() {
         document.getElementById('addModelModal').style.display = 'flex';
         document.getElementById('addModelNameInput').value = '';
@@ -1257,158 +1239,13 @@
     }
 
     // ==================== 全局参数渲染 ====================
-    function renderGlobalParamField(key, param) {
-        const requiredMark = param.required ? '<span class="param-required">*</span>' : '';
-        const currentVal = globalParams[key] !== undefined && globalParams[key] !== null ? globalParams[key] : param.default;
-        const refScenario = param.ref_scenario || '';
-        let inputHtml = '';
-
-        switch (param.type) {
-            case 'text':
-                inputHtml = `<input type="text" id="gparam-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}" onchange="onGlobalParamChange('${key}')">`;
-                break;
-
-            case 'number': {
-                const min = param.min !== undefined ? ` min="${param.min}"` : '';
-                const max = param.max !== undefined ? ` max="${param.max}"` : '';
-                const step = param.step !== undefined ? ` step="${param.step}"` : '';
-                inputHtml = `<input type="number" id="gparam-${key}" value="${escapeHtml(String(currentVal))}" placeholder="${escapeHtml(param.placeholder || '')}"${min}${max}${step} onchange="onGlobalParamChange('${key}')">`;
-                break;
-            }
-
-            case 'checkbox': {
-                const chkChecked = (currentVal === true || currentVal === 'true' || currentVal === '1') ? 'checked' : '';
-                inputHtml = `<input type="checkbox" id="gparam-${key}" ${chkChecked} onchange="onGlobalParamChange('${key}')">
-                             <label class="checkbox-label" for="gparam-${key}">${escapeHtml(param.label)}</label>`;
-                break;
-            }
-
-            case 'select': {
-                let options = '';
-                if (param.options) {
-                    for (const opt of param.options) {
-                        const selected = String(currentVal) === String(opt.value) ? 'selected' : '';
-                        options += `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label)}</option>`;
-                    }
-                }
-                inputHtml = `<select id="gparam-${key}" onchange="onGlobalParamChange('${key}')">${options}</select>`;
-                break;
-            }
-
-            case 'file_picker': {
-                const btnId = `gbtn-${key}`;
-                const refText = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
-                inputHtml = `<div class="input-group" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                    <input type="text" id="gparam-${key}" value="${escapeHtml(String(currentVal))}"
-                        placeholder="${escapeHtml(param.placeholder || '')}"
-                        onchange="onGlobalParamChange('${key}')"
-                        style="flex:1;min-width:120px;">
-                    <button type="button" class="btn-file-select" id="${btnId}"
-                        onclick="gfileSelect('gparam-${key}')"
-                        style="padding:4px 12px;background:#667eea;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;white-space:nowrap;">
-                        📁 选择文件
-                    </button>
-                    ${refText}
-                </div>`;
-                break;
-            }
-
-            default:
-                inputHtml = `<input type="text" id="gparam-${key}" value="${escapeHtml(String(currentVal))}" onchange="onGlobalParamChange('${key}')">`;
-        }
-
-        const flagHtml = param.flag ? `<span class="param-flag">${escapeHtml(param.flag)}</span>` : '';
-        const refHtml = (param.type !== 'file_picker' && refScenario)
-            ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
-
-        if (param.type === 'checkbox') {
-            const chkChecked = (currentVal === true || currentVal === 'true' || currentVal === '1') ? 'checked' : '';
-            const chkRefHtml = refScenario ? `<span class="param-ref">💡 ${escapeHtml(refScenario)}</span>` : '';
-            return `<div class="param-row">
-                <div class="param-top-row">
-                    <div class="param-label">
-                        <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
-                    </div>
-                    <div class="param-input">
-                        <input type="checkbox" id="gparam-${key}" ${chkChecked} onchange="onGlobalParamChange('${key}')"> ${chkRefHtml}
-                    </div>
-                </div>
-                <div class="param-desc">${escapeHtml(param.description || '')}</div>
-            </div>`;
-        }
-
-        return `<div class="param-row">
-            <div class="param-top-row">
-                <div class="param-label">
-                    <label>${requiredMark} ${escapeHtml(param.label)} ${flagHtml}</label>
-                </div>
-                <div class="param-input">${inputHtml} ${refHtml}</div>
-            </div>
-            <div class="param-desc">${escapeHtml(param.description || '')}</div>
-        </div>`;
-    }
-
-    function renderGlobalParams() {
-        const container = document.getElementById('globalParamsBody');
-        if (!container) return;
-
-        let html = '';
-        for (const sectionName of sections) {
-            const sectionParams = Object.entries(paramsMeta).filter(([key, p]) => p.section === sectionName);
-            if (sectionParams.length === 0) continue;
-
-            const sectionId = `gsection-${sectionName.replace(/\s+/g, '-')}`;
-            html += `<div class="params-section expanded" id="${escapeHtml(sectionId)}">`;
-            html += `    <div class="params-section-header" onclick="toggleSection('${escapeHtml(sectionId)}')">`;
-            html += `        <span>${getSectionIcon(sectionName)} ${escapeHtml(sectionName)}</span>`;
-            html += `        <span class="section-toggle">▼</span>`;
-            html += `    </div>`;
-            html += `    <div class="params-section-body">`;
-
-            for (const [key, param] of sectionParams) {
-                html += renderGlobalParamField(key, param);
-            }
-
-            html += `    </div></div>`;
-        }
-
-        container.innerHTML = html;
-    }
-
-    function onGlobalParamChange(key) {
-        const param = paramsMeta[key];
-        const el = document.getElementById(`gparam-${key}`);
-        if (!el) return;
-
-        if (param.type === 'checkbox') {
-            globalParams[key] = el.checked;
-        } else if (param.type === 'number') {
-            const rawVal = el.value.trim();
-            globalParams[key] = rawVal === '' ? '' : rawVal;
-        } else {
-            globalParams[key] = el.value.trim();
-        }
-    }
-
-    function toggleGlobalParams() {
+                function toggleGlobalParams() {
         const area = document.getElementById('globalParamsArea');
         if (area) area.classList.toggle('open');
     }
 
-    function gfileSelect(inputId) {
-        // 复用文件选择模态框，但用不同的输入ID
-        fileSelect(inputId);
-    }
-
-
-
-    // ==================== 交互事件 ====================
-    function toggleSection(sectionId) {
-        const el = document.getElementById(sectionId);
-        if (el) el.classList.toggle('expanded');
-    }
-
-    // ==================== 服务端文件选择器 ====================
+        // ==================== 交互事件 ====================
+        // ==================== 服务端文件选择器 ====================
     // 浏览 llamapanel 服务器上的 /data/llamapanel/model_links/ 目录
     function fileSelect(inputId) {
         // 获取或创建模态框
@@ -1551,13 +1388,6 @@
     }
 
     // ==================== 全局参数保存与加载 ====================
-    async function loadGlobalParams() {
-        // paramsMeta 已直接注入；後端沒有 /api/server/get-global-params，
-        // 直接用空物件，所有參數會以 SERVER_PARAMS_META 的 default 值顯示
-        globalParams = {};
-        renderGlobalParams();
-    }
-
     async function saveGlobalParams() {
         // 从 DOM 收集全局参数值
         for (const key in paramsMeta) {
@@ -1600,42 +1430,6 @@
             showToast('❌ 没有可保存的模型配置', 'error');
             return;
         }
-
-        try {
-            const resp = await fetch('/api/server/models-ini', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: iniContent })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                showToast('✅ ' + data.message, 'success');
-            } else {
-                showToast('❌ ' + data.message, 'error');
-            }
-        } catch (e) {
-            showToast('❌ 保存失败：' + e.message, 'error');
-        }
-    }
-
-    async function loadModelsConfig() {
-        try {
-            const resp = await fetch('/api/server/models-ini');
-            const data = await resp.json();
-            if (data.success && data.content) {
-                models = parseIni(data.content);
-                renderModelList();
-            } else {
-                models = [];
-                renderModelList();
-            }
-        } catch (e) {
-            console.error('加载模型配置失败:', e);
-            models = [];
-            renderModelList();
-        }
-    }
-
         try {
             const resp = await fetch('/api/server/models-config', {
                 method: 'POST',
@@ -1649,7 +1443,7 @@
                 showToast('❌ ' + data.message, 'error');
             }
         } catch (e) {
-            showToast('❌ 保存失败: ' + e.message, 'error');
+            showToast('❌ 保存失败：' + e.message, 'error');
         }
     }
 
@@ -1689,60 +1483,6 @@
     }
 
     // ==================== models.ini 编辑器 ====================
-    function toggleConfigIniPreview() {
-        const panel = document.querySelector('.config-ini-preview');
-        if (panel) {
-            panel.classList.toggle('open');
-            if (panel.classList.contains('open')) {
-                refreshConfigIniPreview();
-            }
-        }
-    }
-
-    async function refreshConfigIniPreview() {
-        const editor = document.getElementById('configIniEditor');
-        if (!editor) return;
-        editor.placeholder = '加载中...';
-        try {
-            const resp = await fetch('/api/server/models-ini');
-            const data = await resp.json();
-            if (data.success) {
-                editor.value = data.content || '';
-                editor.placeholder = '(models.ini 文件为空)';
-            } else {
-                editor.value = '';
-                editor.placeholder = '❌ ' + (data.message || '加载失败');
-            }
-        } catch (e) {
-            editor.value = '';
-            editor.placeholder = '❌ 加载失败：' + e.message;
-        }
-    }
-
-    async function saveConfigIniContent() {
-        const editor = document.getElementById('configIniEditor');
-        if (!editor) return;
-        const content = editor.value;
-
-        try {
-            const resp = await fetch('/api/server/models-ini', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                showToast('✅ models.ini 已保存', 'success');
-                await loadModelsConfig();
-            } else {
-                showToast('❌ ' + data.message, 'error');
-            }
-        } catch (e) {
-            showToast('❌ 保存失败：' + e.message, 'error');
-        }
-    }
-
-    // ==================== config.ini 编辑器 ====================
     function toggleConfigIniPreview() {
         const panel = document.querySelector('.config-ini-preview');
         if (panel) {
@@ -1876,15 +1616,57 @@
 
     
     // ==================== 初始化 ====================
-    async function initPage() {
-        // 參數 SERVER_PARAMS_META 已直接注入；加載全局參數與模型配置
-        try {
-            await loadGlobalParams();
-            await loadModelsConfig();
-        } catch (e) {
-            console.error('初始化失败:', e);
+        // ==================== 初始化 ====================
+    // 簡單版：直接渲染 42 個參數（唯讀，之後再加編輯版）
+    function renderSimpleParams() {
+        const container = document.getElementById('globalParamsBody');
+        if (!container) return;
+
+        let html = '';
+        for (const sectionName of sections) {
+            const sectionParams = Object.entries(paramsMeta)
+                .filter(([key, p]) => p.section === sectionName);
+            if (sectionParams.length === 0) continue;
+
+            html += '<div class="card" style="margin-bottom:12px;">';
+            html += '  <div class="card-header" style="background:#f9fafb;padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;">';
+            html += '    ' + escapeHtml(sectionName);
+            html += '    <span style="color:#6b7280;font-weight:400;font-size:12px;margin-left:8px;">(' + sectionParams.length + ' 個參數)</span>';
+            html += '  </div>';
+            html += '  <div style="padding:8px 14px;">';
+
+            for (const [key, param] of sectionParams) {
+                const flagHtml = param.flag 
+                    ? '<code style="background:#eff6ff;color:#2563eb;padding:1px 6px;border-radius:3px;font-size:11px;">' + escapeHtml(param.flag) + '</code>'
+                    : '';
+                const desc = param.description ? escapeHtml(param.description) : '';
+                const def = param.default !== undefined && param.default !== '' 
+                    ? '<span style="color:#6b7280;font-size:11px;"> 默認：<code>' + escapeHtml(String(param.default)) + '</code></span>'
+                    : '';
+                
+                html += '<div style="padding:10px 0;border-bottom:1px solid #f3f4f6;">';
+                html += '  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+                html += '    <strong style="font-size:13px;">' + escapeHtml(param.label || key) + '</strong>';
+                html += '    ' + flagHtml;
+                html += '    <code style="color:#6b7280;font-size:11px;">' + escapeHtml(key) + '</code>';
+                html += '  </div>';
+                if (desc) html += '  <div style="font-size:12px;color:#6b7280;line-height:1.6;">' + desc + '</div>';
+                if (def) html += '  <div style="margin-top:4px;">' + def + '</div>';
+                html += '</div>';
+            }
+
+            html += '  </div>';
+            html += '</div>';
         }
+
+        container.innerHTML = html;
     }
-    
-document.addEventListener('DOMContentLoaded', initPage);
+
+    // 頁面載入時直接渲染 42 個參數（簡單版本）
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', renderSimpleParams);
+    } else {
+        renderSimpleParams();
+    }
+
 </script>
