@@ -717,7 +717,7 @@ HTML_PAGE = '''
             <a onclick="showPage('settings')" id="navSettings" class="active">llama运行</a>
             <a onclick="showPage('download')" id="navDownload">模型下载</a>
             <a onclick="showPage('local')" id="navLocal">管理已下载模型</a>
-            <a onclick="showPage('params')" id="navParams">models.ini 配置</a>
+            <a onclick="showPage('params')" id="navParams">参数配置</a>
             <a onclick="showPage('home')" id="navHome">安装与编译</a>
 
             <!-- 系统信息（可展开，带子导航） -->
@@ -805,7 +805,7 @@ HTML_PAGE = '''
             <iframe src="/api/local/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
         
-        <!-- models.ini 配置页面容器 -->
+        <!-- 参数配置页面容器 -->
         <div id="paramsPage" class="page-content hidden">
             __PARAMS_HTML_INJECT__
         </div>
