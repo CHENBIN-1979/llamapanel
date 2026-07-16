@@ -4,7 +4,7 @@
 
     <!-- 顶部操作按钮：新增卡片用 -->
     <div class="action-bar">
-        <button class="btn btn-primary" onclick="openAddModelPopup()">添加模型</button>
+        <a href="/api/params/add-model-page" target="_blank" class="btn btn-primary">添加模型</a>
         <button class="btn btn-secondary" onclick="reloadAll()">重新加载</button>
         <button class="btn btn-secondary" onclick="saveGlobalParams()">保存参数</button>
         <button class="btn btn-secondary" onclick="saveAsService()">保存为 systemd 服务</button>
@@ -1871,11 +1871,6 @@
     }
 
     // ==================== 初始化 ====================
-    function openAddModelPopup() {
-        // 透過 postMessage 通知主頁開瀏覽器彈窗（iframe 內 window.open 會被瀏覽器阻擋）
-        window.parent.postMessage({ type: 'openAddModelPopup' }, '*');
-    }
-
     async function saveAsService() {
         // 调后端生成 llama-server.service
         const btn = event.target;
