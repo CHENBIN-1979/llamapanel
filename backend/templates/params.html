@@ -71,20 +71,31 @@
 
 <!-- 添加模型模态框 -->
 <div id="addModelModal" class="modal-overlay" style="display:none;">
-    <div class="modal-box" style="max-width:400px;">
+    <div class="modal-box" style="max-width:800px; max-height:85vh; width:90%;">
         <div class="modal-header">
             <h3>添加模型</h3>
             <button class="modal-close" onclick="closeAddModelModal()">✕</button>
         </div>
-        <div class="modal-body">
-            <div style="margin-bottom:15px;">
-                <label style="display:block;margin-bottom:5px;font-weight:500;">模型名称</label>
-                <input type="text" id="addModelNameInput" placeholder="例如：Qwen2.5-7B" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+        <div class="modal-body" id="addModelBody">
+            <!-- 基础信息 -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:16px;">
+                <div>
+                    <label style="display:block;margin-bottom:5px;font-weight:500;">模型名称</label>
+                    <input type="text" id="addModelNameInput" placeholder="例如：Qwen2.5-7B" style="width:100%;padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+                </div>
+                <div>
+                    <label style="display:block;margin-bottom:5px;font-weight:500;">Section 名称</label>
+                    <input type="text" id="addModelSectionInput" placeholder="例如：qwen2.5-7b" style="width:100%;padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+                </div>
             </div>
-            <div style="margin-bottom:15px;">
-                <label style="display:block;margin-bottom:5px;font-weight:500;">Section 名称</label>
-                <input type="text" id="addModelSectionInput" placeholder="例如：qwen2.5-7b" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
-                <small style="color:#718096;display:block;margin-top:5px;">用于 models.ini 中的 [section] 名称，建议使用英文小写</small>
+            <small style="color:#6b7280;display:block;margin-bottom:12px;">Section 用于 models.ini 中的 [section] 名称，建议使用英文小写</small>
+            
+            <!-- 服务器参数（来自 SERVER_PARAMS_META，42 个参数） -->
+            <div class="params-section-header" style="background:#f9fafb;padding:8px 12px;border-radius:6px 6px 0 0;border:1px solid #e5e7eb;border-bottom:none;font-weight:600;font-size:14px;">
+                📋 服务器参数（可调整以优化性能）
+            </div>
+            <div id="addModelParamsBody" style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 6px 6px;padding:8px 12px;max-height:50vh;overflow-y:auto;">
+                <!-- JS 动态渲染 42 个参数 -->
             </div>
         </div>
         <div class="modal-footer">
@@ -1160,6 +1171,56 @@
         document.getElementById('addModelNameInput').value = '';
         document.getElementById('addModelSectionInput').value = '';
         document.getElementById('addModelNameInput').focus();
+        // 渲染 42 个服务器参数（来自 SERVER_PARAMS_META）
+        renderAddModelParams();
+    }
+
+    function renderAddModelParams() {
+        const container = document.getElementById('addModelParamsBody');
+        if (!container || !paramsMeta) return;
+        
+        let html = '';
+        let currentSection = '';
+        for (const key of Object.keys(paramsMeta)) {
+            const param = paramsMeta[key];
+            // 每个 section 一個分組
+            if (param.section !== currentSection) {
+                if (currentSection) html += '</div>';
+                currentSection = param.section;
+                html += `<div style="margin-bottom:8px;"><div style="font-size:11px;font-weight:600;color:#6b7280;padding:4px 0;border-bottom:1px solid #e5e7eb;margin-bottom:6px;">${escapeHtml(currentSection)}</div>`;
+            }
+            html += renderAddModelParamField(key, param);
+        }
+        if (currentSection) html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function renderAddModelParamField(key, param) {
+        const id = `addparam-${key}`;
+        const defaultVal = param.default !== undefined ? param.default : '';
+        let inputHtml = '';
+        
+        if (param.type === 'checkbox') {
+            const checked = defaultVal === true || defaultVal === 'true' ? 'checked' : '';
+            inputHtml = `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;"><input type="checkbox" id="${id}" ${checked} data-key="${key}"><span>${escapeHtml(param.label)}</span></label>`;
+        } else if (param.type === 'select' && param.options) {
+            const opts = param.options.map(o => 
+                `<option value="${escapeHtml(o.value)}" ${o.value === defaultVal ? 'selected' : ''}>${escapeHtml(o.label)}</option>`
+            ).join('');
+            inputHtml = `<div style="display:flex;align-items:center;gap:8px;font-size:12px;"><label style="min-width:140px;color:#4b5563;">${escapeHtml(param.label)}</label><select id="${id}" data-key="${key}" style="flex:1;padding:4px 6px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;">${opts}</select></div>`;
+        } else if (param.type === 'file_picker') {
+            inputHtml = `<div style="display:flex;align-items:center;gap:6px;font-size:12px;"><label style="min-width:140px;color:#4b5563;">${escapeHtml(param.label)}</label><input type="text" id="${id}" data-key="${key}" value="${escapeHtml(String(defaultVal))}" placeholder="${escapeHtml(param.placeholder || '')}" style="flex:1;padding:4px 6px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;"></div>`;
+        } else {
+            // text or number
+            const val = defaultVal;
+            inputHtml = `<div style="display:flex;align-items:center;gap:8px;font-size:12px;"><label style="min-width:140px;color:#4b5563;">${escapeHtml(param.label)}</label><input type="${param.type === 'number' ? 'number' : 'text'}" id="${id}" data-key="${key}" value="${escapeHtml(String(val))}" placeholder="${escapeHtml(param.placeholder || '')}" style="flex:1;padding:4px 6px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;font-family:${param.type === 'number' ? 'monospace' : 'inherit'};"></div>`;
+        }
+        
+        // 加上 ref_scenario 提示
+        const ref = param.ref_scenario || param.description || '';
+        const refHtml = ref ? `<div style="font-size:11px;color:#9ca3af;margin-left:148px;margin-top:2px;margin-bottom:6px;">${escapeHtml(ref)}</div>` : '';
+        
+        return `<div style="margin-bottom:4px;">${inputHtml}${refHtml}</div>`;
     }
 
     function closeAddModelModal() {
@@ -1186,11 +1247,30 @@
             }
         }
 
-        // 添加到 models 数组
-        models.push({
+        // 收集 42 個伺服器參數的值
+        const newModel = {
             _section: sectionName,
             name: modelName
-        });
+        };
+        const paramsBody = document.getElementById('addModelParamsBody');
+        if (paramsBody) {
+            for (const key of Object.keys(paramsMeta || {})) {
+                const el = paramsBody.querySelector(`[data-key="${key}"]`);
+                if (!el) continue;
+                const param = paramsMeta[key];
+                if (param.type === 'checkbox') {
+                    newModel[key] = el.checked;
+                } else {
+                    const v = el.value.trim();
+                    if (v !== '' && v !== param.default) {
+                        newModel[key] = v;
+                    }
+                }
+            }
+        }
+
+        // 添加到 models 数组
+        models.push(newModel);
 
         // 保存
         await saveModelsConfig();
