@@ -23,6 +23,13 @@ _STATIC_DIR = Path(__file__).parent / "static"
 _STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
+# 读取 params.html 内容，直接嵌入参数配置页（不用 iframe）
+_PARAMS_HTML_PATH = Path(__file__).parent / "templates" / "params.html"
+if _PARAMS_HTML_PATH.exists():
+    PARAMS_HTML_CONTENT = _PARAMS_HTML_PATH.read_text("utf-8")
+else:
+    PARAMS_HTML_CONTENT = "<div class='card'><h1>加载失败</h1><p>params.html 文件未找到</p></div>"
+
 installer = LlamaCppInstaller()
 
 # 创建全局单例 ModelManager 并设置到路由模块
@@ -710,7 +717,7 @@ HTML_PAGE = '''
             <a onclick="showPage('settings')" id="navSettings" class="active">llama运行</a>
             <a onclick="showPage('download')" id="navDownload">模型下载</a>
             <a onclick="showPage('local')" id="navLocal">管理已下载模型</a>
-            <a onclick="showPage('params')" id="navParams">参数配置</a>
+            <a onclick="showPage('params')" id="navParams">models.ini 配置</a>
             <a onclick="showPage('home')" id="navHome">安装与编译</a>
 
             <!-- 系统信息（可展开，带子导航） -->
@@ -798,9 +805,9 @@ HTML_PAGE = '''
             <iframe src="/api/local/page" style="width: 100%; min-height: 600px; border: none; border-radius: 16px; background: white;"></iframe>
         </div>
         
-        <!-- 参数配置页面容器 -->
+        <!-- models.ini 配置页面容器 -->
         <div id="paramsPage" class="page-content hidden">
-            <iframe src="/api/server/params-page" style="width: 100%; min-height: 800px; border: none; border-radius: 16px; background: white;"></iframe>
+            __PARAMS_HTML_INJECT__
         </div>
     
         <!-- 服务器设置页面容器 -->
@@ -814,19 +821,6 @@ HTML_PAGE = '''
         </div>
     
     <script>
-        // 全域函數：讓 iframe 內按鈕可呼叫 parent.openAddModelPopup() 開瀏覽器彈窗
-        window.openAddModelPopup = function() {
-            const w = 950;
-            const h = 800;
-            const left = Math.max(0, Math.round((screen.width - w) / 2));
-            const top = Math.max(0, Math.round((screen.height - h) / 2));
-            window.open(
-                '/api/params/add-model-page',
-                'AddModelPopup',
-                `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
-            );
-        };
-
         let autoRefreshInterval = null;
         let statusInterval = null;
         
@@ -1481,7 +1475,9 @@ HTML_PAGE = '''
 
 @app.get("/")
 async def root():
-    return HTMLResponse(content=HTML_PAGE)
+    # 嵌入 params.html 內容（取代 iframe + 移除啟動命令預覽）
+    html = HTML_PAGE.replace("__PARAMS_HTML_INJECT__", PARAMS_HTML_CONTENT)
+    return HTMLResponse(content=html)
 
 @app.get("/api/status")
 async def get_status():

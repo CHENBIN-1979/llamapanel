@@ -4,7 +4,7 @@
 
     <!-- 顶部操作按钮：新增卡片用 -->
     <div class="action-bar">
-        <button class="btn btn-primary" onclick="parent.openAddModelPopup()">添加模型</button>
+        <button class="btn btn-primary" onclick="showAddModelModal()">添加模型</button>
         <button class="btn btn-secondary" onclick="reloadAll()">重新加载</button>
         <button class="btn btn-secondary" onclick="saveGlobalParams()">保存参数</button>
         <button class="btn btn-secondary" onclick="saveAsService()">保存为 systemd 服务</button>
@@ -29,27 +29,6 @@
         <div class="current-model-params-footer">
             <button class="btn btn-primary" onclick="saveCurrentModelParams()">保存当前模型参数</button>
         </div>
-    </div>
-
-    <!-- 启动命令预览（静态显示，不调用 API） -->
-    <div class="card" id="commandPreviewCard">
-        <h2>启动命令预览</h2>
-        <p class="subtitle">LlamaPanel 生成的完整 llama-server 启动命令（参考）</p>
-        <div class="command-box">
-            <code id="startCommandPreview">llama-server \
-  --models-dir /data/llamapanel/model_links \
-  --models-max 10 \
-  --models-preset /data/llamapanel/server_configs/models.ini \
-  --host 127.0.0.1 \
-  --port 8080 \
-  -np 1 \
-  --timeout 600 \
-  -cb \
-  --webui-mcp-proxy</code>
-        </div>
-        <p class="subtitle" style="margin-top: 8px; font-size: 11px;">
-            注：实际启动命令可在「llama运行」页查看并执行。
-        </p>
     </div>
 
     <!-- models.ini 编辑器折叠面板 -->
