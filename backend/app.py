@@ -1480,9 +1480,11 @@ async def root():
     import json
     params_meta_json = json.dumps(SERVER_PARAMS_META, ensure_ascii=False)
     params_sections_json = json.dumps(SERVER_PARAMS_SECTIONS, ensure_ascii=False)
-    html = HTML_PAGE.replace("__PARAMS_HTML_INJECT__", PARAMS_HTML_CONTENT)
-    html = html.replace("__PARAMS_META_PLACEHOLDER__", params_meta_json)
-    html = html.replace("__PARAMS_SECTIONS_PLACEHOLDER__", params_sections_json)
+    # 先把 params.html 內的佔位符替換掉（這些佔位符只存在於 PARAMS_HTML_CONTENT，不存在於 HTML_PAGE）
+    params_content = PARAMS_HTML_CONTENT.replace("__PARAMS_META_PLACEHOLDER__", params_meta_json)
+    params_content = params_content.replace("__PARAMS_SECTIONS_PLACEHOLDER__", params_sections_json)
+    # 再把處理過的 params.html 塞進主頁
+    html = HTML_PAGE.replace("__PARAMS_HTML_INJECT__", params_content)
     return HTMLResponse(content=html)
 
 @app.get("/api/status")
