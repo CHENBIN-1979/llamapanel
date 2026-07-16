@@ -1552,8 +1552,10 @@
 
     // ==================== 全局参数保存与加载 ====================
     async function loadGlobalParams() {
+        console.log('[params] loadGlobalParams started');
         // 先隐藏加载指示器
         const loadingEl = document.getElementById('globalParamsLoading');
+        console.log('[params] loadingEl:', loadingEl);
         if (loadingEl) loadingEl.style.display = 'none';
         
         try {
@@ -1890,13 +1892,16 @@
     
     // ==================== 初始化 ====================
     async function initPage() {
+        console.log('[params] initPage called');
         // 參數 SERVER_PARAMS_META 已在頁面載入時直接注入，不需 API 請求
         // 只需要加載 models.ini 和全局參數
         try {
             // 加載全局參數設定
             await loadGlobalParams();
+            console.log('[params] loadGlobalParams done');
             // 加載模型配置
             await loadModelsConfig();
+            console.log('[params] loadModelsConfig done');
         } catch (e) {
             console.error('初始化失败:', e);
         }
